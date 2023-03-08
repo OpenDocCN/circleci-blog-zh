@@ -1,0 +1,171 @@
+<html>
+<head>
+<title>Migrating from CircleCI 1.0 to 2.0: tips for success - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>从CircleCI 1.0迁移到2.0:成功秘诀</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-2-0-migration-best-practices/#2018-06-27T04:08:00-07:00">https://circleci.com/blog/circleci-2-0-migration-best-practices/#2018-06-27T04:08:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>作为一名高级成功工程师，在过去的几个月里，我一直在帮助我们的许多客户将他们的项目从CircleCI 1.0迁移到2.0。在迁移了数百个项目之后，我知道团队最容易遇到问题的地方。在这篇博文中，我收集了我在将客户的项目迁移到CircleCI 2.0时最常与客户分享的技巧，以及一些在迁移过程中需要注意的问题。迁徙快乐！</p>
+
+<h3>增量测试CircleCI 2.0</h3>
+<p>你知道你可以在CircleCI 1.0和2.0上构建同一个项目吗？当开始迁移到CircleCI 2.0时，您不必马上全部投入。要让您的项目构建在1.0之上并测试2.0，请尝试以下方法:</p>
+
+<ul>
+  <li>为测试CircleCI 2.0创建一个新分支。</li>
+  <li>从该分支中删除circle.yml并添加一个. circleci/config.yml文件。</li>
+  <li>在那个分支上写一些最小的2.0配置，然后推它直到你得到一个绿色的构建。</li>
+  <li>我们建议一次做一点点配置，这样你就可以感受一下它是如何工作的。最初，只需检查代码，然后尝试安装依赖项，然后尝试运行测试。稍后，您可以开始研究如何缓存依赖项并使用更高级的功能，如工作流。一点一点地建立你的配置。</li>
+  <li>当一切工作正常时，您可以将带有新配置的分支合并到您的主项目中。</li>
+</ul>
+
+<h3>CircleCI 2.0快速提示</h3>
+
+<ul>
+  <li><code>steps</code>中列出的命令只能在<code>docker</code>部分列出的第一个容器中运行。</li>
+  <li>经常运行构建来测试到目前为止的配置。如果出现问题，您会知道自上次构建以来发生了什么变化。</li>
+  <li>最初不要添加工作流；等到你有了一个功能性的构建。</li>
+  <li>从头手动构建配置，但是使用配置转换端点作为参考。</li>
+  <li>您不能在配置的<code>environment</code>部分用环境变量定义环境变量。<ul>
+      <li>解决方法是将变量回显到BASH _ ENV中<ul>
+          <li>这只适用于bash，不适用于sh (Alpine图像只有sh)</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>用bash if语句有条件地运行命令。<ul>
+      <li>if[$ CIRCLE _ BRANCH = " master "]；然后。/ci . sh；船方不负担装货费用</li>
+    </ul>
+  </li>
+  <li>使用<code>circleci step halt</code>有条件地在该步骤停止构建<ul>
+      <li>允许您通过暂停有条件地使用<code>setup_remote_docker</code></li>
+    </ul>
+  </li>
+  <li>时区可以通过定义一个env变量来改变。<ul>
+      <li>TZ:"/usr/share/zoneinfo/America/New _ York "</li>
+    </ul>
+  </li>
+  <li>运行/dev/shm(即，/dev/shm/project)可以加速某些项目。<ul>
+      <li>像Ruby gems这样的东西是不能从共享内存中加载出来的。它们可以安装在系统的其他地方(~/vendor)并在。</li>
+    </ul>
+  </li>
+  <li>不要在很多命令前面加上sudo，而是考虑将shell设置为sudo。<ul>
+      <li>shell: sudo bash -eo pipefail</li>
+    </ul>
+  </li>
+  <li>Docker构建和docker-compose一般应该在<code>machine</code>中运行，除非特定于语言的工具(Ruby、Node、PHP等。)是预先需要的，那么远程环境就足够了。</li>
+  <li>有些任务可以设置为在后台运行，以节省总体构建时间，但要小心耗尽资源。</li>
+  <li>不同的resource_class大小可能是有益的，值得尝试一下，看看它们的影响。可能一点影响都没有。</li>
+  <li>可以将$PATH设置为字符串。如果您不知道Docker图像的$PATH，只需运行它并回显$PATH，或者看看<code>env</code>的输出。</li>
+  <li>图像的sha可以在<code>Spin up Environment</code>步骤下引用。可以将图像硬编码为sha值，使其不可变。</li>
+  <li>服务容器可以使用自定义标志运行。<ul>
+      <li>命令:[mysqld，–character-SET-server = utf8mb 4，–collation-server = utf8mb 4 _ unicode _ ci，–init-connect = ' SET NAMES utf8mb 4；']</li>
+    </ul>
+  </li>
+  <li>当在CI中运行时，配置您的测试运行程序，只产生两个线程/工作线程(或者更多，如果您使用resource_class的话)。有时候他们会基于不正确的价值观来优化自己。查看<a href="https://www.youtube.com/watch?v=CKDVkqIMpHM">此视频</a>了解更多信息。</li>
+</ul>
+
+<h3>迁移提示:1.0–2.0</h3>
+
+<ul>
+  <li>注意$CIRCLE_ARTIFACTS和$CIRCLE_TEST_REPORTS在2.0中没有定义。<ul>
+      <li>你可以自己定义它们，但是如果你这样做的话，一定要确定。</li>
+    </ul>
+  </li>
+  <li>在一个存储库中迁移Linux和macOS(像React Native)应该包括在将两个配置合并到一个工作流之前为每个Linux和macOS打开一个分支。</li>
+  <li>你不能<code>sudo echo</code> -像这样管道:<code>echo "192.168.44.44 git.example.com" | sudo tee -a /etc/hosts</code></li>
+  <li>Ubuntu和Debian系统的字体是不同的。</li>
+  <li>Apache 2.2和2.4的配置有很大的不同——请确保升级您的2.2配置。</li>
+  <li>不要忘记所有1.0自动推断的命令和UI中手动存储的命令。</li>
+</ul>
+
+<h3>特定于语言的提示</h3>
+
+<p><em> Python </em></p>
+<ul>
+  <li>通常期望类名而不是文件名来运行测试</li>
+</ul>
+
+<p><em>红宝石</em></p>
+<ul>
+  <li>在AUFS上，Ruby文件的加载顺序可能与预期的不同</li>
+  <li>将$RAILS_ENV和$RACK_ENV定义为<code>test</code>(这在1.0中是自动的)</li>
+</ul>
+
+<p><em>基于Java的</em></p>
+<ul>
+  <li>Java(应用、工具和服务)会OOM(内存不足)，因为它不能识别有多少内存可用。应该定义一个环境变量。如果它还在飞，那就需要一个更大的容器。<ul>
+      <li>https://circleci.com/blog/how-to-handle-java-oom-errors/</li>
+    </ul>
+  </li>
+  <li>Scala项目的文件名可能太长，包括<code>-Xmax-classfile-name</code>标志。<ul>
+      <li>https://discuse . circle ci . com/t/Scala-SBT-assembly-does-not-work/10499/10 Scala options++ = Seq("-encoding "、" utf-8 "、"-target:jvm-1.8 "、"-deprecation "、"-unchecked "、"-Xlint "、"-feature "、"-Xmax-classfile-name "、" 242" &lt;=在此添加)，</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>浏览器测试技巧</h3>
+
+<ul>
+  <li>测试有时会不可靠，看似毫无理由地失败。有些人选择自动重新运行失败的浏览器测试。缺点是破坏了定时数据。</li>
+  <li>对失败的测试进行截图，使调试更容易。</li>
+  <li>VNC可以安装和使用。安装<code>metacity</code>后，该浏览器可以在VNC随意拖动。从我们的一个浏览器中运行这个映像:ssh-p PORT Ubuntu @ IP _ ADDRESS-L 5902:localhost:5901 #通过SSH连接sudo安装vnc4server元城市VNC 4 server-geometry 1280 x 1024-depth 24 export DISPLAY =:1.0元城市&amp; firefox &amp;</li>
+</ul>
+
+<h3>码头专用提示</h3>
+
+<ul>
+  <li>在cron作业上构建Docker映像。<ul>
+      <li>每周、每天或任何需要的时候构建。<ul>
+          <li>通过API很容易触发一个新的Docker映像构建</li>
+        </ul>
+      </li>
+      <li>在映像中包含像node_modules这样的依赖项。<ul>
+          <li>它们有助于缓解DNS中断带来的问题。</li>
+          <li>他们保持依赖版本受控。</li>
+          <li>即使一个模块从节点的repos中消失，运行应用程序所必需的依赖关系也是安全的。</li>
+        </ul>
+      </li>
+      <li>私有映像可以包括私有gem和私有源缓存。</li>
+    </ul>
+  </li>
+  <li>数据库没有套接字文件，因此需要定义主机变量($PGHOST，$MYSQL_HOST)来指定127.0.0.1，强制使用TCP。</li>
+  <li>使用CircleCI便利版或官方Docker Hub镜像增加了在主机上缓存镜像的机会。<ul>
+      <li>构建这些图像将减少需要下载的图像图层的数量。</li>
+    </ul>
+  </li>
+  <li>使用容器的-ram变体将在/dev/shm中运行给定的守护进程。</li>
+  <li>使用预安装的所有组件构建自定义映像可以加快构建速度并增加可靠性。<ul>
+      <li>Heroku(作为一个例子)可以把一个坏的更新推到他们的安装程序，破坏你的构建。</li>
+    </ul>
+  </li>
+  <li>dockerize实用程序可用于在运行测试之前等待服务容器可用。<ul>
+      <li>https://github.com/jwilder/dockerize</li>
+    </ul>
+  </li>
+  <li>ElasticSearch有自己的Docker注册表。<ul>
+      <li>https://www.docker.elastic.co/</li>
+    </ul>
+  </li>
+  <li>容器可以有名称，因此多个给定的服务可以在同一个端口上以不同的主机名运行。</li>
+  <li>特权容器可以在远程环境和<code>machine</code>中运行。</li>
+  <li>卷不能从基本Docker executor装载到远程环境中。<ul>
+      <li><code>docker cp</code>可以传输文件。</li>
+      <li>引用的卷将从远程环境中装载到容器中。</li>
+    </ul>
+  </li>
+</ul>
+
+<p>有关迁移到CircleCI 2.0的更多信息，请参见我们的<a href="https://circleci.com/docs/">文档</a>。如果您需要更多帮助，请访问我们的<a href="https://support.circleci.com/hc/en-us">支持页面</a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

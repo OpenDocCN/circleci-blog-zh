@@ -1,0 +1,56 @@
+<html>
+<head>
+<title>Permissions 101: Understanding Permissions on CircleCI - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>权限101:了解CircleCI - CircleCI上的权限</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/permissions-101-understanding-permissions-on-circleci/#2016-04-19T11:40:00-07:00">https://circleci.com/blog/permissions-101-understanding-permissions-on-circleci/#2016-04-19T11:40:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>我们最近为所有CircleCI用户推出了许多新功能。请求最多的功能之一集中在权限设置上。这篇博客将深入探讨这个新特性，它是如何工作的，以及它对使用CircleCI的你和你的团队意味着什么。</p>
+
+
+
+<p><strong>什么是权限？</strong></p>
+
+<p>权限是CircleCI上的一个新特性，它可以让您更好地控制项目的设置。使用权限，组织可以限制谁可以在CircleCI上更改“项目设置”。此设置在组织级别或组织内的项目级别可用。为此，CircleCI利用GitHub的权限来确定用户的访问权限。</p>
+
+<p><strong>用户或组织为什么要启用权限？？</strong></p>
+
+<p>为您的组织启用权限后，只有GitHub repo管理员或GitHub所有者才能在CircleCI上更改“项目设置”。这对于大型团队来说特别有用，可以确保您的项目设置只能由具有管理员权限的团队成员更改。这对于大型团队来说尤其有用，可以确保您的项目设置不会被团队中的非GitHub管理员/所有者意外更新。</p>
+
+<p>这将如何影响我的团队？</p>
+
+<p>为您的组织启用权限后，GitHub成员和贡献者将无法对CircleCI的“项目设置”页面进行任何更改。这包括为您的组织设置容器、项目级并行化设置、构建设置等。GitHub成员或合作者仍然可以使用CircleCI的功能，如重建、使用缓存重建或通过SSH重建。</p>
+
+<p>如果我改变主意了怎么办？我可以关闭这个功能吗？</p>
+
+<p>如果您发现权限不适合您，您可以随时创建支持请求(在应用程序中，点按“帮助？”按钮并选择“支持”)，我们将为您的组织禁用权限。</p>
+
+<p><strong>入门:如何在GitHub上设置用户权限？</strong></p>
+
+<p>要设置您的团队在GitHub上的访问权限，请导航到您所在组织的以下链接:https://github.com/orgs/org-name/teams.</p>
+
+<p>您可以使用以下链接设置repo级别的用户访问:https://github . com/org-name/repo-name/settings/collaboration。</p>
+
+<p>阅读更多关于<a href="https://help.github.com/articles/setting-up-teams/">在GitHub </a>上设置团队权限的信息。</p>
+
+<p>如何在CircleCI上启用权限？</p>
+
+<p>如果您希望为您的组织或组织内的特定项目启用此功能，请创建支持请求(在应用程序中，单击“？”当你滚动鼠标时，按钮上写着“救命？”并选择“支持”)</p>
+
+<p>你希望CircleCI增加什么功能？您可以在我们社区网站的功能请求类别上提交一个新主题。你也可以在我们的<a href="https://discuss.circleci.com/t/developers-choice-nominees/3215">开发者选择奖</a>中投票，在这里我们收集了九个最常被请求的功能，我们很想构建这些功能，但由于各种原因，它们从未出现在我们的待办事项列表中。这是您直接对这些功能进行投票的机会，我们将构建获得最多投票的功能。投票将于太平洋时间4月22日星期一下午5:00结束。请访问<a href="https://discuss.circleci.com/t/developers-choice-nominees/3215">开发者的选择</a>，为您希望我们下一步开发的功能投票。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

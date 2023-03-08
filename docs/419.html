@@ -1,0 +1,98 @@
+<html>
+<head>
+<title>Build on Apple silicon with M1 support for CI/CD pipelines</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>基于苹果芯片构建，M1支持CI/CD管道</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/m1-mac-resource-class/#2023-03-02T08:00:00-08:00">https://circleci.com/blog/m1-mac-resource-class/#2023-03-02T08:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>全球的苹果开发者利用CircleCI的大量macOS资源来快速构建、测试和部署软件。今天，CircleCI推出了其首个M1资源，为客户提供破纪录的构建速度，将他们的软件交付提升到一个新的水平。最新增加的M1大型资源满足了对方便、云托管的苹果芯片支持的快速增长的需求，并帮助开发团队跟上苹果硬件创新的步伐。</p>
+
+<p>作为一流的CI/CD平台，CircleCI致力于为Apple社区配备顶级工具，帮助更快地将产品交付给最终用户。请继续阅读，了解CircleCI上M1的更多细节，以及如何在M1的基础上推动项目进入苹果开发的未来。</p>
+
+<h2>加速iOS与M1建立管道</h2>
+
+<p>2020年，苹果推出了一套Mac笔记本电脑，里面有一个特别的惊喜——一个为实现最佳效率而构建的M1芯片。自首次亮相以来，Apple silicon就兑现了其提供卓越速度和性能的承诺。</p>
+
+<p>M1的效率源于其标志性的“片上系统”，该系统将各种组件(包括CPU、GPU、RAM和Secure Enclave)统一到一个处理器中。M1的简化内存架构允许处理器组件利用中央数据池，消除了在每个组件之间复制数据所用的时间。随着效率的飞跃，可以有把握地说未来是以硅为基础的。</p>
+
+<h2>M1给iOS开发者带来的好处</h2>
+
+<p><strong>更方便的端到端测试，包括GPU测试:</strong>自动化测试是<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/">持续集成/持续交付管道</a>不可或缺的一部分，因为能够快速自信地构建和部署有效的代码至关重要。测试macOS和iOS平台的最大挑战之一是针对游戏和虚拟现实应用等GPU密集型应用的图形处理单元(GPU)测试。</p>
+
+<p>以前，在macOS平台上有效运行自动化GPU测试的唯一方法是使用一个<a href="https://circleci.com/blog/dedicated-hosts-for-mac-os/">专用主机</a>。一些开发人员通过在本地GPU设备上进行测试来解决这一限制，但在CI管道中执行自动化GPU测试可以实现更频繁、一致的测试，从而更好地了解最终用户体验。</p>
+
+<p>CircleCI的M1资源包括硬件加速，将通常由运行在CPU上的软件完成的任务转移到GPU，以加快处理时间。例如，由CPU处理时可能看起来不稳定的3D渲染任务在由GPU执行时会看起来不稳定。这有助于在管道内进行快速、有效和流畅的GPU测试，提供关于应用程序内视觉效果的快速反馈，并有助于在发布更新之前最大限度地减少破坏性更改。</p>
+
+<p><strong>提高构建速度以获得更好的产品体验:</strong>说到提供高质量的产品体验，速度就是游戏的名字。为了建立忠诚度和信任度，工程团队必须在几分钟之内向客户交付增强功能和错误修复。在基准测试中，M1将macOS的工作速度提高了2倍，为构建速度设立了新的标准。这对iOS团队尤其有用，因为它加快了应用商店的审核过程，有助于应用更快地获得批准和发布。向应用商店提交和重新提交花费的时间越少，就有越多的时间可以用来编写重要的代码。</p>
+
+<h2>M1计算如何提高构建速度</h2>
+
+<p>下面是一个作业示例，该作业将一个大型存储库(约4GB)的克隆下载下来，然后保存并检索缓存。</p>
+
+<p><img src="../Images/ada88ba4bae8bbd1a44a6f249a8e9ced.png" alt="Without M1 Mac resource class" srcset="https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://ctf-cci-com.imgix.net/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://images.ctfassets.net/il1yandlcjgk/17TGUkoe3guGZWtgCFyVma/dca4ba0f86580bc9a94a5baeb195faac/m1-mac-image1.png"/></p>
+
+<p>在英特尔硬件上，这项工作需要将近24分钟。克隆存储库和保存缓存的步骤占了总构建时间的大部分。下面是在我们的新M1资源上运行的相同作业的示例。</p>
+
+<p><img src="../Images/98941582b037a40ab8b48928fb75e9f3.png" alt="With M1 Mac resource class" srcset="https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://ctf-cci-com.imgix.net/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://images.ctfassets.net/il1yandlcjgk/3DaaSmo2ZlMoavufc92Fe7/dbb0aef24bad2d0f9b1825ea6c985be4/m1-mac-image2.png"/></p>
+
+<p>在M1上，同样的工作不到7分钟就完成了，几乎是在英特尔硬件上运行所需时间的四分之一！请注意，性能结果将因工作流程而异。</p>
+
+<h2>如何在CircleCI管道中使用M1资源类</h2>
+
+<p>使用M1构建需要对CircleCI上的配置文件进行简单的更新。下面是一个配置示例供参考:</p>
+
+<pre><code class="language-yml"># .circleci/config.yml
+version: 2.1
+  jobs: # a basic unit of work in a run
+    build-and-test: # your job name
+macos:
+  xcode: 13.4.1 # indicate your selected version of Xcode
+resource_class: macos.m1.large.gen1
+steps: # a series of commands to run
+  - checkout  # pull down code from your VCS
+  - run: bundle install
+  - run:
+      name: Fastlane
+      command: bundle exec fastlane $FASTLANE_LANE
+  - store_artifacts:
+      path: output
+  - store_test_results:
+      path: output/scan
+
+    workflows:
+      build-test:
+jobs:
+  - build-and-test
+</code></pre>
+
+<p>这个配置使用<code>resource_class</code>键来指定<code>build-and-test</code>作业应该使用<code>macos</code>执行程序的M1大型实例。注意，您还可以决定在您的构建中使用哪个版本的Xcode 。</p>
+
+<h2>与M1合作对我的iOS渠道意味着什么？</h2>
+
+<p>苹果在从基于英特尔的M1芯片转向基于Arm的芯片方面的大力投资表明，最终苹果的所有开发都将在苹果芯片上运行。在CircleCI为Mac建造的团队可以通过在他们的管道中建造M1来保持领先。下面，我们将回答一些从Mac社区听到的常见问题。</p>
+
+<p><strong>我能在M1计算平台上为英特尔构建吗？</strong>在M1上测试英特尔应用可以通过添加一个安装Rosetta的步骤来轻松完成，Rosetta是一个通用软件工具，它使M1 Mac能够使用为英特尔Mac构建的应用。关于这样做的例子，你可以参考我们macOS orb 的<a href="https://github.com/CircleCI-Public/macos-orb/pull/46/files"> PR。</a></p>
+
+<p>M1将在CircleCI上计算多少成本？你可以在我们的<a href="https://circleci.com/pricing/">定价页面</a>上找到M1的定价，以及CircleCI的所有其他macOS资源。</p>
+
+<h2>结论</h2>
+
+<p>在CircleCI上构建和测试苹果应用程序的下一代已经到来。从简化端到端测试到加快上市时间，M1可以帮助世界各地的工程团队交付高质量的应用，并以最高的效率扩展开发人员的运营。</p>
+
+<p>M1目前在<a href="https://circleci.com/pricing/">规模计划</a>中可用。在我们的<a href="https://circleci.com/docs/using-macos/">文档</a>中了解更多关于CircleCI对macOS的全面支持。</p>
+
+
+        
+          
+          
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

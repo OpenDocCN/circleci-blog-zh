@@ -1,0 +1,152 @@
+<html>
+<head>
+<title>Deprecating Ubuntu 14.04 and 16.04 images: stay secure with modern Ubuntu | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>弃用Ubuntu 14.04和16.04映像:使用现代Ubuntu | CircleCI保持安全</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/ubuntu-14-16-image-deprecation/#2022-02-14T04:00:00-08:00">https://circleci.com/blog/ubuntu-14-16-image-deprecation/#2022-02-14T04:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>CircleCI的Ubuntu 14.04和16.04 Linux虚拟机(VM)镜像将于2022年3月下旬、2022年4月下旬和2022年5月中旬暂时不可用，并且它们将于2022年5月31日永久不可用。如果你正在使用这些镜像，在2022年5月底14.04和16.04镜像被移除之前，用一个<a href="https://circleci.com/docs/configuration-reference/#available-machine-images">更新的Ubuntu <code>machine</code>镜像</a>更新你的配置。</p>
+
+<h2>Ubuntu 14.04和Ubuntu 16.04映像现在已被弃用</h2>
+
+<p>截至2022年2月15日，与我们的<a href="https://circleci.com/docs/executor-types/#using-machine"> <code>machine</code>执行程序</a>一起使用的Ubuntu 14.04和16.04 Linux VM镜像已被弃用。这意味着将不会有新的版本或对这些图像的支持。当这些映像在2022年5月31日达到寿命终止(EOL)时，任何利用Ubuntu 14.04或16.04映像的管道都将失败。</p>
+
+<p>如果您的任何项目目前使用受影响的映像，我们将直接联系您的团队，鼓励您迁移到更新的Ubuntu映像。但是，我们意识到电子邮件通知很容易被错过，因此在通知期结束后，我们还会对受影响的映像实施偶尔的限电或短暂的不可用，直到停产日期。</p>
+
+<h2>Ubuntu图像弃用时间表</h2>
+
+<p>请参考下表，了解关于弃用旧Ubuntu映像的重要日期:</p>
+
+<table>
+  <tbody>
+    <tr>
+      <td><strong>日期</strong></td>
+      <td><strong>发生了什么</strong></td>
+    </tr>
+    <tr>
+      <td>2022年2月15日</td>
+      <td>通知电子邮件发送给受影响的团队。CircleCI的<a href="https://circleci.com/developer/images?imageType=machine"> Ubuntu 20.04映像已经对想要立即迁移的团队可用</a>。</td>
+    </tr>
+    <tr>
+      <td>2022年3月29日</td>
+      <td>CircleCI发布首张Ubuntu 22.04测试版图片。</td>
+    </tr>
+    <tr>
+      <td>2022年3月29日</td>
+      <td><strong>首次限电。</strong>被弃用的图像将在以下时间段内每次10分钟不可用:<br/><br/>-UTC 00:00—00:10&amp;UTC 01:00—01:10<br/>-UTC 10:00—10:10&amp;UTC 11:00—11:10<br/>-UTC 15:00—15:10&amp;UTC 16:00—16:16</td>
+    </tr>
+    <tr>
+      <td>2022年4月25日</td>
+      <td>CircleCI发布Ubuntu 22.04稳定镜像。</td>
+    </tr>
+    <tr>
+      <td>2022年4月26日</td>
+      <td>第二次限电。不推荐使用的映像将在以下时间段内每次60分钟不可用:<br/><br/>-UTC 00:00—01:00<br/>-UTC 10:00—11:00<br/>-UTC 15:00—16:00<br/><br/><a href="https://www.timeanddate.com/worldclock/meetingdetails.html?year=2022&amp;month=4&amp;day=26&amp;hour=0&amp;min=0&amp;sec=0&amp;p1=224&amp;p2=136&amp;p3=248&amp;p4=179">(时区助手)</a> <br/> <br/>任何引用这些映像的作业都将收到一个<code>failed to create host: Image &lt;image-name&gt; is not supported</code>错误。</td>
+    </tr>
+    <tr>
+      <td>2022年5月19日</td>
+      <td><strong>第三次限电。</strong>不推荐使用的映像将在以下时间段内一次不可用3小时:<br/><br/>-UTC 00:00—03:00<br/>-UTC 08:00—11:00<br/>-UTC 16:00—19:00<br/><br/><a href="https://www.timeanddate.com/worldclock/meetingdetails.html?year=2022&amp;month=5&amp;day=19&amp;hour=0&amp;min=0&amp;sec=0&amp;p1=224&amp;p2=136&amp;p3=248&amp;p4=179">(时区助手)</a> <br/> <br/>任何引用这些映像的作业都将收到一个<code>failed to create host: Image &lt;image-name&gt; is not supported</code>错误。<br/> <br/> Ubuntu 22.04成为<code>machine: true</code>的新默认图像</td>
+    </tr>
+    <tr>
+      <td>2022年5月31日</td>
+      <td><strong> Ubuntu 14.04 &amp; 16.04生命终结。</strong>这些图像永久不可用。</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>受影响图像的第一次限电将于2022年3月29日进行，随后将于2022年4月26日进行另一轮限电，第三次将于2022年5月19日进行。任何依赖于这些图像的管道运行将在指定的限电期间失败。14.04和16.04映像将于2022年5月31日永久删除，使用受影响映像的管道将永久失败，直到指定更新的映像。</p>
+
+<h2>为什么Ubuntu 14.04和16.04镜像被弃用？</h2>
+
+<p>CircleCI致力于为您和您的团队提供最稳定、最安全的体验。放弃我们的Ubuntu 14.04和16.04映像而支持新版本有几个好处，包括改进上游支持和增强基于Linux VM管道的安全性和兼容性。</p>
+
+<h3>上游支持</h3>
+
+<p>简单明了，Ubuntu 14.04和16.04镜像老了！Ubuntu背后的企业赞助商Canonical于2019年停止支持Ubuntu 14.04，2021年停止支持16.04。这可以在下面的图表中看到，Ubuntu的标准支持窗口(CircleCI和大多数提供商提供的图片)是橙色的。</p>
+
+<p><img src="../Images/fe4fb01385be139dbda97b7ba51d4c86.png" alt="Ubuntu release cycle" srcset="https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-02-14-ubuntu-release-cycle.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-02-14-ubuntu-release-cycle.png"/></p>
+
+<h3>安全性和兼容性</h3>
+
+<p>缺少对这些图像的上游支持意味着缺少错误修复和安全更新。这意味着没有新版本的包含软件，如Node.js、Python、OpenJDK等。但更重要的是，当安全漏洞影响到行业时，我们无法为您提供更新的图像。</p>
+
+<p>诸如<a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-44228"> log4j CVEs </a>、GitHub的<a href="https://github.blog/2021-09-01-improving-git-protocol-security-github/"> OpenSSH协议弃用</a>、<a href="https://letsencrypt.org/docs/dst-root-ca-x3-expiration-september-2021/">让我们加密证书过期</a>等安全问题在这些映像上要么极其困难，要么几乎不可能缓解。随着年龄的增长，这个问题会越来越严重。</p>
+
+<h2>Ubuntu 14.04和16.04镜像弃用对我有影响吗？</h2>
+
+<p>如果您的任何项目使用了一个或多个受影响的图像，我们将通过电子邮件直接通知您或您团队中的其他人。由于电子邮件有时会被忽略，我们也将对受影响的图像实施限制。这些将是一个准确的指标，当这些图像在5月底被永久删除时，项目是否会受到影响。提醒一下，请查看上表了解确切日期。</p>
+
+<p>要自行检查项目，您可以参考以下受影响图像的完整列表。</p>
+
+<p><strong>以下基于Ubuntu 14.04的图像将被移除</strong>:</p>
+
+<ul>
+  <li><code>machine: true</code>(见下面的注释)</li>
+  <li>circleci/classic:201703-01</li>
+  <li>circleci/classic:201707-01</li>
+  <li>circleci/classic:201708-01</li>
+  <li>circleci/classic:201709-01</li>
+  <li>circleci/classic:201710-01</li>
+  <li>circleci/classic:201710-02</li>
+  <li>circleci/classic:201711-01</li>
+  <li>圆形/经典</li>
+  <li>circleci/classic:最新</li>
+  <li>circle ci/经典:边缘</li>
+</ul>
+
+<p><strong>注意:</strong>使用默认镜像意味着你在你的配置中使用了<code>machine: true</code>，因此得到了一个基于Ubuntu 14.04的镜像。如果你运行的是<a href="https://circleci.com/docs/server-3-overview/"> CircleCI服务器</a>或<a href="https://circleci.com/docs/runner-overview/"> CircleCI运行程序</a>，那么这不适用于你。否则，这种反对意见适用，您需要切换到受支持的映像。</p>
+
+<p>此外，<strong>以下基于Ubuntu 16.04的图像将被删除</strong>:</p>
+
+<ul>
+  <li>circleci/classic:201808-01</li>
+  <li>ubuntu-1604:201903-01</li>
+  <li>ubuntu-1604:202004-01</li>
+  <li>ubuntu-1604:202007-01</li>
+  <li>ubuntu-1604:202010-01</li>
+  <li>ubuntu-1604:202101-01</li>
+  <li>ubuntu-1604:202104-01</li>
+</ul>
+
+<p>这是其中一个图像在您的配置中的外观示例:</p>
+
+<pre><code>jobs:
+  my-job:
+    machine:
+      image: ubuntu-1604:202010-01
+</code></pre>
+
+<h2>如何迁移到受支持的Ubuntu映像</h2>
+
+<p>根据您的技术需求，有几种方法可以将您的项目迁移到受支持的Ubuntu映像。两种最常见的方法是使用Docker便利映像而不是VM，以及更新您的配置以使用更新的Ubuntu <code>machine</code>映像。</p>
+
+<h3>试试我们的便利图片</h3>
+
+<p>首先要考虑的是您的团队是否真的需要首先使用Linux机器/VM镜像。我们有一批基于Docker的图像，称为<a href="https://circleci.com/developer/images">便利图像</a>，快速灵活，涵盖大多数用例。《T2如何选择遗嘱执行人》可以帮你做出决定。</p>
+
+<h3>切换到更新的Ubuntu机器镜像</h3>
+
+<p>认定<code>machine</code>执行人是一个要求？太好了。我们有一个受支持的Ubuntu 20.04映像，您可以从今天开始使用。关于这个和任何其他虚拟机镜像的信息可以在<a href="https://circleci.com/developer/machine/image/ubuntu-2004">开发者中心</a>找到。有关迁移到较新映像的信息可以在以下两个CircleCI文档页面中找到:</p>
+
+
+
+<p><strong>注:</strong> Canonical将在4月发布下一个Ubuntu长期支持(LTS)版本Ubuntu 22.04。CircleCI将于3月29日发布该图像的测试版，并定期更新，直到4月25日正式发布，即Canonical提供其正式发布版本的几天后。有关日期，请参见上面的时间表。</p>
+
+<h2>结论</h2>
+
+<p>如果您的任何项目当前使用Ubuntu 14.04和16.04，请计划尽快迁移过时的映像。如果您在2022年3月、4月和5月的限电日期之前迁移，您的管道将不会受到影响。在5月31日截止日期之前迁移这些映像是至关重要的，因为在此日期之后，所有仍然使用基于Ubuntu 14.04或16.04的机器映像的构建都将失败。</p>
+
+<p>如果您有任何关于您的项目是否受到弃用影响或者如何迁移到受支持的Ubuntu映像的问题，请<a href="https://support.circleci.com/hc/en-us/articles/4421154407195">联系支持</a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

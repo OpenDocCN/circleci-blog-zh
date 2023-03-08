@@ -1,0 +1,177 @@
+<html>
+<head>
+<title>Scheduling load tests and persisting output with k6 | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用k6 | CircleCI调度负载测试和持久化输出</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/k6-results-output-and-scheduling-pipelines/#2022-03-30T00:00:00-07:00">https://circleci.com/blog/k6-results-output-and-scheduling-pipelines/#2022-03-30T00:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>导出k6测试结果</li>
+    <li>持续k6结果输出</li>
+    <li>为负载测试安排CI/CD管道</li>
+  </ol>
+</blockquote>
+
+<p>在这个k6系列中，我已经用k6 介绍了<a href="https://circleci.com/blog/http-request-testing-with-k6/"> HTTP请求测试，用k6 </a>介绍了<a href="https://circleci.com/blog/api-performance-testing-with-k6/">性能测试。我设计这些教程是为了向你介绍k6，并向你展示如何使用k6进行微服务的性能测试。作为k6系列的第三篇教程，这将涵盖如何在本地存储k6测试结果，以及如何使用CircleCI的</a><a href="https://circleci.com/docs/scheduled-pipelines/">调度管道</a>特性来调度负载测试。</p>
+
+<h2>先决条件</h2>
+<p>要学习本教程，您需要:</p>
+
+<ol>
+  <li><a href="https://www.JavaScript.com/" target="_blank" rel="noreferrer noopener"> JavaScript </a>的基础知识</li>
+  <li>HTTP请求和测试的基本知识</li>
+  <li>您系统上安装的<a href="https://nodejs.org" target="_blank" rel="noreferrer noopener"> Node.js </a>(版本&gt; = 10.13)</li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+</ol>
+
+<blockquote>
+  <p>如果你还没有完成k6性能测试教程，我建议你在开始本教程之前完成。</p>
+</blockquote>
+
+<p>本教程直接建立在“用k6进行性能测试”教程的基础上。你的第一步是<a href="https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository" target="_blank" rel="noreferrer noopener">为教程</a>克隆的<a href="https://github.com/CIRCLECI-GWP/api-performance-testing-with-k6" target="_blank" rel="noreferrer noopener"> GitHub库。</a></p>
+
+<p>您可以使用以下命令克隆GitHub存储库:</p>
+
+<pre><code>git clone https://github.com/CIRCLECI-GWP/api-performance-testing-with-k6.git
+
+</code></pre>
+<p>太好了！你已经准备好开始学习了！</p>
+
+<h2>持续k6结果输出</h2>
+
+<p>在使用k6进行性能测试的教程中，我介绍了如何将k6指标和日志输出到云中，以便整个团队进行分析和查看。在本教程中，我将引导您在运行测试的机器上本地持久化测试输出。</p>
+
+<p>k6提供了多个导出测试结果的选项，供您以后查看。支持k6导出的服务包括Amazon CloudWatch、Apache Kafka、Influx DB、New Relic、Prometheus、Datadog等。本教程重点介绍如何使用JSON输出获得相同的结果。</p>
+
+<p>要在k6上运行外部测试结果输出，您需要定义<code>--out</code>标志。您在之前的教程中以稍微不同的方式完成了这项工作。在这种情况下，您将在之前克隆的存储库中为Heroku API运行一个简单的负载测试。</p>
+
+<p>负载测试在30秒内运行多个虚拟用户。在30秒内，测试:</p>
+<ul>
+  <li>使用API创建多个<code>todo</code>项目。</li>
+  <li>确保每个Todo项都是使用应用程序端点创建的。</li>
+</ul>
+
+<p>下面是这个测试的代码片段:</p>
+
+<pre><code>// create-todo-http-requests.js file
+import http from 'k6/http';
+import { check, group } from 'k6';
+import { Trend } from 'k6/metrics';
+ 
+const uptimeTrendCheck = new Trend('/GET API uptime');
+const todoCreationTrend = new Trend('/POST Create a todo');
+ 
+ 
+export let options = {
+   stages: [
+       { duration: '0.5m', target: 3 }, // simulate ramp-up of traffic from 0 to 3 users over 0.5 minutes.
+   ],
+};
+ 
+export default function () {
+   group('API uptime check', () =&gt; {
+       const response = http.get('https://todo-app-barkend.herokuapp.com/todos/');
+       uptimeTrendCheck.add(response.timings.duration);
+       check(response, {
+           "status code should be 200": res =&gt; res.status === 200,
+       });
+   });
+ 
+   let todoID;
+   group('Create a Todo', () =&gt; {
+       const response = http.post('https://todo-app-barkend.herokuapp.com/todos/',
+           { "task": "write k6 tests" }
+       );
+       todoCreationTrend.add(response.timings.duration);
+       todoID = response.json()._id;
+       check(response, {
+           "status code should be 200": res =&gt; res.status === 200,
+       });
+       check(response, {
+           "response should have created todo": res =&gt; res.json().completed === false,
+       });
+   })
+}
+</code></pre>
+
+<p><code>create-todo-http-requests.js</code>文件中的第一个<code>group()</code>块运行正常运行时间检查，以验证API正在响应。另一个块创建<code>todo</code>项，并验证它们是否被正确创建。</p>
+
+<p>您可以用命令<code>k6 run test-file</code>运行这个测试。因为我们想从这个测试中得到更多，我们将使用一个不同的命令。除了验证正确执行之外，我们还希望看到JSON文件中的执行日志。</p>
+
+<p>为此，调用<code>--out outputFile.json</code>标志。这个标志确保您的测试响应以JSON格式记录。执行以下命令:</p>
+
+<pre><code>k6 run create-todo-http-request.js --out  json=create-todo-http-request-load.json
+</code></pre>
+<p>该测试正常执行，但也会创建一个文件:<code>create-todo-http-request-load.json</code>。这个新文件包含该运行中所有测试的执行信息。</p>
+
+<p>一旦k6在定义了测试度量输出的情况下执行，它就会记录该输出，并在测试执行时显示出来。</p>
+
+<p><img src="../Images/7f25eb0cc5022a54bbcdc9ce52e3e636.png" alt="Load test results output" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-results-output.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-31-load-test-results-output.png"/></p>
+
+<p>测试执行后，您可以打开输出文件，并在JSON文件中查看结果输出。</p>
+
+<p><img src="../Images/8472cbc3e2bdb4259f791b5b6404093a.png" alt="Load test output file" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-31-load-test-output-file.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-31-load-test-output-file.png"/></p>
+
+<p>JSON输出文件包含k6用来生成数据的指标。您还可以查看:</p>
+<ul>
+  <li>负载测试运行时发出的所有请求</li>
+  <li>请求的时间戳</li>
+  <li>执行每个请求所花费的时间</li>
+</ul>
+
+<p>使用这些数据，您可以确定最慢和最快的响应，并识别瓶颈。这不仅让您更好地理解您的测试，而且生成的结果输出文件是永久的。这使得数据导出成为一种有效的方式，可以持久化数据以供以后查看，并将该运行与其他测试运行进行比较。既然您已经尝试了导出JSON，那么您可以尝试导出其他文件类型，比如CSV或XML。</p>
+
+<h2>使用CircleCI调度管道调度负载测试</h2>
+
+<p>执行负载测试需要时间，并且会占用大量系统资源。只有当没有用户访问您的系统时，或者当您知道对应用程序用户的影响很小甚至没有影响时，您才可能希望运行负载测试。另一种方法是建立一个模拟生产环境的并行负载测试环境。</p>
+
+<p>作为CI/CD从业者，您知道资源将永远是一个限制因素，质量将永远是一个优先事项。这使得设置调度管道来运行负载测试成为一个很好的选择。</p>
+
+<p>使用<a href="https://circleci.com/blog/using-scheduled-pipelines/">调度管道</a>，您可以自动化运行负载测试的过程，以便它们只在您预计系统中用户数量有限时发生。</p>
+
+<h3>在CircleCI上设置预定管道</h3>
+
+<p>要将您的管道配置为按计划运行，请转到CircleCI仪表板并选择<strong>项目设置</strong>。选择项目。在这种情况下，使用<code>api-performance-testing-with-k6</code>项目。单击项目旁边的省略号(…)。</p>
+
+<p><img src="../Images/2e23f210667887791038873f6fbfb70c.png" alt="Projects ellipsis" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-31-projects-dropdown.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-31-projects-dropdown.png"/></p>
+
+<p>点击<strong>触发</strong>。</p>
+
+<p>在触发页面，点击<strong>添加预定触发</strong>显示触发表单。</p>
+
+<p><img src="../Images/b7253e3d7cb31e71a44a90b7ce6ad88b.png" alt="Adding triggers" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-31-triggers.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-31-triggers.png"/></p>
+
+<p>当您希望执行负载测试时，填写表单以添加执行负载测试的触发器。对于本教程，将触发器配置为每周在<code>22:00 UTC</code>的<code>Sunday</code>只执行一次。保存计划的管道。</p>
+
+<p><img src="../Images/1413b9666777f2023614c391243efabd.png" alt="Scheduled pipelines configuration" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-31-scheduled-pipelines-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-31-scheduled-pipelines-configuration.png"/></p>
+
+<p>您现在有了一个管道，它将每周运行一次，以确保您的负载测试正常工作。您可以根据需要编辑时间表。您可能会忘记执行您的负载测试，但是CircleCI总是会在您选择的准确时间为您执行。要了解更多关于计划管道如何帮助您优化开发时间和资源使用的信息，请阅读<a href="https://circleci.com/blog/benefits-of-scheduling-ci-pipelines/">计划持续集成管道的好处</a>。</p>
+
+<h2>结论</h2>
+
+<p>在本教程中，我们回顾了如何使用k6运行负载测试，并添加了将测试指标导出到外部目的地。在这种情况下，它是一个JSON文件，但是您也可以将其导出为CSV或XML。我们还介绍了创建调度管道来执行负载测试的过程。我们能够具体管理CircleCI管道执行负载测试的条件和时间。我希望这些信息对您团队的工作有所帮助。</p>
+
+<p>通过完成本系列中的其他两个教程，以您所学到的知识为基础:</p>
+
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Waweru Mwaura是一名软件工程师，也是一名专门研究质量工程的终身学习者。他是Packt的作者，喜欢阅读工程、金融和技术方面的书籍。你可以在<a href="https://waweruh.github.io/" target="_blank" rel="noreferrer noopener">他的网页简介</a>上了解更多关于他的信息。</p>
+
+            <p><a href="/blog/author/waweru-mwaura/" class="arrow-link">阅读更多Waweru Mwaura的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

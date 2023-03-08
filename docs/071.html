@@ -1,0 +1,144 @@
+<html>
+<head>
+<title>Automate your releases with CircleCI and the GitHub CLI orb</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用CircleCI和GitHub CLI orb自动化您的发布</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/automating-your-releases-with-circleci-and-the-github-cli-orb/#2021-07-30T09:00:00-07:00">https://circleci.com/blog/automating-your-releases-with-circleci-and-the-github-cli-orb/#2021-07-30T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>去年，GitHub宣布发布他们的新CLI工具<a href="https://github.blog/2020-09-17-github-cli-1-0-is-now-available/">。新的<code>gh</code> CLI包含了标准的<code>git</code> cli，并提供了一套附加的GitHub.com专用命令。这些新命令包括创建新的<em> <a href="https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests">拉请求</a> </em>和直接从终端创建<em> <a href="https://docs.github.com/en/github/administering-a-repository/managing-releases-in-a-repository">发布</a> </em>的能力。</a></p>
+
+<p>我们CircleCI社区和CircleCI的合作伙伴工程团队一直使用<code>gh pr checkout</code>命令来安全地测试来自社区(您！)在<a href="https://github.com/CircleCI-Public?q=-orb&amp;type=&amp;language=&amp;sort=">我们的各种球体</a>上。</p>
+
+<p>今天我们分享新的<a href="https://circleci.com/developer/orbs/orb/circleci/github-cli"> GitHub CLI orb </a>。现在，您可以将GitHub CLI的强大功能和灵活性带到您的CI/CD管道中。</p>
+
+<h2>什么是球体？</h2>
+
+<p><a href="https://circleci.com/orbs/">orb</a>是CI配置的可重用包，可以在您的CircleCI配置中使用，以自动化和优化CI任务。使用orbs，您可以<a href="https://circleci.com/developer/orbs/orb/circleci/node#usage-node_test_and_deploy">测试和部署Node.js应用程序</a>，或者轻松地将<a href="https://github.com/CircleCI-Public/slack-orb/wiki">可定制的Slack通知添加到您的CI管道</a>。</p>
+
+<p>现在<a href="https://circleci.com/developer/orbs/orb/circleci/github-cli"> GitHub CLI orb </a>已经可用，我们可以向您展示我们如何结合CircleCI和GitHub的力量来自动化我们的测试和发布过程。</p>
+
+<h2>测试代码</h2>
+
+<p>我们配置的最终目标是拥有一个CI/CD管道，在那里任何分支上的代码都将被测试。在这种情况下，如果我们将我们的更改合并到<code>main</code>分支，我们希望标记并发布GitHub.com上的更新。</p>
+
+<p>首先，我们将从一个非常简单的Node.js项目的示例配置开始，在这个项目上，我们将在所有分支上对推送到存储库的每个提交运行<code>npm run test</code>。</p>
+
+<pre><code>version: '2.1'
+orbs:
+  node: circleci/node@4.3
+workflows:
+  test-and-release:
+    jobs:
+      - node/test
+</code></pre>
+
+<p>这个配置文件包含一个工作流<code>test-and-release</code>，该工作流包含由<a href="https://circleci.com/developer/orbs/orb/circleci/node">节点orb </a>提供的单个<code>node/test</code>作业。这项工作自动检查我们的代码，安装和缓存我们的依赖项，并运行我们的<code>test</code> npm脚本。如果你想看看这项工作的实际效果，你可以在CircleCI应用程序中查看这个<a href="https://app.circleci.com/pipelines/github/CircleCI-Public/node-orb/719/workflows/e17c4f8f-db71-4d92-9a60-9af2cdd2a377/jobs/4663">实时示例。</a></p>
+
+<p>现在，我们的测试是自动运行的，但当发布我们产品的新版本时，我们需要手动创建一个标签并在GitHub.com上发布。我们可以利用新的GitHub CLI orb和CircleCI配置来自动化这个过程。</p>
+
+<h2>准备GitHub认证</h2>
+<p>为了自动创建标签和发布，我们将使用GitHub CLI和基于令牌的认证。首先，我们将创建一个具有适当权限的GitHub令牌，然后我们将该令牌添加到一个<a href="/docs/contexts/#creating-and-using-a-context"> CircleCI上下文</a>中。</p>
+
+<p>CircleCI上的上下文是环境变量的共享集合，可以附加到组织内任何项目中的各种作业。当您需要在许多项目之间共享凭证(如GitHub认证)时，这很有用。上下文甚至可以被<a href="/docs/contexts/#restricting-a-context">限制</a>以防止作业访问上下文，除非被具有适当权限的用户触发。</p>
+
+<p>首先创建一个<a href="https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token"> GitHub个人访问令牌</a>。</p>
+
+<p><img src="../Images/d8d62f88102385511f52fe4047ddaaec.png" alt="Github persona access token scopes" srcset="https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/GitHubScopesForGH-CLI-Orb.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/GitHubScopesForGH-CLI-Orb.png"/></p>
+
+<p>GitHub CLI需要的权限范围是<code>repo</code>和<code>read:org</code>。</p>
+
+<p>一旦你有了个人访问令牌，前往https://app.circleci.com/，在左侧垂直导航栏中，选择<code>Organization Settings</code>的齿轮图标。这将打开“上下文设置”页面。网址看起来会像这样:<code>https://app.circleci.com/settings/organization/&lt;VCS&gt;/&lt;Organization&gt;/contexts</code></p>
+
+<p>点击<strong>创建上下文</strong>并为其命名。在我们的例子中，我们将使用<code>GITHUB_CREDS</code>。</p>
+
+<p>然后，点击<strong>添加环境变量</strong>并添加您的令牌，使用名称<code>GITHUB_TOKEN</code>。</p>
+
+<p><img src="../Images/dd8e8699f2e1f2391f5df2cd4b3c20d7.png" alt="Add Environment Variable UI window" srcset="https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/AddGitHubTokenToContext.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/AddGitHubTokenToContext.png"/></p>
+
+<h2>自动化发布</h2>
+
+<p>首先将GitHub CLI orb添加到您的配置中:</p>
+
+<pre><code>version: '2.1'
+orbs:
+  node: circleci/node@4.3
+  gh: circleci/github-cli@1.0
+
+</code></pre>
+
+<p>这让我们可以访问GitHub CLI orb提供的各种<a href="https://circleci.com/docs/orb-concepts/?section=configuration#commands">命令</a>和<a href="https://circleci.com/docs/orb-concepts/?section=configuration#jobs">任务</a>。可以在您的自定义作业中使用命令来设置和验证CLI以便手动使用，但在本例中，我们将使用带有一些自定义参数的<a href="https://circleci.com/developer/orbs/orb/circleci/github-cli#jobs-release"> <em>发布</em>作业</a>和<a href="https://circleci.com/docs/configuration-reference/#jobfilters">过滤器</a>。</p>
+
+<h2>使用GitHub CLI orb实现完整的测试和发布工作流</h2>
+
+<pre><code>version: '2.1'
+orbs:
+  node: circleci/node@4.3
+  gh: circleci/github-cli@1.0
+workflows:
+  test-and-release:
+    jobs:
+      - node/test
+      - gh/release:
+          notes-file: changelog.md
+          tag: 1.0.0
+          title: The initial release
+          requires:
+            - node/test
+          context:
+            - GITHUB_CREDS
+          filters:
+            branches:
+              only:
+                - main
+</code></pre>
+
+<p>您可以看到，我们已经将<code>gh/release</code>作业添加到了我们的<code>test-and-release</code>工作流中，并添加了一些定制的参数。您可以在该Orb作业的<a href="/developer/orbs/orb/circleci/github-cli?version=dev:alpha#jobs-release"> Orb注册表页面</a>上查看该作业的<i>所有</i>可用参数。该作业自动运行<code>gh/setup</code>命令，该命令安装并验证GitHub CLI，然后使用我们指定的参数运行<code>gh release create</code>。</p>
+
+<p>假设您正在开发您产品的第一个主要版本。目前，你在<code>beta</code>分公司工作。当<i>测试版</i>完成后，你计划合并到<code>main</code>并发布你的发布版本<code>1.0.0</code>。</p>
+
+<p>查看完整的示例，我们提供了(必需的)<code>tag</code>参数来指定预期的发布标签。如果不存在这样的标签，<code>gh cli</code>将使用默认分支中的最新代码创建一个新标签，在我们的例子中是<code>main</code>。</p>
+
+<p>这里显示了三个额外的参数，它们是直接来自orb的<i>而不是</i>，所以您不会在Orb注册表文档中看到它们。参数<code>requires</code>、<code>context</code>、<code>filters</code>是CircleCI上任何一个作业本身都有的特殊作业参数。</p>
+
+<ul>
+  <li><a href="/docs/configuration-reference/?section=configuration#requires"> <code>requires</code>参数</a>指定在<code>requires</code>下的所有作业成功完成之前，该作业(<code>gh/release</code>)不会运行。在这种情况下，作业是<code>node/test</code>。</li>
+  <li><a href="/docs/contexts/#creating-and-using-a-context">上下文</a>包含我们共享的环境变量。这里是我们可以附加之前创建的<code>GITHUB_CREDS</code>上下文的地方。</li>
+  <li>筛选器限制了作业执行的条件。如果没有任何筛选器，工作流中的所有作业将始终执行。使用本例中应用的过滤器，我们的<code>gh/release</code>作业只有在<code>main</code>分支上被触发时才会运行(当我们合并时)。</li>
+</ul>
+
+<p>这意味着当我们在配置设置中将我们的变更从<code>beta</code>合并到<code>main</code>时，将会从包含我们新变更的<code>main</code>的新<code>HEAD</code>中创建<code>1.0.0</code>标签和发布。</p>
+
+<p><img src="../Images/d7697cab369221f2c6d43c578ee7d025.png" alt="GitHub Release page showing that a release has been created for version 1.0.0" srcset="https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/GitHubReleasePageExample.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/GitHubReleasePageExample.png"/></p>
+
+<p>在上面的例子中，我们使用了几个附加参数来指定changelog文件的位置、设置标题等等。</p>
+
+<h2>包扎</h2>
+<p>在实现了测试和发布工作流之后，我们可以用每个拉请求来更新我们的<code>.circleci/config.yml</code>,以反映期望的变化。例如，如果我们要打开一个名为<code>add-feature-blink</code>的新分支，我们将通过更新配置来开始我们的新分支，以反映当我们再次准备合并到<code>main</code>时我们想要准备的预期发布:</p>
+
+<pre><code>workflows:
+  test-and-release:
+    jobs:
+      - node/test
+      - gh/release:
+          notes-file: changelog.md
+          tag: 1.1.0
+          title: "Add Feature: Blinking text"
+</code></pre>
+<p>感谢您的阅读！</p>
+
+<p>Kyle Tryon @TechSquidTV</p>
+
+<p>查看<a href="https://circleci.com/developer/orbs/orb/circleci/github-cli"> GitHub CLI orb </a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

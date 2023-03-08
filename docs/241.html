@@ -1,0 +1,69 @@
+<html>
+<head>
+<title>Run self-hosted CI jobs in Kubernetes with container runner | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用container runner | CircleCI在Kubernetes中运行自托管CI作业</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/deploy-runner-on-kubernetes/#2022-10-26T13:00:00-07:00">https://circleci.com/blog/deploy-runner-on-kubernetes/#2022-10-26T13:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>容器运行器，一个新的容器友好的自托管运行器，现在对所有CircleCI用户可用。对于有独特计算或安全需求的客户来说，自托管运行程序是一种受欢迎的解决方案。Container runner降低了在容器化环境中使用自托管runner的门槛，并使中央DevOps团队能够更轻松地管理防火墙后的容器化CI/CD作业。</p>
+
+<h2>管理集装箱化的工作</h2>
+
+<p>CircleCI的Docker executor允许您在持续集成工作流中充分利用容器化的<a href="https://circleci.com/blog/benefits-of-containerization/">速度和灵活性优势。在容器中运行作业是一种快速便捷的方式，可以确保您的构建可以访问所有必需的库和依赖项，而无需启动完整的机器环境所需的额外启动时间。</a></p>
+
+<p>容器运行器消除了用户在他们的<code>config.yml</code>文件中使用<a href="https://circleci.com/docs/using-docker"> Docker语法</a>。这意味着用户可以自由使用他们自己的自定义图像或<a href="https://circleci.com/developer/images?imageType=docker"> CircleCI便利图像</a>，并可以在作业执行期间轻松执行<a href="https://circleci.com/docs/using-docker#using-multiple-docker-images">次级容器</a>。</p>
+
+<h2>自动扩展基础设施</h2>
+
+<p>对于大多数开发团队来说，基础架构需求整天都在波动，维持固定水平的计算资源以适应峰值工作负载会很快导致云成本失控。为了应对这一挑战，拥有一个能够根据需求动态扩展和缩减基础架构的解决方案是很有帮助的。</p>
+
+<p>Container runner与Kubernetes集成，实现快速、轻松的容器编排。这意味着用户只需管理一个运行器代理，容器运行器将根据需要启动临时pod来执行并发CI作业。无论您需要同时运行5个作业还是100个作业，只需一个container runner实例就可以确保您拥有足够的基础设施。</p>
+
+<h2>在您的Kubernetes集群中安装容器运行器</h2>
+
+<p>安装您的第一个容器运行器只需要几个步骤，并且可以通过CircleCI UI轻松完成。只需在CircleCI web应用程序中创建一个<a href="https://circleci.com/docs/runner-concepts/#namespaces-and-resource-classes"> CircleCI名称空间</a>(如果您的组织还没有)和<a href="https://circleci.com/docs/runner-concepts/#namespaces-and-resource-classes"> runner资源类</a>，使用Helm在您的Kubernetes集群中安装容器运行器，并向您的CircleCI <code>config.yml</code>文件添加一个新作业，该作业使用Docker执行器和容器运行器的资源类。</p>
+
+<p>下面是一个为<code>build</code>作业使用容器运行器的配置示例:</p>
+
+<pre><code>version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:2021.11
+    resource_class: &lt;namespace&gt;/&lt;resource-class&gt;
+    steps:
+      - checkout
+      - run: echo "Hi I'm on Runners!"
+
+workflows:
+  build-workflow:
+    jobs:
+      - build
+</code></pre>
+
+<p>有关安装容器运行器和从CircleCI触发运行器作业的更多信息，请访问<a href="https://circleci.com/docs/container-runner-installation/">容器运行器安装文档</a>。</p>
+
+<h2>结论</h2>
+
+<p>在防火墙后的容器化环境中运行CI/CD作业是许多软件团队日常开发工作的重要部分。在CircleCI，我们相信支持团队是非常重要的，无论他们在哪里开发软件。无论您是在云中构建还是在自己的基础设施中构建，CircleCI都能满足您的需求。</p>
+
+<p>如果您有关于如何改善跑步者体验的想法，请访问Canny浏览或提交新想法。请访问我们的社区论坛<a href="https://discuss.circleci.com/t/self-hosted-runners-on-every-plan-draft/43846/">讨论</a>，让我们知道您是如何使用runner的。</p>
+
+<p>最初的自托管运行程序machine runner主要用于虚拟和物理环境。集装箱转轮是机器转轮的补充，而不是替代。如需了解机器转轮的信息，请访问<a href="https://circleci.com/docs/runner-overview/">文档</a>。</p>
+
+
+        
+          
+          
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

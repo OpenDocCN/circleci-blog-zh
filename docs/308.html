@@ -1,0 +1,729 @@
+<html>
+<head>
+<title>Getting started with continuous integration for Nest.js APIs | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Nest.js APIs | CircleCI持续集成入门</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/getting-started-with-nestjs-and-automatic-testing/#2022-04-14T12:00:00-07:00">https://circleci.com/blog/getting-started-with-nestjs-and-automatic-testing/#2022-04-14T12:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>设置和连接Nest.js应用程序</li>
+    <li>使用Nest.js应用程序创建产品</li>
+    <li>编写、运行和自动化测试</li>
+  </ol>
+</blockquote>
+
+<p>Nest.js是一个用TypeScript构建的可伸缩、高效的服务器端Node.js框架。创建Nest.js是为了向Node.js开发环境提供一种结构化设计模式。它的灵感来自于<a href="https://angular.io/" target="_blank" rel="noreferrer noopener"> Angular.js </a>，并在引擎盖下使用了<a href="https://expressjs.com/" target="_blank" rel="noreferrer noopener"> Express.js </a>。Nest.js与大多数Express.js中间件兼容。</p>
+
+<p>在本教程中，我将带领您使用Nest.js构建一个RESTful API。本教程将让您熟悉Nest.js的基本原理和构建块。我还将演示为每个API端点编写测试的推荐方法。我将通过向您展示如何使用CircleCI自动化测试过程来结束本教程。</p>
+
+<h2>先决条件</h2>
+
+<p>要想从本教程中获得最大收益，您需要具备以下几点:</p>
+
+
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<p>我们在本文中构建的RESTful API将提供端点来创建带有名称、描述和价格的产品。我们将编辑、删除和检索单个产品，还将检索保存在数据库中的整个产品列表。</p>
+
+<p>本教程使用MySQL作为首选的关系数据库，并将其与<a href="https://github.com/typeorm/typeorm" target="_blank" rel="noreferrer noopener"> TypeORM </a>结合使用。但是Nest.js是数据库不可知的，所以您可以选择使用您喜欢的任何数据库。你可以在这里找到更多关于数据库和Nest.js <a href="https://docs.nestjs.com/techniques/database" target="_blank" rel="noreferrer noopener">的细节。</a></p>
+
+<h2>设置Nest.js应用程序</h2>
+
+<p>运行以下命令创建新的应用程序:</p>
+
+<pre><code>nest new nest-starter-testing
+</code></pre>
+
+<p>运行<code>nest</code>命令后，会提示您选择一个包管理器。选择<code>npm</code>并按回车键开始安装Nest.js。该过程在<code>nest-starter-testing</code>文件夹中创建一个新项目，并安装其所需的所有依赖项。在运行应用程序之前，使用<code>npm</code>安装一个<a href="https://www.npmjs.com/package/class-validator" target="_blank" rel="noreferrer noopener">验证库</a>，您将在本教程的后面使用它。</p>
+
+<pre><code>npm install class-validator --save
+</code></pre>
+
+<p>进入应用程序文件夹，使用命令启动应用程序:</p>
+
+<pre><code>// move into the project
+cd nest-starter-testing
+
+// start the server
+npm run start:dev
+</code></pre>
+
+<p>这将在默认的<code>3000</code>端口上启动应用程序。在您喜爱的浏览器中导航至<code>http://localhost:3000</code>进行查看。</p>
+
+<p><img src="../Images/eaf4ec4341eecd52df04ab5f194d1181.png" alt="Nest.js Default page" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-nest-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-nest-homepage.png"/></p>
+
+<h2>配置Nest.js并将其连接到数据库</h2>
+
+<p>TypeORM是一个流行的对象关系映射器(ORM ),用于TypeScript和JavaScript应用程序。为了便于与Nest.js应用程序集成，您需要为它安装一个附带的包，以及MySQL的Node.js驱动程序。为此，通过按CTRL + C停止应用程序运行，然后运行以下命令:</p>
+
+<pre><code>npm install --save @nestjs/typeorm typeorm mysql
+</code></pre>
+
+<p>当安装过程完成时，您可以将<code>TypeOrmModule</code>导入到应用程序的根目录中。</p>
+
+<h2>更新TypeScript根模块</h2>
+
+<p>Nest.js的构建块，模块是用<code>@Module</code>修饰的TypeScript文件。模块提供了Nest.js用来组织应用程序结构的元数据。<code>./src/app.module.ts</code>中的根模块是顶层模块。Nest.js建议将一个大型应用程序分解成多个模块。它有助于维护应用程序的结构。</p>
+
+<p>要创建与数据库的连接，打开<code>./src/app.module.ts</code>文件并用以下代码替换其内容:</p>
+
+<pre><code>import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { join } from 'path';
+
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: DB_USER,
+      password: DB_PASSWORD,
+      database: 'test_db',
+      entities: [join(__dirname, '**', '*.entity.{ts,js}')],
+      synchronize: true,
+    }),
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+
+</code></pre>
+
+<p><strong>注</strong> : <i>用你的证件</i>代替<code>DB_USER</code>和<code>DB_PASSWORD</code>。</p>
+
+<p>我们通过将<code>TypeOrmModule</code>导入到根<code>AppModule</code>中并指定连接选项，建立了与数据库的连接。其中包括数据库详细信息和实体文件的存储目录。我将在下一节更详细地介绍实体文件。</p>
+
+<h2>配置数据库连接</h2>
+
+<p>在本教程开始的先决条件中，我提到了MySQL下载页面。下载后，您需要配置数据库，使其适用于此应用程序。</p>
+
+<p>在您的终端中，通过运行以下命令登录MySQL:</p>
+
+<pre><code>mysql -u root -p
+</code></pre>
+
+<p>输入您在MySQL安装过程中设置的密码。现在运行:</p>
+
+<pre><code>ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
+</code></pre>
+
+<p>用您的密码替换“密码”。</p>
+
+<p>该命令为MySQL的Node.js驱动程序设置首选身份验证。要创建数据库，请运行:</p>
+
+<pre><code>CREATE DATABASE test_db;
+</code></pre>
+
+<h2>为Nest.js应用程序创建产品模块、服务和控制器</h2>
+
+<p>现在您已经配置了数据库连接，我们将开始为应用程序创建更多的结构。</p>
+
+<h3>生成模块</h3>
+
+<p>首先为<code>Product</code>生成一个模块。这将是一个新模块，用于对与产品相关的所有项目进行分组。首先运行以下命令:</p>
+
+<pre><code>nest generate module product
+</code></pre>
+
+<p>上面的命令将在<code>src</code>目录下创建一个新的<code>product</code>文件夹，在<code>product.module.ts</code>文件中定义<code>ProductModule</code>，并通过导入新创建的<code>ProductModule</code>自动更新<code>app.module.ts</code>文件中的根模块。<code>./src/product/product.module.ts</code>文件暂时为空，如下所示:</p>
+
+<pre><code>import { Module } from '@nestjs/common';
+@Module({})
+export class ProductModule {}
+
+</code></pre>
+
+<h3>创建实体</h3>
+
+<p>为了为Nest.js应用程序创建合适的数据库模式，TypeORM支持创建实体。实体是映射到特定数据库表的类。在这种情况下，它是产品表。</p>
+
+<p>按照Nest.js应用程序的正确结构，在<code>src/product</code>文件夹中创建一个新文件，并将其命名为<code>product.entity.ts</code>。然后将这段代码粘贴到其中:</p>
+
+<pre><code>import { PrimaryGeneratedColumn, BaseEntity, Column, Entity } from 'typeorm';
+
+@Entity()
+export class Product extends BaseEntity {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  name: string;
+
+  @Column()
+  description: string;
+
+  @Column()
+  price: string;
+}
+</code></pre>
+
+<p>使用从<code>typeorm</code>模块导入的装饰器，我们为产品表创建了四列。其中包括唯一标识产品的主键列。</p>
+
+<h2>创建数据传输对象</h2>
+
+<p>数据传输对象(DTO)有助于为进入应用程序的数据创建和验证正确的数据结构。例如，当您从前端向Node.js后端发送HTTP POST请求时，您需要从表单中提取发布的内容，并将其解析为后端代码可以轻松使用的格式。DTO帮助指定从请求体中提取的对象的形状，并提供了一种轻松插入验证的方法。</p>
+
+<p>要为该应用程序设置DTO，请在<code>src/product</code>目录中创建一个新文件夹，并将其命名为<code>dto</code>。接下来，在新创建的文件夹中创建一个文件，并将其命名为<code>create-product.dto.ts</code>。使用以下内容:</p>
+
+<pre><code>import { IsString } from 'class-validator';
+
+export class CreateProductDTO {
+  @IsString()
+  name: string;
+
+  @IsString()
+  description: string;
+
+  @IsString()
+  price: string;
+}
+</code></pre>
+
+<p>这里，我们定义了一个表示<code>CreateProductDTO</code>的类，还添加了一些验证来确保字段的数据类型是<strong>字符串</strong>。接下来，我们将创建一个存储库来帮助将数据直接保存到应用程序数据库中。</p>
+
+<h2>创建自定义存储库</h2>
+
+<p>通常，像TypeORM这样的ORM中的存储库主要作为持久层。它包含的方法有:</p>
+
+
+
+<p>这有助于与应用程序的数据库进行通信。在本教程中，我们将为我们的产品实体创建一个扩展TypeORM基本存储库的自定义存储库，并为特定查询创建一些自定义方法。首先导航到<code>src/product</code>文件夹，创建一个名为<code>product.repository.ts</code>的新文件。完成后，将以下内容粘贴到其中:</p>
+
+<pre><code>import { Repository, EntityRepository } from 'typeorm';
+import { Product } from './product.entity';
+import { CreateProductDTO } from './dto/create-product.dto';
+
+@EntityRepository(Product)
+export class ProductRepository extends Repository&lt;Product&gt; {
+
+  public async createProduct(
+    createProductDto: CreateProductDTO,
+  ): Promise&lt;Product&gt; {
+    const { name, description, price } = createProductDto;
+
+    const product = new Product();
+    product.name = name;
+    product.description = description;
+    product.price = price;
+
+    await product.save();
+    return product;
+  }
+
+  public async editProduct(
+    createProductDto: CreateProductDTO,
+    editedProduct: Product,
+  ): Promise&lt;Product&gt; {
+    const { name, description, price } = createProductDto;
+
+    editedProduct.name = name;
+    editedProduct.description = description;
+    editedProduct.price = price;
+    await editedProduct.save();
+
+    return editedProduct;
+  }
+}
+</code></pre>
+
+<p>从上面的代码中，我们定义了两个方法:</p>
+
+<ul>
+  <li><code>createProduct()</code>:该方法将<code>createProductDto</code>类作为参数，该类将用于提取HTTP请求的主体。然后我们析构<code>createProductDto</code>，用这些值创造一个新产品。</li>
+  <li><code>editProduct</code>:在这里，需要编辑的产品的详细信息被传递给这个方法，根据客户端的新值，指定的详细信息将被相应地更新并保存在数据库中。</li>
+</ul>
+
+<h2>生成Nest.js服务</h2>
+
+<p>服务，也称为提供者，是Nest.js中的另一个构建块，被归类到关注点分离原则下。它旨在处理和抽象复杂的业务逻辑，并返回适当的响应。Nest.js中的所有服务都用<code>@Injectable()</code> decorator修饰，这使得将服务注入任何其他文件变得容易，比如控制器和模块。</p>
+
+<p>使用以下命令为产品创建服务:</p>
+
+<pre><code>nest generate service product
+</code></pre>
+
+<p>运行上面的命令后，您将在终端上看到以下输出:</p>
+
+<pre><code>CREATE /src/product/product.service.spec.ts (467 bytes)
+CREATE /src/product/product.service.ts (91 bytes)
+UPDATE /src/product/product.module.ts (167 bytes)
+</code></pre>
+
+<p><code>nest</code>命令在<code>src/product</code>文件夹中创建了两个新文件。这些是:</p>
+
+<ul>
+  <li><code>product.service.spec.ts</code>文件将用于为将在产品服务文件中创建的方法编写单元测试。</li>
+  <li><code>product.service.ts</code>文件保存了应用程序的所有业务逻辑。</li>
+</ul>
+
+<p><code>nest</code>命令还导入了新创建的服务，并将其添加到了<code>product.module.ts</code>文件中。</p>
+
+<p>接下来，您将使用创建和检索所有产品的方法填充<code>product.service.ts</code>文件，以及获取、更新和删除特定产品的细节。打开文件并用以下内容替换其内容:</p>
+
+<pre><code>import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Product } from './product.entity';
+import { CreateProductDTO } from './dto/create-product.dto';
+import { ProductRepository } from './product.repository';
+
+@Injectable()
+export class ProductService {
+  constructor(
+    @InjectRepository(ProductRepository)
+    private productRepository: ProductRepository,
+  ) {}
+
+  public async createProduct(
+    createProductDto: CreateProductDTO,
+  ): Promise&lt;Product&gt; {
+    return await this.productRepository.createProduct(createProductDto);
+  }
+
+
+  public async getProducts(): Promise&lt;Product[]&gt; {
+    return await this.productRepository.find();
+  }
+
+
+  public async getProduct(productId: number): Promise&lt;Product&gt; {
+    const foundProduct = await this.productRepository.findOne(productId);
+    if (!foundProduct) {
+      throw new NotFoundException('Product not found');
+    }
+    return foundProduct;
+  }
+
+
+  public async editProduct(
+    productId: number,
+    createProductDto: CreateProductDTO,
+  ): Promise&lt;Product&gt; {
+    const editedProduct = await this.productRepository.findOne(productId);
+    if (!editedProduct) {
+      throw new NotFoundException('Product not found');
+    }
+    return this.productRepository.editProduct(createProductDto, editedProduct);
+  }
+
+
+  public async deleteProduct(productId: number): Promise&lt;void&gt; {
+    await this.productRepository.delete(productId);
+  }
+}
+</code></pre>
+
+<p>在这里，我们导入了应用程序所需的模块，并创建了单独的方法来:</p>
+
+<ul>
+  <li>创建新产品:<code>createProduct()</code></li>
+  <li>获取所有创建的产品:<code>getProducts()</code></li>
+  <li>检索单个产品的详细信息:<code>getProduct()</code></li>
+  <li>编辑特定产品的详细信息:<code>editProduct()</code></li>
+  <li>删除单个产品:<code>deleteProduct()</code></li>
+</ul>
+
+<p>值得注意的是，我们将之前创建的<code>ProductRepository</code>注入到这个服务中，以便轻松地与数据库进行交互和通信。以下是显示这一点的文件片段:</p>
+
+<pre><code>  ...
+
+  constructor(
+    @InjectRepository(ProductRepository)
+    private productRepository: ProductRepository,
+  ) {}
+
+  ...
+</code></pre>
+
+<p>只有当我们也将<code>ProductRepository</code>导入到产品模块中时，这才起作用。我们将在教程的后面做这件事。</p>
+
+<h2>生成Nest.js控制器</h2>
+
+<p>Nest.js中控制器的职责是接收和处理来自应用程序客户端的传入HTTP请求，并根据业务逻辑返回适当的响应。路由机制由附着在每个控制器顶部的装饰器<code>@Controller()</code>控制，通常决定哪个控制器接收哪个请求。要为我们的项目创建新的控制器文件，请从终端运行以下命令:</p>
+
+<pre><code>nest generate controller product --no-spec
+</code></pre>
+
+<p>您将看到以下输出。</p>
+
+<pre><code>CREATE /src/product/product.controller.ts (103 bytes)
+UPDATE /src/product/product.module.ts (261 bytes)
+</code></pre>
+
+<p>因为我们不会为这个控制器编写测试，所以我们使用了<code>--no-spec</code>选项来指示<code>nest</code>命令不要为控制器生成<code>.spec.ts</code>文件。打开<code>src/product/product.controller.ts</code>文件，将其代码替换为:</p>
+
+<pre><code>import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
+import { ProductService } from './product.service';
+import { CreateProductDTO } from './dto/create-product.dto';
+import { Product } from './product.entity';
+
+@Controller('product')
+export class ProductController {
+  constructor(private productService: ProductService) {}
+
+  @Post('create')
+  public async createProduct(
+    @Body() createProductDto: CreateProductDTO,
+  ): Promise&lt;Product&gt; {
+    const product = await this.productService.createProduct(createProductDto);
+    return product;
+  }
+
+  @Get('all')
+  public async getProducts(): Promise&lt;Product[]&gt; {
+    const products = await this.productService.getProducts();
+    return products;
+  }
+
+  @Get('/:productId')
+  public async getProduct(@Param('productId') productId: number) {
+    const product = await this.productService.getProduct(productId);
+    return product;
+  }
+
+  @Patch('/edit/:productId')
+  public async editProduct(
+    @Body() createProductDto: CreateProductDTO,
+    @Param('productId') productId: number,
+  ): Promise&lt;Product&gt; {
+    const product = await this.productService.editProduct(
+      productId,
+      createProductDto,
+    );
+    return product;
+  }
+
+  @Delete('/delete/:productId')
+  public async deleteProduct(@Param('productId') productId: number) {
+    const deletedProduct = await this.productService.deleteProduct(productId);
+    return deletedProduct;
+  }
+}
+</code></pre>
+
+<p>在这个文件中，我们导入了必要的模块来处理HTTP请求，并将之前创建的<code>ProductService</code>注入到控制器中。这是通过构造函数使用已经在<code>ProductService</code>中定义的函数来完成的。接下来，我们创建了这些异步方法:</p>
+
+<ul>
+  <li><code>createProduct()</code>方法用于处理客户端发送的POST HTTP请求，以创建新产品并将其保存在数据库中。</li>
+  <li><code>getProducts()</code>方法从数据库中获取完整的产品列表。</li>
+  <li><code>getProduct()</code>方法将<code>productId</code>作为参数，并使用它从数据库中检索具有唯一<code>productId</code>的产品的详细信息。</li>
+  <li><code>editProduct()</code>方法用于编辑特定产品的详细信息。</li>
+  <li><code>deleteProduct()</code>方法也接受惟一的<code>productId</code>来标识特定的产品并从数据库中删除它。</li>
+</ul>
+
+<p>这里需要注意的另一件重要事情是，我们定义的每个异步方法都有一个元数据装饰器作为HTTP动词。它们接受一个前缀，Nest.js使用这个前缀来进一步标识和指向应该处理请求并做出相应响应的方法。</p>
+
+<p>例如，我们创建的<code>ProductController</code>有一个前缀<code>product</code>和一个名为<code>createProduct()</code>的方法，该方法接受前缀<code>create</code>。这意味着任何指向<code>product/create</code> ( <code>http://localhost:3000/product/create</code>)的<code>GET</code>请求都将由<code>createProduct()</code>方法处理。这个过程对于在这个<code>ProductController</code>中定义的其他方法也是一样的。</p>
+
+<h2>更新产品模块</h2>
+
+<p>现在已经创建了控制器和服务，并使用<code>nest</code>命令将其自动添加到<code>ProductModule</code>中，我们需要更新<code>ProductModule</code>。打开<code>./src/product/product.module.ts</code>并用以下代码更新其内容:</p>
+
+<pre><code>import { Module } from '@nestjs/common';
+import { ProductController } from './product.controller';
+import { ProductService } from './product.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ProductRepository } from './product.repository';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([ProductRepository])], // add this
+  controllers: [ProductController],
+  providers: [ProductService],
+})
+
+export class ProductModule {}
+</code></pre>
+
+<p>这里，我们将<code>ProductRepository</code>类传递给了<code>TypeOrm.forFeature()</code>方法。这将允许使用<code>ProductRepository</code>类。</p>
+
+<p>应用程序现在已经准备好了，我们可以运行它来测试到目前为止创建的所有端点。从终端运行以下命令:</p>
+
+<pre><code>npm run start:dev
+</code></pre>
+
+<p>这将在<code>http://localhost:3000</code>启动应用程序。此时，您可以使用类似于<a href="https://circleci.com/blog/testing-an-api-with-postman/"> Postman </a>的工具来测试API。Postman是一个测试工具，用于在部署到生产环境之前确认和检查API的行为。</p>
+
+<h2>使用Nest.js应用程序创建产品</h2>
+
+<p><img src="../Images/95068e6ed11e473d1ee22996e71e7bf7.png" alt="Create product" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-create-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-create-product.png"/></p>
+
+<p>用产品的<code>name</code>、<code>description</code>和<code>price</code>创建一个到<code>http://localhost:3000/product/create</code>端点的POST HTTP请求。</p>
+
+<h3>获取所有产品</h3>
+
+<p><img src="../Images/59f7b9a9d22241487b9aafee791285ec.png" alt="Get all products" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-get-products.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-get-products.png"/></p>
+
+<p>对<code>http://localhost:3000/product/all</code>进行GET HTTP请求调用，以检索创建的产品的完整列表。</p>
+
+<h3>获取产品</h3>
+
+<p><img src="../Images/fa69b46601099b86bf361d0276b9a91f.png" alt="Get product" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-get-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-get-product.png"/></p>
+
+<p>为了检索单个产品的详细信息，我们向<code>http://localhost:3000/product/2</code>端点发送了一个GET HTTP请求。请注意，<code>2</code>是我们感兴趣的产品的唯一<code>productId</code>。你也可以尝试其他值。</p>
+
+<h3>编辑产品</h3>
+
+<p>向<code>http://localhost:3000/product/edit/2</code>端点发送补丁HTTP请求，更新用<code>2</code>的<code>productId</code>标识的产品详情。</p>
+
+<p><img src="../Images/b7d0d43786da2bc29faac3bc98ad43b5.png" alt="Edit product" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-edit-product.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-edit-product.png"/></p>
+
+<h2>为Nest.js应用程序编写测试</h2>
+
+<p>既然我们的API如预期的那样工作，在这一节中，我们将把重点放在为之前创建的<code>ProductService</code>类中定义的方法编写测试上。感觉只测试应用程序的这一部分比较合适，因为它处理大部分业务逻辑。</p>
+
+<p>Nest.js带有内置的测试基础设施，这意味着我们不必在测试方面设置太多配置。尽管Nest.js与测试工具无关，但它提供了开箱即用的集成。Jest将提供assert函数和test-double工具来帮助模仿。</p>
+
+<p>目前，<code>product.service.spec.ts</code>文件的代码是:</p>
+
+<pre><code>import { Test, TestingModule } from '@nestjs/testing';
+import { ProductService } from './product.service';
+
+describe('ProductService', () =&gt; {
+  let service: ProductService;
+
+  beforeEach(async () =&gt; {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [ProductService],
+    }).compile();
+    service = module.get&lt;ProductService&gt;(ProductService);
+  });
+
+  it('should be defined', () =&gt; {
+    expect(service).toBeDefined();
+  });
+});
+</code></pre>
+
+<p>我们将添加更多的测试，使其完全覆盖所有在<code>ProductService</code>中定义的方法。</p>
+
+<h2>为“创建”和“获取”产品方法编写测试</h2>
+
+<p>请记住，我们并没有使用测试驱动的开发方法来启动这个项目。因此，我们将编写测试来确保<code>ProductService</code>中的所有业务逻辑接收到适当的参数并返回预期的响应。首先，打开<code>product.service.spec.ts</code>文件并用以下内容替换其内容:</p>
+
+<pre><code>import { Test, TestingModule } from '@nestjs/testing';
+import { ProductService } from './product.service';
+import { ProductRepository } from './product.repository';
+import { NotFoundException } from '@nestjs/common';
+
+describe('ProductService', () =&gt; {
+  let productService;
+  let productRepository;
+  const mockProductRepository = () =&gt; ({
+    createProduct: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    delete: jest.fn(),
+  });
+
+  beforeEach(async () =&gt; {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ProductService,
+        {
+          provide: ProductRepository,
+          useFactory: mockProductRepository,
+        },
+      ],
+    }).compile();
+    productService = await module.get&lt;ProductService&gt;(ProductService);
+    productRepository = await module.get&lt;ProductRepository&gt;(ProductRepository);
+  });
+
+  describe('createProduct', () =&gt; {
+    it('should save a product in the database', async () =&gt; {
+      productRepository.createProduct.mockResolvedValue('someProduct');
+      expect(productRepository.createProduct).not.toHaveBeenCalled();
+      const createProductDto = {
+        name: 'sample name',
+        description: 'sample description',
+        price: 'sample price',
+      };
+      const result = await productService.createProduct(createProductDto);
+      expect(productRepository.createProduct).toHaveBeenCalledWith(
+        createProductDto,
+      );
+      expect(result).toEqual('someProduct');
+    });
+  });
+
+  describe('getProducts', () =&gt; {
+    it('should get all products', async () =&gt; {
+      productRepository.find.mockResolvedValue('someProducts');
+      expect(productRepository.find).not.toHaveBeenCalled();
+      const result = await productService.getProducts();
+      expect(productRepository.find).toHaveBeenCalled();
+      expect(result).toEqual('someProducts');
+    });
+  });
+});
+</code></pre>
+
+<p>首先，我们从<code>@nestjs/testing</code>模块导入了<code>Test</code>和<code>TestingModule</code>包。这提供了方法<code>createTestingModule</code>，它创建了一个测试模块，该模块将作为测试中前面定义的模块。在这个<code>testingModule</code>中，<code>providers</code>数组由<code>ProductService</code>和一个<code>mockProductRepository</code>组成，用来模仿使用工厂定制的<code>ProductRepository</code>。</p>
+
+<p>然后，我们创建了测试套件的两个不同组件，以确保我们可以创建产品并检索产品列表。</p>
+
+<p>让我们再添加几个脚本来测试在应用程序中检索和删除单个产品的功能。仍然在<code>product.service.spec.ts</code>文件中，通过在我们现有的测试脚本下面添加以下代码来更新它:</p>
+
+<pre><code>import { Test, TestingModule } from '@nestjs/testing';
+import { ProductService } from './product.service';
+import { ProductRepository } from './product.repository';
+import { NotFoundException } from '@nestjs/common';
+
+describe('ProductService', () =&gt; {
+  ...
+  describe('getProduct', () =&gt; {
+    it('should retrieve a product with an ID', async () =&gt; {
+      const mockProduct = {
+        name: 'Test name',
+        description: 'Test description',
+        price: 'Test price',
+      };
+      productRepository.findOne.mockResolvedValue(mockProduct);
+      const result = await productService.getProduct(1);
+      expect(result).toEqual(mockProduct);
+      expect(productRepository.findOne).toHaveBeenCalledWith(1);
+    });
+
+    it('throws an error as a product is not found', () =&gt; {
+      productRepository.findOne.mockResolvedValue(null);
+      expect(productService.getProduct(1)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('deleteProduct', () =&gt; {
+    it('should delete product', async () =&gt; {
+      productRepository.delete.mockResolvedValue(1);
+      expect(productRepository.delete).not.toHaveBeenCalled();
+      await productService.deleteProduct(1);
+      expect(productRepository.delete).toHaveBeenCalledWith(1);
+    });
+  });
+});
+</code></pre>
+
+<p>为了获得特定的产品，我们简单地创建了一个带有一些默认细节的<code>mockProduct</code>,并验证了我们可以检索和删除产品。</p>
+
+<p>查看GitHub 上的<a href="https://github.com/CIRCLECI-GWP/nest-starter-testing/blob/master/src/product/product.service.spec.ts" target="_blank" rel="noreferrer noopener">获取完整的测试脚本。</a></p>
+
+<h2>在本地运行测试</h2>
+
+<p>在运行测试之前，您应该删除为位于<code>src/app.controller.spec.ts</code>中的<code>AppController</code>创建的测试文件，如果您希望为其编写测试，您可以稍后手动创建该文件。现在，继续运行测试，使用:</p>
+
+<pre><code>npm run test
+</code></pre>
+
+<p>输出将是这样的:</p>
+
+<pre><code>&gt; nest-starter-testing@0.0.1 test /Users/dominic/workspace/personal/circleci-gwp/nest-starter-testing
+&gt; jest
+ PASS  src/app.controller.spec.ts
+ PASS  src/product/product.service.spec.ts
+ 
+Test Suites: 2 passed, 2 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        3.148 s
+Ran all test suites.
+</code></pre>
+
+<p><img src="../Images/24cb4703df8a2437be40bcf48e1e678f.png" alt="Test result terminal" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-test-result-terminal.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-test-result-terminal.png"/></p>
+
+<h2>自动化测试</h2>
+
+<p>现在，您已经用Nest.js构建了一个完整的RESTful API，并对其业务逻辑进行了测试。接下来，您需要添加配置文件来设置<a href="https://circleci.com/continuous-integration/">与CircleCI的持续集成</a>。持续集成有助于确保代码的更新不会破坏任何现有的功能。一旦测试被推送到GitHub存储库，它就会自动运行。</p>
+
+<p>首先，创建一个名为<code>.circleci</code>的文件夹，并在其中创建一个名为<code>config.yml</code>的新文件。打开新文件并将以下代码粘贴到其中:</p>
+
+<pre><code>version: 2.1
+orbs:
+  node: circleci/node@3.0.0
+jobs:
+  build-and-test:
+    executor:
+      name: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - run:
+          command: npm run test
+workflows:
+  build-and-test:
+    jobs:
+      - build-and-test
+</code></pre>
+
+<p>这里，我们指定了要使用的CircleCI版本，并使用CircleCI <a href="https://circleci.com/developer/orbs/orb/circleci/node"> Node orb </a>来设置和安装Node.js。最后一个命令是实际的测试命令，它运行我们的测试。</p>
+
+<h3>在CircleCI建立项目</h3>
+
+<p>通过将<a href="https://circleci.com/signup/">导航到此页面</a>，在CircleCI上创建一个帐户。接下来，如果您是任何组织的一部分，您将需要选择您希望工作的组织来用CircleCI设置您的存储库。</p>
+
+<p>一旦你进入项目页面，找到我们之前在GitHub上创建的项目，点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/0459eb07aefaacd4ad17f700adcc3a0c.png" alt="Project page" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-test-project-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-test-project-page.png"/></p>
+
+<p>这将显示一个配置页面，允许您选择想要使用的CircleCI配置文件。这默认为位于主分支<code>.circleci/config.yaml</code>的配置。</p>
+
+<p>现在点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/49ed8f2284660a8f4da99088903e040c.png" alt="Select CircleCI Config" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-select-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-select-config-page.png"/></p>
+
+<p>按照提示，点击<strong>手动添加</strong>，因为我们已经包含了配置文件。您将看到您的管道开始自动运行并通过。</p>
+
+<p><img src="../Images/379e05aa1ffebbb09cafccdbef22f81d.png" alt="Build page" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-build-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-build-page.png"/></p>
+
+<p>这个构建只有一个任务:<code>build-and-test</code>。作业中的所有步骤都在一个单元中执行，要么在一个新容器中执行，要么在一个虚拟机中执行。</p>
+
+<p><img src="../Images/ba81b93c89f77a3eef8b13b03f079f0f.png" alt="Job page" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-job-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-job-page.png"/></p>
+
+<p>您也可以点击工单查看步骤。步骤是在作业期间运行的可执行命令的集合</p>
+
+<p><img src="../Images/042e07d4e060ebccc833cd6d8e359b70.png" alt="Steps page" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-step-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-step-page.png"/></p>
+
+<p>单击这些步骤会显示更多详细信息。例如，点击<code>npm run test</code>步骤。</p>
+
+<p><img src="../Images/80f78520557c9b6e16adfc6665914d24.png" alt="Step details page" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-14-step-details-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-14-step-details-page.png"/></p>
+
+<p>所有测试都成功运行，并且显示出与本地运行测试时类似的输出。随后，你要做的就是给你的项目增加更多的特性，编写更多的测试，推送到GitHub。持续集成管道将自动运行，测试将被执行。</p>
+
+<h2>使用Nest.js构建自己的RESTful API</h2>
+
+<p>Nest.js鼓励并加强web应用程序的优秀结构。它帮助您的团队组织工作并遵循最佳实践。在本教程中，我们学习了如何使用Nest.js构建RESTful APIs，并使用Postman测试功能。最后，我们编写了几个测试，并使用CircleCI自动化了它们。</p>
+
+<p>在本教程中，我们重点测试了<code>ProductService</code>。如果您想进一步探索，您可以将获得的知识应用到应用程序的其他部分。</p>
+
+<p>该应用程序的完整源代码<a href="https://github.com/CIRCLECI-GWP/nest-starter-testing" target="_blank" rel="noreferrer noopener">在GitHub </a>上。</p>
+
+<p>要了解如何向NestJS GraphQL项目添加单元和集成测试，并使用CircleCI自动化测试过程，请访问<a href="https://circleci.com/blog/testing-nestjs-graphql/">NestJS graph QL项目的持续集成</a>博客文章。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Oluyemi是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他的问题解决技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。作为技术专家，他的爱好包括尝试新的编程语言和框架。</p>
+
+            <p><a href="/blog/author/olususi-oluyemi/" class="arrow-link">阅读更多Olususi Oluyemi的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

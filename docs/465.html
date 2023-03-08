@@ -1,0 +1,229 @@
+<html>
+<head>
+<title>Building CI/CD pipelines using the CircleCI AWS ECR orb</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用CircleCI AWS ECR orb构建CI/CD管道</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/orbs-aws-ecr/#2018-12-20T08:00:00-08:00">https://circleci.com/blog/orbs-aws-ecr/#2018-12-20T08:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>CircleCI最近发布了一款名为<a href="https://circleci.com/blog/announcing-orbs-technology-partner-program/" target="_blank" rel="noreferrer noopener"> orbs </a>的新产品，旨在让你在CircleCI上快速启动并运行。现在，您可以轻松地将您的DevOps工具与我们的技术合作伙伴提供的可信orb相集成。</p>
+
+<p>在这篇文章中，我将演示和解释<a href="https://circleci.com/developer/orbs/orb/circleci/aws-ecr" target="_blank" rel="noreferrer noopener"> AWS ECR Orb </a>及其在CircleCI配置文件中的用法，利用<a href="https://circleci.com/docs/workflows/" target="_blank" rel="noreferrer noopener"> CircleCI工作流</a>，并将图像推送到<a href="https://hub.docker.com/" target="_blank" rel="noreferrer noopener"> Docker Hub </a>和指定的AWS ECR。</p>
+
+
+
+<h2>什么是CircleCI球体？</h2>
+
+<p>orb是CircleCI配置的包，可以跨项目共享。orb允许您创建一个作业、命令和执行器的捆绑包，它们可以相互引用，可以导入到CircleCI构建配置中，并在它们自己的名称空间中调用。orb在CircleCI注册，使用semver模式表示修订。CircleCI orbs由<a href="https://circleci.com/developer/orbs" target="_blank" rel="noreferrer noopener"> CircleCI Orbs Registry </a>托管和维护，该注册中心是CircleCI Orbs的集中存储库。</p>
+
+<h2>先决条件</h2>
+
+<p>在你开始之前，你需要有这些东西:</p>
+
+
+
+<p>完成所有先决条件后，就可以继续下一部分了。</p>
+
+<h2>配置CircleCI项目环境变量</h2>
+
+<p>我们项目的CI/CD管道将Docker映像部署到多个容器存储库，因此您需要在<a href="https://circleci.com/docs/env-vars/#setting-an-environment-variable-in-a-project" target="_blank" rel="noreferrer noopener"> CircleCI项目设置</a>中设置一些环境变量:</p>
+
+<ul>
+  <li>点击左侧菜单中CircleCI仪表板上的<strong>添加项目</strong></li>
+  <li>在项目列表中找到并点击项目名称，点击右侧的<strong>设置项目</strong></li>
+  <li>点击右上方CircleCI仪表盘中的<strong>项目重心</strong>按钮</li>
+  <li>在<strong>构建设置</strong>部分，点击<strong>环境变量</strong></li>
+  <li>点击<strong>添加变量</strong></li>
+</ul>
+
+<p>在<code>Add an Environment Variable</code>对话框中，你将定义这个构建所需的几个环境变量。下面是必须定义的环境变量列表:</p>
+
+<ul>
+  <li>名称:<code>AWS_ECR_ACCOUNT_URL</code>值:<a href="https://docs.aws.amazon.com/AmazonECR/latest/userguide/Registries.html" target="_blank" rel="noreferrer noopener">您的AWS ECR注册表URL </a></li>
+  <li>名称:<code>AWS_ACCESS_KEY_ID</code>值:<code>Your AWS IAM Account's Access Key ID</code></li>
+  <li>名称:<code>AWS_SECRET_ACCESS_KEY</code>值:<code>Your AWS IAM Account's Secret Access Key</code></li>
+  <li>名称:<code>DOCKER_LOGIN</code>值:<code>Your Docker Hub User Name</code></li>
+  <li>名称:<code>Docker_PWD</code>值:<code>Your Docker Hub Password</code></li>
+</ul>
+
+<p>正确设置这些环境变量对于构建成功完成至关重要。在继续下一节之前，请确保正确设置了这些变量及其值。</p>
+
+<h2>使用CircleCI AWS ECR Orb</h2>
+
+<p>下面是定义这个项目管道的<code>config.yml</code>文件。在接下来的部分中，我将解释这个<code>config.yml</code>文件的各种元素。</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  aws-ecr: circleci/aws-ecr@0.0.4
+
+workflows:
+  build_test_deploy:
+    jobs:
+      - build_test
+      - docker_hub_build_push_image:
+          requires:
+            - build_test
+      - aws-ecr/build_and_push_image:
+          region: us-east-1
+          account-url: ${AWS_ECR_ACCOUNT_URL}
+          repo: ${CIRCLE_PROJECT_REPONAME}
+          tag: ${CIRCLE_BUILD_NUM}
+          requires:
+            - build_test
+jobs:
+  build_test:
+    docker:
+      - image: circleci/python:2.7.14
+    steps:
+      - checkout
+      - run:
+          name: Setup VirtualEnv
+          command: |
+            virtualenv helloworld
+            . helloworld/bin/activate
+            pip install --no-cache-dir -r requirements.txt
+      - run:
+          name: Run Tests
+          command: |
+            . helloworld/bin/activate
+            python test_hello_world.py
+  docker_hub_build_push_image:
+    docker:
+      - image: circleci/python:2.7.14
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Build and push Docker image to Docker Hub
+          command: |
+            echo 'export TAG=0.1.${CIRCLE_BUILD_NUM}' &gt;&gt; ${BASH_ENV}
+            echo 'export IMAGE_NAME=${CIRCLE_PROJECT_REPONAME}' &gt;&gt; ${BASH_ENV}
+            source ${BASH_ENV}
+            docker build -t ${DOCKER_LOGIN}/${IMAGE_NAME} -t ${DOCKER_LOGIN}/${IMAGE_NAME}:${TAG} .
+            echo ${DOCKER_PWD} | docker login -u ${DOCKER_LOGIN} --password-stdin
+            docker push ${DOCKER_LOGIN}/${IMAGE_NAME}
+</code></pre>
+
+<h3>指定工作流和orb</h3>
+
+<pre><code class="language-yaml">orbs:
+  aws-ecr: circleci/aws-ecr@0.0.4
+</code></pre>
+
+<p><code>orbs:</code>键指定一个orb将在这个管道中使用。<code>aws-ecr:</code>键定义了配置中使用的内部名称。<code>circleci/aws-ecr@0.0.4</code>值指定并关联由<code>aws-ecr:</code>键使用和引用的实际orb。这些orb语句可以被认为是其他语言和框架中的import语句。</p>
+
+<pre><code class="language-yaml">workflows:
+  build_test_deploy:
+    jobs:
+      - build_test
+      - docker_hub_build_push_image:
+          requires:
+            - build_test
+      - aws-ecr/build_and_push_image:
+          region: us-east-1
+          account-url: ${AWS_ECR_ACCOUNT_URL}
+          repo: ${CIRCLE_PROJECT_REPONAME}
+          tag: ${CIRCLE_BUILD_NUM}
+          requires:
+            - build_test
+</code></pre>
+
+<h3>工作流定义</h3>
+
+<p><code>workflows:</code>键指定了由构建作业和orb组成的工作流列表。该段指定了一个称为<code>build_test_deploy:</code>的工作流</p>
+
+<pre><code class="language-yaml">jobs:
+  - build_test
+  - docker_hub_build_push_image:
+      requires:
+        - build_test
+</code></pre>
+
+<p>在这个片段中，指定了一个<code>jobs:</code>键，列出了在这个管道中执行的所有作业和orb。该列表中的第一个作业是<code>build_test</code>，它没有作业依赖性。</p>
+
+<h3>Orb定义</h3>
+<p>工作流列表中的下一个任务<code>docker_hub_build_push_image:</code>指的是稍后将讨论的任务，但是请注意<code>requires:</code>键，它指定<code>docker_hub_build_push_image:</code>任务依赖于<code>build_test</code>任务的通过。否则，整个构建将会失败，并且工作流中的剩余作业将不会执行。</p>
+
+<pre><code class="language-yaml">- aws-ecr/build_and_push_image:
+    region: us-east-1
+    account-url: ${AWS_ECR_ACCOUNT_URL}
+    repo: ${CIRCLE_PROJECT_REPONAME}
+    tag: ${CIRCLE_BUILD_NUM}
+    requires:
+      - build_test
+</code></pre>
+
+<p>上面的部分显示了指定AWS ECR Orb执行的<code>aws-ecr/build_and_push_image:</code>键。在本例中，AWS ECR Orb的参数需要分配给<a href="https://circleci.com/docs/env-vars/#built-in-environment-variables" target="_blank" rel="noreferrer noopener">内置环境变量</a>的值。有关此Orb的更多详细信息，请参见<a href="https://circleci.com/developer/orbs/orb/circleci/aws-ecr" target="_blank" rel="noreferrer noopener"> AWS ECR Orb文档</a>。这个特定的AWS ERC Orb依赖于在执行这个Orb的<code>build_and_push_image</code>方法之前成功完成的<code>build_test:</code>作业。</p>
+
+<h3>作业定义</h3>
+
+<p>我已经讨论了配置中的<code>workflows:</code>和<code>orbs:</code>元素，它们是对该配置的主<code>jobs:</code>元素中定义的作业的引用。以下代码段显示了在此配置语法中定义的所有作业。</p>
+
+<pre><code class="language-yaml">jobs:
+  build_test:
+    docker:
+      - image: circleci/python:2.7.14
+    steps:
+      - checkout
+      - run:
+          name: Setup VirtualEnv
+          command: |
+            virtualenv helloworld
+            . helloworld/bin/activate
+            pip install --no-cache-dir -r requirements.txt
+      - run:
+          name: Run Tests
+          command: |
+            . helloworld/bin/activate
+            python test_hello_world.py
+  docker_hub_build_push_image:
+    docker:
+      - image: circleci/python:2.7.14
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Build and push Docker image to Docker Hub
+          command: |
+            echo 'export TAG=0.1.${CIRCLE_BUILD_NUM}' &gt;&gt; ${BASH_ENV}
+            echo 'export IMAGE_NAME=${CIRCLE_PROJECT_REPONAME}' &gt;&gt; ${BASH_ENV}
+            source ${BASH_ENV}
+            docker build -t ${DOCKER_LOGIN}/${IMAGE_NAME} -t ${DOCKER_LOGIN}/${IMAGE_NAME}:${TAG} .
+            echo ${DOCKER_PWD} | docker login -u ${DOCKER_LOGIN} --password-stdin
+            docker push ${DOCKER_LOGIN}/${IMAGE_NAME}
+</code></pre>
+
+<p>在上面的片段中，定义了两个作业<code>build_test:</code>和<code>docker_hub_build_push-image:</code>，演示了原始配置语法。<code>build_test:</code>作业实例化一个Python容器，安装应用程序依赖项，并运行应用程序的单元测试。</p>
+
+<p><code>docker_hub_build_push_image:</code>作业设置用于命名和标记图像的环境变量，基于Docker文件构建Docker图像，并将构建的图像推送到Docker Hub。</p>
+
+<p>这整个配置演示了如何定义和实现工作流、orb和作业，它们在配置语法上提供了健壮和强大的功能。成功执行这个管道后，您应该在Docker Hub和AWS ECR存储库中得到一个经过测试的Docker映像。</p>
+
+<h2>摘要</h2>
+
+<p>如您所见，与AWS ECR Orb定义相比,<code>jobs:</code>段更加冗长。orb旨在封装功能，提供一致性并减少管道配置中的重复代码量，从而减少冗长的配置语法。</p>
+
+<p>使用orbs，您可以在团队和项目之间共享您首选的CI/CD设置，并且只需几行代码就可以轻松集成工具和第三方解决方案。开发社区的成员可以编写orb来解决常见问题并帮助管理配置。在常见用例中共享和重用orb使团队能够解决有趣的、独特的问题，使他们的业务与众不同，同时为社区中的其他人提供加速CI/CD工作流的解决方案。</p>
+
+<p>我期待orb的未来发展，以及它们给CI/CD管道带来的令人敬畏的流线型功能。如果您浏览orb注册表，没有找到符合您需要的功能的orb，那么我鼓励您<a href="https://circleci.com/docs/orb-intro/#authoring-your-own-orb" target="_blank" rel="noreferrer noopener">创作您自己的定制orb </a>。请注意，目前CircleCI Orb注册表上托管的所有Orb都是开放的，可供公众使用。注册中心目前还不支持私有orb，但是这个特性已经在orb的路线图上了，将来会提供。</p>
+
+<h2>参考</h2>
+
+<p>要了解有关orb、工作流和CircleCI的更多信息，请使用下列参考资料:</p>
+
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

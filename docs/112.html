@@ -1,0 +1,390 @@
+<html>
+<head>
+<title>Continuous deployment for progressive web applications | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>渐进式web应用的持续部署| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/cd-for-pwa/#2020-06-08T14:00:00-07:00">https://circleci.com/blog/cd-for-pwa/#2020-06-08T14:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p><a href="https://web.dev/progressive-web-apps/">渐进式网络应用(PWAs) </a>由于其类似本地的属性，继续获得广泛的关注、接受和与网络浏览器的兼容性。部署这些应用程序的强制性安全考虑之一是它们必须安全托管。因此，PWA功能将无法在不安全的URL上工作，即不使用安全<code>https://</code>协议的URL。在本帖中，我们将创建一个自动部署管道，将我们的PWA部署到<a href="https://firebase.google.com/"> Firebase </a>上的一个安全URL。</p>
+
+<h2>先决条件</h2>
+
+<p>要跟进这篇文章，需要做一些事情:</p>
+
+<ol>
+  <li>Javascript的基础知识</li>
+  <li>系统上安装的<a href="https://nodejs.org"> Node.js </a></li>
+  <li>一个<a href="https://www.npmjs.com/package/http-server"> HTTP服务器模块</a>全局安装在您的系统上(<code>npm install -g http-server</code>)</li>
+  <li>一个<a href="https://firebase.google.com/">火基</a>账户</li>
+  <li>一个<a href="https://circleci.com/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+</ol>
+
+<p>所有这些安装和设置，让我们开始教程。</p>
+
+<h2>设置演示应用程序</h2>
+
+<p>第一项任务是创建我们将部署到Firebase的演示应用程序。运行以下命令为项目创建一个目录，并进入该目录的根目录:</p>
+
+<pre><code>mkdir my-pwa-firebase
+cd my-pwa-firebase
+</code></pre>
+
+<p>接下来，让我们创建我们的应用程序主页。在项目的根目录下创建一个名为<code>index.html</code>的文件，并将以下代码粘贴到其中:</p>
+
+<pre><code>
+&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+  &lt;head&gt;
+    &lt;meta charset="UTF-8" /&gt;
+    &lt;meta name="viewport" content="width=device-width, initial-scale=1.0" /&gt;
+    &lt;link rel="manifest" href="manifest.json" /&gt;
+    &lt;meta name="theme-color" content="#db4938" /&gt;
+    &lt;link rel="stylesheet" type="text/css" href="styles.css" media="all" /&gt;
+
+    &lt;title&gt;DogVille&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;h2&gt;
+      Welcome to the home of Dogs
+    &lt;/h2&gt;
+
+    &lt;div class="dog-list"&gt;
+      &lt;div class="dog-pic"&gt;&lt;img width="300px" src="images/dog1.jpg" /&gt;&lt;/div&gt;
+      &lt;div class="dog-pic"&gt;&lt;img width="300px" src="images/dog2.jpg" /&gt;&lt;/div&gt;
+      &lt;div class="dog-pic"&gt;&lt;img width="300px" src="images/dog3.jpg" /&gt;&lt;/div&gt;
+      &lt;div class="dog-pic"&gt;&lt;img width="300px" src="images/dog4.jpg" /&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;script src="app.js"&gt;&lt;/script&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+
+</code></pre>
+
+<p>在上面的主页文件中，我们链接到三个文件:<code>manifest.json</code>，我们将使用它们来设置<strong>添加到主屏幕</strong> PWA特性，<code>styles.css</code>将一些基本样式应用到我们的页面，以及<code>app.js</code>，它们将加载我们还没有创建但很快就会创建的服务工作者。在我们页面的主体，我们有一个标题，写着<strong>欢迎来到狗狗之家</strong>，在它下面，我们显示了一个狗狗图片列表。如你所见，这是一个狗的网站(向爱猫人士道歉)。</p>
+
+<p>狗的图像包含在项目根目录下的一个<code>images</code>文件夹中。我已经根据<code>images</code>中使用的文件名引用了<code>index.html</code>中的狗图片。继续创建这个文件夹，你可以在这里免费下载<a href="https://pixabay.com/images/search/dog/">狗狗图片，并给它们重新命名。</a></p>
+
+<p>让我们通过在项目的根目录下创建文件<code>styles.css</code>并在其中粘贴以下代码来添加样式:</p>
+
+<pre><code>body {
+  background-color: orange;
+}
+
+h2 {
+  color: white;
+}
+</code></pre>
+
+<p>这个文件给了我们的页面背景颜色，并使标题文本为白色。让我们在项目的根目录下运行以下命令，调用全局<code>http-server</code>模块来启动本地服务器为我们的应用程序提供服务，以此来测试我们的应用程序:</p>
+
+<pre><code>http-server
+</code></pre>
+
+<p>当你在浏览器中加载网址时，你会看到一个类似下面的屏幕(你的狗可能与我的不同):</p>
+
+<p><img src="../Images/65c72a3b5a027c97e30642a5151dbb6b.png" alt="App first view" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-app-first-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-app-first-view.png"/></p>
+
+<h2>添加服务人员</h2>
+
+<p>现在，让我们加入PWAs的果汁，这位<a href="https://developers.google.com/web/fundamentals/primers/service-workers">服务人员</a>。在项目的根目录下创建一个<code>serviceworker.js</code>文件，并将以下代码粘贴到其中:</p>
+
+<pre><code>var cacheName = "sw-v1";
+var filesToCache = [
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./images/dog1.jpg",
+  "./images/dog2.jpg",
+  "./images/dog3.jpg",
+  "./images/dog4.jpg"
+];
+
+self.addEventListener("install", function (e) {
+  console.log("&lt;ServiceWorker&gt; ---- Install v1");
+  e.waitUntil(
+    caches.open(cacheName).then(function (cache) {
+      console.log("&lt;ServiceWorker&gt; --- Caching app shell");
+      return cache.addAll(filesToCache);
+    })
+  );
+});
+
+self.addEventListener("activate", (event) =&gt; {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("fetch", function (event) {
+  event.respondWith(
+    caches.match(event.request).then(function (response) {
+      if (response) {
+        return response;
+      }
+      return fetch(event.request);
+    })
+  );
+});
+</code></pre>
+
+<p>在上面的服务工作者文件中，我们缓存了所有的静态文件，包括我们的项目根和图像。然后我们监听<code>install</code>事件来安装我们的服务工作者，并使用指定的<code>cacheName</code>作为标识符为这些文件创建一个缓存。</p>
+
+<p>接下来，我们监听<code>activate</code>事件，以确保已经安装的任何新服务工作器都是为我们的缓存服务的，而不是旧版本。</p>
+
+<p>最后，我们监听<code>fetch</code>事件来拦截任何请求，并检查我们的缓存中是否已经有了所请求的资源。如果是，我们提供缓存版本，如果不是，我们发出新的请求来获取资源。</p>
+
+<p>现在，让我们将服务人员文件加载到应用程序中。在项目的根目录下创建一个<code>app.js</code>文件，并将以下代码粘贴到其中:</p>
+
+<pre><code>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./serviceworker.js").then(
+      function (registration) {
+        console.log("Hurray! Service workers with scope: ", registration.scope);
+      },
+      function (err) {
+        console.log("Oops! ServiceWorker registration failed: ", err);
+      }
+    );
+  });
+}
+</code></pre>
+
+<p>让我们带我们的服务人员去兜兜风。确保您的应用程序仍在运行，然后在当前加载应用程序的浏览器选项卡上进行硬重新加载(<code>Ctrl + Shift + R</code>)。现在检查浏览器控制台，查看我们为确认服务人员的安装而编写的控制台日志消息。您将在控制台中看到以下消息。</p>
+
+<p><img src="../Images/953767e4b73d983c09442947c29ca752.png" alt="Service Worker Installation" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-sw-installed.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-sw-installed.png"/></p>
+
+<p>为了确认我们现在已经安装了服务人员的离线功能，使用<code>Ctrl + C</code>关闭<code>http-server</code>服务，然后在浏览器上刷新应用程序。此时，您通常会看到脱机页面，因为应用程序不再运行，但是借助服务人员的魔力，您仍然可以看到您的应用程序主页。还要注意，所有的狗图片都是离线加载的。</p>
+
+<p>太好了！</p>
+
+<h2>添加清单文件</h2>
+
+<p>让我们通过在项目的根目录下创建我们的<code>manifest.json</code>文件来结束我们的演示应用程序。你可以生成一个简单的带有图标<a href="https://app-manifest.firebaseapp.com/">的<code>manifest.json</code>文件。</a></p>
+
+<p>下面是我的<code>manifest.json</code>文件中的代码。<strong>注意</strong> : <i>我已经在我的例子中移除了一些图标。</i></p>
+<pre><code>{
+  "name": "my-dogsite-pwa",
+  "short_name": "my-dogsite-pwa",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/index.html",
+  "start_url": "/index.html",
+  "icons": [
+    {
+      "src": "icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+</code></pre>
+
+<p>在上面的文件中，定义了应用的<code>name</code>、首选的<code>short name</code>、应用栏的<code>theme_color</code>和闪屏的<code>background_color</code>。</p>
+
+<p><strong>注意:</strong> <i>添加<code>short_name</code>是一个最佳实践，这是一个可选字段，指定将在应用程序启动器或新标签页中显示的名称。否则会使用<code>name</code>，超过12个字符就会被截断。</i></p>
+
+<p><code>icons</code>数组还添加了一组图标对象定义，指向我们将用于PWA的图标。记得创建<code>icons</code>文件夹，并用清单文件中命名的图标填充它。</p>
+
+<h2>设置Firebase的部署</h2>
+
+<p>现在我们的PWA已经完成，让我们开始为部署到Firebase做准备。您需要安装Firebase工具。要检查是否已安装，请运行以下命令:</p>
+
+<pre><code>firebase
+</code></pre>
+
+<p>这将向您的CLI返回Firebase命令列表。如果没有，您需要运行以下命令来安装它:</p>
+
+<pre><code>npm install -g firebase-tools
+</code></pre>
+
+<p>如果您的<code>firebase-tools</code>版本低于8，您也需要运行上面的命令。要检查您的<code>firebase-tools</code>版本，运行以下命令:</p>
+
+<pre><code>firebase --version
+</code></pre>
+
+<p>要为我们的项目设置Firebase托管，我们需要创建一个Firebase项目。去你的<a href="https://console.firebase.google.com/"> Firebase控制台</a>创建一个新的Firebase项目。</p>
+
+<p>点击<code>Add Project</code>，在弹出的第一页输入你的项目名称。</p>
+
+<p><img src="../Images/509b00ffde04da3a3fa6277f86085e98.png" alt="Create Firebase Project" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-project-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-firebase-project-1.png"/></p>
+
+<p>点击<code>Continue</code>，在下一页关于添加<strong>谷歌分析</strong>的页面，关闭<code>Enable Google Analytics for this project</code>切换按钮。由于这是一个演示项目，我们将不需要分析。</p>
+
+<p>现在点击<code>Create Project</code>。等待Firebase完成项目设置，然后单击<code>Continue</code>导航到您的项目仪表板。</p>
+
+<p>现在我们已经设置好了项目，下一步是使用我们刚刚创建的项目来设置PWA以托管在Firebase上。在默认浏览器上保持登录Firebase，然后转到CLI运行以下命令:</p>
+
+<pre><code>firebase login:ci
+</code></pre>
+
+<p>该命令将通过重定向到您当前登录的浏览器，让您登录Firebase。一旦认证过程完成，你的Firebase令牌将被打印在屏幕上的<code>✔ Success! Use this token to login on a CI server</code>行下面。请安全地保存这个令牌，因为在本教程的后面会用到它。</p>
+
+<p>接下来，在PWA项目的根目录下运行以下命令来初始化Firebase设置:</p>
+
+<pre><code>firebase init
+</code></pre>
+
+<p>该命令的第一个提示是</p>
+<pre><code>? Which Firebase CLI features do you want to set up for this folder? Press Space to select features, then Enter to confirm your choices.
+</code></pre>
+<p>。使用箭头键导航到<code>Hosting</code>选项，点击<code>Spacebar</code>进行选择，点击<code>Enter</code>进入下一个提示。</p>
+
+<p><img src="../Images/08c0b9cacfef4edc4969cf41cc702034.png" alt="Select Project Features" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-select-features.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-select-features.png"/></p>
+
+<p>接下来的提示是将您的本地项目与您的Firebase帐户上的Firebase项目相关联。在这里，您可以选择使用现有项目或创建一个新项目。选择<code>Use an existing project</code>并点击<code>Enter</code>进入下一个提示。这个选项将提示CLI工具加载Firebase项目，供您在下一个提示中进行选择。我正在选择我们刚刚在Firebase控制台上创建的项目。</p>
+
+<p>点击<code>Enter</code>确认您的选择。</p>
+
+<p><img src="../Images/686ec56b6917ea11836100f10bbe2b1f.png" alt="Select Project" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-select-project.png"/></p>
+
+<p>下一个提示询问项目文件夹并建议文件夹<code>public</code>。对于我们的项目，一切都发生在根上，所以只需输入<code>/</code>并点击<code>Enter</code>继续。</p>
+
+<p>下一个提示是<code>? Configure as a single-page app (rewrite all urls to /index.html)?</code>。因为我们的整个应用程序驻留在<code>index.html</code>中，所以键入<code>y</code>并点击<code>Enter</code>。这个提示对于区分单页应用程序和传统的多页应用程序非常重要，这样Firebase主机就知道如何处理它们。</p>
+
+<p>下一个提示检测到我们已经有了一个<code>index.html</code>文件，并询问是否应该覆盖它。为此键入<code>N</code>并点击<code>Enter</code>。这就完成了设置，现在您将拥有一个为该应用程序设置项目id的<code>.firebaserc</code>文件，一个包含我们在设置过程中选择的选项和一些其他默认设置的详细信息的<code>firebase.json</code>文件，以及一个用于Firebase的标准<code>.gitignore</code>文件。</p>
+
+<p>这样，我们现在可以继续创建我们的部署管道。</p>
+
+<h2>构建CD管道</h2>
+
+<p>要设置我们的自动化部署管道，我们需要采取以下步骤:</p>
+
+<ol>
+  <li>将我们的项目推到一个连接到CircleCI帐户的远程存储库(本例中为GitHub)</li>
+  <li>将我们的应用程序作为新项目添加到CircleCI上</li>
+  <li>将Firebase令牌作为环境变量添加到CircleCI项目中</li>
+  <li>在项目中本地安装<code>firebase-tools</code></li>
+  <li>创建我们的管道配置文件</li>
+  <li>将项目变更推送到我们的存储库以启动部署</li>
+</ol>
+
+<p>我们开始吧。通过运行以下命令搭建一个快速的<code>package.json</code>文件:</p>
+
+<pre><code>npm init -y
+</code></pre>
+
+<p>然后，<a href="https://circleci.com/blog/pushing-a-project-to-github/">将项目推送到GitHub </a>。</p>
+
+<p>下一步是将我们的项目的存储库设置为CircleCI项目。</p>
+
+<p>在CircleCI控制台上，转到<strong>添加项目</strong>页面。</p>
+
+<p><img src="../Images/56eaf3c3c64eff14dab2f26b9c682185.png" alt="Add Project" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-add-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>。这将加载下一个屏幕。</p>
+
+<p><img src="../Images/cd38072780c5e2c22182a262b686e317.png" alt="Start Building - Config sample" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-start-building1.png"/></p>
+
+<p>在设置页面上，点击<strong>开始构建</strong>。在构建开始之前，您会得到一个提示，要么下载并使用所提供的CircleCI配置文件并将它放在一个单独的分支上，要么手动设置一个。</p>
+
+<p><img src="../Images/8310d4ec6299bec7ccf2a493eceab370.png" alt="Start Building - Add manually" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-start-building2.png"/></p>
+
+<p>选择<strong>手动添加</strong>继续。这将提示另一个对话框，检查确认您已经设置了配置文件，可以开始构建了。</p>
+
+<p><img src="../Images/5d6f6f8f3b6759065e5959397c7b1a83.png" alt="Start Building - Confirm configuration" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-start-building3.png"/></p>
+
+<p>点击<strong>开始构建</strong>以完成设置。这将立即触发管道。构建将失败，因为我们还没有添加管道配置文件。</p>
+
+<p>我们的下一步是将Firebase令牌作为环境变量添加到我们刚刚创建的CircleCI项目中。在<strong>管道</strong>页面，选中我们的项目，点击<strong>项目设置</strong>。</p>
+
+<p><img src="../Images/948c0adeb3e2ca3b022f28e497285318.png" alt="Project Settings" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-project-settings.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-project-settings.png"/></p>
+
+<p>在设置页面侧菜单上，点击<code>Environment Variables</code>。在变量设置页面上，点击<code>Add Environment Variable</code>。将出现一个对话框。在<code>Name*</code>字段中，输入<code>FIREBASE_TOKEN</code>，并在<code>Value*</code>字段中，粘贴上一步中从CLI获得的Firebase令牌。点击<strong>提交</strong>完成流程。现在，您已经注册了令牌变量。</p>
+
+<p><img src="../Images/c0ee1709fb081b83094da36b251bb9cd.png" alt="Project Settings" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-firebase-token.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-firebase-token.png"/></p>
+
+<p>返回到系统上的PWA项目。运行下面的命令将<code>firebase-tools</code>安装在项目的根目录下，这样您就可以在<code>package.json</code>中将它注册为一个开发依赖项:</p>
+
+<pre><code>npm install -D firebase-tools
+</code></pre>
+
+<p>一旦该过程完成，就该创建我们的部署配置文件了。在项目的根目录下，创建一个名为<code>.circleci</code>的文件夹，并在其中创建一个名为<code>config.yml</code>的文件。在<code>config.yml</code>文件中，输入以下代码:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/node:10.16.0
+    working_directory: ~/repo
+    steps:
+      - checkout
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-dependencies-
+      - run:
+          name: Install Dependencies
+          command: npm install
+      - save_cache:
+          key: v1-npm-deps-{{ checksum "package-lock.json" }}
+          paths:
+            - ./node_modules
+      - run:
+          name: Deploy to Firebase
+          command: ./node_modules/.bin/firebase deploy --token "$FIREBASE_TOKEN" --only hosting
+</code></pre>
+
+<p>在上面的配置文件中，我们从从我们的远程存储库中检出项目开始。然后，我们安装依赖项，缓存它们，并从本地安装运行我们的<code>firebase-tools</code>,以使用我们的Firebase令牌来部署我们的应用程序。</p>
+
+<p>现在是关键时刻了。让我们提交我们的更改，并将它们推送到我们的存储库，以触发我们的部署脚本，并将我们的应用程序部署到Firebase hosting。</p>
+
+<p><img src="../Images/ccf56c2ab75a4947b3db211863d4ecdc.png" alt="Build success" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-build-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-build-success.png"/></p>
+
+<p>点击进入构建查看项目的幕后。</p>
+
+<p><img src="../Images/4bdea1b90ba94783519e8ce981e52187.png" alt="Build Process" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-build-process.png"/></p>
+
+<p>从<code>Deploy to Firebase</code>部分。您可以看到部署的应用程序的URL。对于这个练习，是<code>https://my-dog-site-pwa.web.app</code>。将您的应用程序加载到浏览器中以测试您的应用程序。</p>
+
+<p><img src="../Images/30a4721e52f4b519dca70301b82ccb2e.png" alt="Live Application" srcset="https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-06-08-pwa-live.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-06-08-pwa-live.png"/></p>
+
+<p>正如您在上面看到的，地址栏正在加载我们的Firebase URL，我们可以看到控制台消息，表明我们的服务人员已经安装。如果你关闭你的网络并刷新这个页面，你会看到应用程序，所有的狗图片和样式，而不是通常的离线屏幕。</p>
+
+<h2>结论</h2>
+
+<p>大多数开发人员都不喜欢为<code>https://</code>URL设置SSL证书。有时这导致不愿意采用公共福利援助方案。然而，在这篇文章中，我们展示了如何通过CircleCI和Firebase建立一个自动化的<a href="https://circleci.com/continuous-integration/">持续集成</a> /持续部署管道来安全托管PWAs。</p>
+
+<p>编码快乐！</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

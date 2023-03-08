@@ -1,0 +1,271 @@
+<html>
+<head>
+<title>How to output JUnit tests through CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>如何通过CircleCI输出JUnit测试</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/how-to-output-junit-tests-through-circleci-2-0-for-expanded-insights/#2019-02-14T08:24:00-08:00">https://circleci.com/blog/how-to-output-junit-tests-through-circleci-2-0-for-expanded-insights/#2019-02-14T08:24:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>CircleCI提供了关于您的工作和测试性能的有用信息。它可以告诉你最后一次运行的时间、平均工作时间、排队时间和成功率，以及一些帮助你可视化的图表。</p>
+
+
+
+<p>这是所有项目一开始的样子。</p>
+
+<p><img src="../Images/dd88bc29a554c4bffe7a4f1ab2b3f208.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/junit1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/junit1.png"/></p>
+
+<p>有多少次你想知道:我的哪些测试失败了？我的哪项测试最失败？我失败的测试中哪一个运行最慢？</p>
+
+<p>CircleCI也可以帮你。让我们看看在哪里可以找到这些信息！</p>
+
+<h2>失败和最慢的测试</h2>
+
+<p>Insights不仅可以给我们一个测试套件失败的概要，还可以通过测试名称甚至失败的频率来分解它。如果你有古怪的测试或一些严重的惯犯，他们会在这个列表中给你检查和挤压。与频率数据类似，Insights还可以为您提供失败时哪些测试耗时最长的排名。这些数据有助于您轻松发现可能会超时的测试。</p>
+
+<p>那么我们在哪里可以找到这些数据呢？如果你和我一起在洞察力页，你已经在那里。我们需要做的就是向下滚动:</p>
+
+<p><img src="../Images/33d2be6ca789a9110cf1c5999139fd9d.png" alt="" data-original-src="https://circleci.com/blog/media/junit2.gif"/></p>
+
+<p>你可能会问，“杰森，数据在哪里？”在我们释放洞察力的全部潜力之前，我们需要做一点准备。所需的步骤取决于您的设置，但是对于我们的示例，只需要两步。我们一起去看看吧。</p>
+
+<h2>释放力量</h2>
+
+<h3>测试</h3>
+
+<p>对于本文，我写了一个演示项目，在Cucumber和Ruby的RSpec中运行一些非常基本的“测试”。每个工具都有一组相同的三个测试:</p>
+
+<ul>
+  <li>总是传递-断言true为真。</li>
+  <li>频繁传递-生成一个随机数，并断言它是否小于阈值。目前0.95。</li>
+  <li>不太频繁通过-与之前的测试相同，但其阈值设置为0.85。</li>
+</ul>
+
+<p>这将给我们带来一些间歇性的测试失败，给我们的测试结果带来一些可变性。如果你很好奇，以下是步骤定义的样子:</p>
+
+<pre><code>Given('this step passes') {}
+
+Given('this step often passes') do
+  expect(Random.new.rand(1.0)).to be &lt; 0.95
+end
+
+Given('this step less often passes') do
+  expect(Random.new.rand(1.0)).to be &lt; 0.85
+end
+</code></pre>
+
+<h3>朱尼特</h3>
+
+<p>我们需要做的第一件事是让我们的测试工具以JUnit XML格式输出。什么是JUnit XML？JUnit本身是Java编程语言的单元测试框架，它以Apache Ant JUnit XML格式输出结果。如果您不是Java开发人员，这也完全没问题，因为跨语言的工具实现自己的格式化程序是很常见的，这些格式化程序遵循<a href="https://github.com/windyroad/JUnit-Schema/blob/master/JUnit.xsd"> JUnit XML schema </a>。对于我们的例子，我将展示如何为RSpec和Cucumber这样做，但是CircleCI提供了一个其他通用选项的<a href="https://circleci.com/docs/collect-test-data/">列表，您也可以使用。</a></p>
+
+<p>这里有一个示例<code>.circleci/config.yml</code>文件，我们将一起修改它以获得更好的洞察结果:</p>
+
+<pre><code class="language-yaml">version: 2.1
+executors:
+  default:
+    docker:
+      - image: circleci/ruby:2.5
+commands:
+  install_gems:
+    description: "install dependencies"
+    steps:
+      - run: bundle check --path=vendor/bundle || bundle install --path=vendor/bundle --jobs=4 --retry=3
+  rspec:
+    description: "Run RSpec"
+    steps:
+      - run:
+          command: bundle exec rspec
+          when: always
+  cucumber:
+    description: "Run cucumber"
+    steps:
+      - run: 
+          command: bundle exec cucumber
+          when: always
+jobs:
+  test:
+    executor: default
+    steps:
+      - checkout
+      - install_gems
+      - rspec
+      - cucumber
+workflows:
+  pr:
+    jobs:
+      - test
+</code></pre>
+
+<p>这是一个2.1配置，但不要让这吓到你，我们在这里做的是在较低的版本中也可用。</p>
+
+<p>现在，我们对RSpec和Cucumber的命令非常简单:分别是<code>bundle exec rspec</code>和<code>bundle exec cucumber</code>。这允许工具将它们的结果输出到stdout，这样它们就可以使用它们的默认格式。这对于在本地运行来说很好，但是当您想要轻松地看到工作流在CircleCI上运行时发生了什么故障时，这就不太好了。对于我们总共六次测试，读取控制台的测试输出不会太差，但是对于较大的测试套件，这可能是一项困难的任务。</p>
+
+<p>这两个工具都允许非常容易地以JUnit格式输出。</p>
+
+<h3>RSpec</h3>
+
+<ul>
+  <li>将<code>rspec_junit_formatter</code>宝石添加到您的宝石档案中。</li>
+  <li>将<code>--format progress --format RspecJunitFormatter -o ~/test-results/rspec/rspec.xml</code>添加到RSpec命令中。<br/> <strong>注意:</strong>不需要初始的<code>--format progress</code>，但是如果不保留的话，RSpec只会输出到rspec.xml文件，而不是stdout。黄瓜也是一样。</li>
+</ul>
+
+<h3>黄瓜</h3>
+
+<ul>
+  <li>将<code>-f pretty -f junit -o ~/test-results/cucumber/cucumber.xml</code>添加到您的黄瓜命令中。<ul>
+      <li>虽然Cucumber会为您运行的每个特性文件创建XML文件，但是我们仍然希望在路径的末尾有<code>cucumber.xml</code>。</li>
+    </ul>
+  </li>
+</ul>
+
+<p>下面是我们更新的<code>.circleci/config.yml</code>:</p>
+
+<pre><code class="language-yaml">version: 2.1
+executors:
+  default:
+    docker:
+      - image: circleci/ruby:2.5
+commands:
+  install_gems:
+    description: "install dependencies"
+    steps:
+      - run: bundle check --path=vendor/bundle || bundle install --path=vendor/bundle --jobs=4 --retry=3
+  rspec:
+    description: "Run RSpec"
+    steps:
+      - run:
+          command: bundle exec rspec --format progress --format RspecJunitFormatter -o ~/test-results/rspec/rspec.xml
+          when: always
+  cucumber:
+    description: "Run cucumber"
+    steps:
+      - run: 
+          command: bundle exec cucumber -f pretty -f junit -o ~/test-results/cucumber/cucumber.xml
+          when: always
+jobs:
+  test:
+    executor: default
+    steps:
+      - checkout
+      - install_gems
+      - rspec
+      - cucumber
+workflows:
+  pr:
+    jobs:
+      - test
+</code></pre>
+
+<p>下面是我们的RSpec测试的XML输出示例，显示前两个测试通过，第三个测试失败:</p>
+
+<pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;testsuite name="rspec" tests="3" skipped="0" failures="1" errors="0" time="0.017001" timestamp="2019-01-24T22:17:57-07:00" hostname="JS-PC"&gt;
+&lt;properties&gt;
+&lt;property name="seed" value="29522"/&gt;
+&lt;/properties&gt;
+&lt;testcase classname="spec.demo_1_spec" name="demo 1 with tests for demonstration always passes" file="./spec/demo_1_spec.rb" time="0.001000"&gt;&lt;/testcase&gt;
+&lt;testcase classname="spec.demo_2_spec" name="demo 2 with tests for demonstration sometimes passes" file="./spec/demo_2_spec.rb" time="0.001000"&gt;&lt;/testcase&gt;
+&lt;testcase classname="spec.demo_3_spec" name="demo 3 with tests for demonstration more often passes" file="./spec/demo_3_spec.rb" time="0.014001"&gt;&lt;failure message="expected: &amp;lt; 0.85
+     got:   0.9199158781050316" type="RSpec::Expectations::ExpectationNotMetError"&gt;Failure/Error: expect(r.rand(1.0)).to be &amp;lt; 0.85
+  expected: &amp;lt; 0.85
+       got:   0.9199158781050316
+./spec/demo_3_spec.rb:8:in `block (3 levels) in &amp;lt;top (required)&amp;gt;&amp;apos;&lt;/failure&gt;&lt;/testcase&gt;
+&lt;/testsuite&gt;
+</code></pre>
+
+<p>完成这些更改后，第1步就完成了！🎉继续第二步。</p>
+
+<h3>你的JUnit测试文件在哪里？</h3>
+
+<p>我们已经让我们的测试工具以正确的格式输出，他们正在将输出保存到我们项目的文件中。下一步是通过告诉CircleCI在哪里可以找到它们来使用它们。这是通过内置命令<code>store_test_results</code>完成的。</p>
+
+<p>命令<code>store_test_results</code>接受一个路径，是我们对CircleCI说，“嘿，这是我的测试数据。”我们希望确保这个路径与我们的命令保存文件的路径相同。这个路径值可以是<strong>绝对</strong>或<strong>相对</strong>，但是注意，如果你使用的是相对位置，它是基于你当前的<strong>工作目录</strong>。</p>
+
+<p>下面是在我们的配置中将<code>store_test_results</code>步骤添加到命令中的样子:</p>
+
+<pre><code class="language-yaml">rspec:
+    description: "Run RSpec"
+    steps:
+      - run:
+          command: bundle exec rspec --format progress --format RspecJunitFormatter -o ~/test-results/rspec/rspec.xml
+          when: always
+      - store_test_results:
+          path: ~/test-results/rspec/
+  cucumber:
+    description: "Run cucumber"
+    steps:
+      - run: 
+          command: bundle exec cucumber -f pretty -f junit -o ~/test-results/cucumber/cucumber.xml
+          when: always
+      - store_test_results:
+          path: ~/test-results/cucumber/
+</code></pre>
+
+<h2>强尼，给他们看看他们赢了什么！</h2>
+
+<p>一辆全新的摩托车-不！不是新的踏板车，而是一些有用的数据，可以帮助我们了解测试套件的进展情况。现在让我们试着向下滚动我们的见解页面:</p>
+
+<p><em>请击鼓……</em></p>
+
+<p><img src="../Images/fceaf182545c7a2614157b7022e2f53f.png" alt="" data-original-src="https://circleci.com/blog/media/junit3.gif"/></p>
+
+<p>很好，我们做到了！给定测试结果数据，CircleCI将自动开始分析并为我们显示这些数据。如前所述，Insights可以向我们显示关于最失败的测试、它们的套件、失败频率的数据，以及关于我们最慢的失败测试的类似数据。<strong>测试套件</strong>下的名称根据工具的不同而不同，Cucumber输出特性名称，RSpec使用包含Spec文件文件名的名称。</p>
+
+<p>这里有一个稳定的图像，这样你可以看到更多:</p>
+
+<p><img src="../Images/c9d6accf4494f55be21ed0938b06e720.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/junit4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/junit4.png"/></p>
+
+<h3>但是等等，还有呢！</h3>
+
+<p>Insights页面并不是从存储测试数据中获益的唯一领域。默认情况下，jobs中的<strong>测试摘要</strong>选项卡只会显示一个按钮，指向<code>store_test_results</code>周围的文档。</p>
+
+<p><img src="../Images/c022b331461483bb4b15479e50234c9e.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/junit5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/junit5.png"/></p>
+
+<p>随着见识的扩大，我们的总结现在也是如此。如果测试在您的工作中失败，围绕这些失败的数据将在信息框中向上冒泡，如下所示:</p>
+
+<p><img src="../Images/7c3b6116905f5b0b5c382e82856f70c1.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/junit6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/junit6.png"/></p>
+
+<p>这些框会告诉你什么工具和特定的测试失败了，以及关于断言的一些信息。如果一个特定的工具有多个故障，为了便于查看，它们将被分组在同一个框中。蓝色的<strong>查看大多数失败的测试</strong>按钮将带您直接进入Insights页面。</p>
+
+<p>如果您的所有测试都通过了，您还将获得一些汇总数据，包括关于运行了多少测试以及使用了什么工具的注释。</p>
+
+<p><img src="../Images/6cc5c00e1bfe42129d0f22ac5b06f39e.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/junit7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/junit7.png"/></p>
+
+<p><strong>注意:</strong>为了确保您不会看到类似“您的作业在未知的情况下运行了<strong> 6 </strong>测试”的消息，您需要确保您正在为您正在使用的每个测试工具创建目录，如下所示:</p>
+
+<pre><code>test-results
+├── cucumber
+│   └── cucumber.xml
+└── rspec
+    └── rspec.xml
+</code></pre>
+
+<p>如果你正在遵循上面的例子，我已经为你做好了准备，所以你不应该对<code>unknowns</code>的出现有任何问题。</p>
+
+<h2>两步走方法</h2>
+
+<ol>
+  <li>以JUnit格式输出测试结果</li>
+  <li>用<code>store_test_results</code>命令告诉CircleCI那些结果在哪里</li>
+</ol>
+
+<p>这两个简单的步骤使CircleCI能够为我们提供丰富的信息，以及对我们测试的健康和性能的更深入的了解。现在，您已经有了从现在开始将测试结果存储在您的<code>config.yml</code>文件中的工具，我强烈推荐您这样做。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Gemini Smith是一名不断学习的软件工程师，对测试、交流和改进软件开发生命周期充满热情。主要用Go写作，她还通过公开演讲、宣传、咨询和指导对软件和测试社区做出贡献。</p>
+
+            <p><a href="/blog/author/gemini-smith/" class="arrow-link">阅读更多Gemini Smith的文章</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

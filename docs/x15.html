@@ -1,0 +1,132 @@
+<html>
+<head>
+<title>Tips for optimizing Docker builds | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>优化Docker版本的技巧| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/tips-for-optimizing-docker-builds/#2020-10-30T12:00:00-07:00">https://circleci.com/blog/tips-for-optimizing-docker-builds/#2020-10-30T12:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>Docker图像被用作<a href="https://circleci.com/docs/executor-types/#using-docker"> Docker执行器</a>中的主要图像。它们是容器的蓝图，为容器的产生提供了指导。在这篇文章中，我将阐述一些经常被忽视的概念，这些概念将有助于优化Docker映像开发和构建过程。</p>
+
+<h2>如何建立Docker形象？</h2>
+
+<p>让我们从Docker构建过程的简要描述开始。它是通过使用<a href="https://docs.docker.com/engine/reference/commandline/cli/#description"> Docker CLI工具</a>运行<a href="https://docs.docker.com/engine/reference/commandline/build/"> <code>docker build</code>命令</a>触发的过程。</p>
+
+<p><code>docker build</code>命令基于名为<a href="https://docs.docker.com/engine/reference/builder/"> Dockerfile </a>的文件中指定的指令构建Docker映像。Dockerfile是一个文本文档，包含用户在命令行上调用的所有有序命令，以组合一个图像。</p>
+
+<p>Docker图像由只读层组成。每一层代表一个Dockerfile指令。这些层是堆叠在一起的，每一层都是前一层变化的增量。我认为这些层是缓存的一种形式。只对改变的层进行更新，而不是在每次改变时更新每个层。</p>
+
+<p>以下示例描述了Dockerfile文件的内容:</p>
+
+<pre><code>FROM ubuntu:18.04
+COPY . /app
+RUN make /app
+CMD python /app/app.py
+</code></pre>
+
+<p>该文件中的每个指令代表Docker映像中的一个单独的层。以下是每个指令的简要说明:</p>
+
+<ul>
+  <li><code>FROM</code>从<code>ubuntu:18.04</code> Docker图像创建一个层</li>
+  <li>从Docker客户端的当前目录添加文件</li>
+  <li>使用make构建您的应用程序</li>
+  <li><code>CMD</code>指定在容器中运行什么命令</li>
+</ul>
+
+<p>在构建过程中执行这四个命令时，它们将在Docker映像中创建层。</p>
+
+<p>如果你有兴趣了解更多关于<a href="https://docs.docker.com/storage/storagedriver/#images-and-layers">图像和图层的信息，你可以在这里阅读</a>。</p>
+
+<h2>优化映像构建流程</h2>
+
+<p>现在我们已经介绍了一些关于Docker构建过程的内容，我想分享一些优化建议来帮助高效地构建映像。</p>
+
+<h3>短暂的容器</h3>
+
+<p>docker文件定义的图像应该生成短暂的容器。在这个上下文中，<a href="https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#create-ephemeral-containers">临时容器</a>意味着可以停止和销毁的容器，然后使用绝对最小的设置和配置重新构建并替换为新产生的容器。短暂的容器可以被认为是一次性的。每个实例都是新的，与之前的容器实例无关。在开发Docker映像时，您应该尽可能多地利用短暂的模式。</p>
+
+<h3>不要安装不必要的软件包</h3>
+
+<p>避免安装不必要的文件和软件包。Docker图像应尽可能保持简洁。这有助于提高可移植性、缩短构建时间、降低复杂性和减小文件大小。例如，在大多数情况下，不需要在容器上安装文本编辑器。不要安装任何非必要的应用程序或服务。</p>
+
+<h3>实施。dockerignore文件</h3>
+
+<p><a href="https://docs.docker.com/engine/reference/builder/#dockerignore-file"> <code>.dockerignore</code> </a>文件排除了与您在其中声明的模式相匹配的文件和目录。这有助于避免不必要地将大型或敏感的文件和目录发送到守护程序，并可能将它们添加到公共映像中。</p>
+
+<p>要排除与构建无关的文件而不重构您的源存储库，使用一个<code>.dockerignore</code>文件。该文件支持类似于<code>.gitignore</code>文件的排除模式。</p>
+
+<h3>对多行参数排序</h3>
+
+<p>只要有可能，通过按字母数字顺序对多行参数进行排序来简化以后的更改。这有助于避免包的重复，并使列表更容易更新。这也使得PRs更容易阅读和审查。在反斜杠前加一个空格也有帮助。</p>
+
+<p>这里有一个来自<a href="https://hub.docker.com/_/buildpack-deps"> Docker Hub </a>上Docker的<code>buildpack-deps</code>图像的例子:</p>
+
+<pre><code>RUN apt-get update &amp;&amp; apt-get install -y \
+  bzr \
+  cvs \
+  git \
+  mercurial \ 
+  subversion \
+  &amp;&amp; rm -rf /var/lib/apt/lists/*
+</code></pre>
+
+<h3>分离应用程序</h3>
+
+<p>依赖于其他应用程序的应用程序被认为是“耦合的”在某些情况下，它们托管在同一主机或计算节点上。这在非容器部署中很常见，但是对于微服务，每个应用程序都应该存在于它自己的容器中。将应用程序解耦到多个容器中使得水平伸缩和重用容器变得更加容易。例如，一个解耦的web应用程序堆栈可能由三个独立的容器组成，每个容器都有自己唯一的映像:一个用于管理web应用程序，一个用于管理数据库，一个用于内存缓存。</p>
+
+<p>将每个容器限制为一个进程是一个很好的经验法则。使用你最好的判断来保持容器尽可能的干净和模块化。然后，如果容器相互依赖，您可以使用Docker容器网络来确保这些容器可以通信。</p>
+
+<h3>尽量减少层数</h3>
+
+<p>只有<code>RUN</code>、<code>COPY</code>和<code>ADD</code>指令创建层。其他指令创建临时中间映像，最终不会增加构建的大小。在可能的情况下，只将您需要的工件复制到最终图像中。这允许您在中间构建阶段包含额外的工具和/或调试信息，而不会增加最终映像的大小。</p>
+
+<h3>利用构建缓存</h3>
+
+<p>在构建映像的过程中，Docker遍历Docker文件中的指令，按顺序执行每个指令。在每条指令中，Docker都会在其缓存中搜索一个现有的映像来使用，而不是创建一个新的副本映像。这是Docker遵循的基本规则:</p>
+
+<blockquote>
+  <p>从已经在高速缓存中的父映像开始，将下一条指令与从该基础映像派生的所有子映像进行比较，以查看它们中是否有一个是使用完全相同的指令构建的。否则，缓存将失效。</p>
+</blockquote>
+
+<p>在大多数情况下，只需将docker文件中的指令与子映像之一进行比较就足够了。但是，某些说明需要更多的检查和解释。</p>
+
+<p>对于<code>ADD</code>和<code>COPY</code>指令，检查映像中文件的内容，并为每个文件计算校验和。这些校验和不考虑文件的最后修改时间和最后访问时间。在缓存查找期间，校验和会与现有映像中的校验和进行比较。如果文件中的任何内容(如内容和元数据)发生了更改，缓存将失效。</p>
+
+<p>除了<code>ADD</code>和<code>COPY</code>命令，缓存检查不查看容器中的文件来确定缓存匹配。例如，当处理一个<code>RUN apt-get -y</code>更新命令时，不检查容器中更新的文件来确定是否存在缓存命中。在这种情况下，命令字符串用于查找匹配项。</p>
+
+<p>一旦缓存失效，所有后续的Dockerfile命令都会生成新的图像，并且缓存不会被使用。利用您的缓存包括将您的图像分层，以便只有底层经常变化。您希望您的<code>RUN</code>步骤在docker文件的底部变化频繁，而变化不频繁的步骤应该在顶部排序。</p>
+
+<h2>优化CI管道中的Docker映像构建</h2>
+
+<p>到目前为止，我一直专注于优化Docker映像构建，同时从代码和Docker CLI构建的角度介绍了与此过程相关的概念。将这些优化策略实施到<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/"> CI管道</a>中并没有太大的不同，CircleCI有一个特定的Docker构建优化，它将显著加快您的自动化Docker构建工作。</p>
+
+<p>首先，前面几节中提到的所有优化概念都适用于在您的CI渠道中实现。尤其是缓存。如果docker文件有变化，利用缓存仍然是减少构建时间的最佳方式。</p>
+
+<p>作为您CI渠道的一部分，这是如何运作的？当使用Docker executor作为构建作业的运行时，您可以利用一个名为<a href="https://circleci.com/docs/docker-layer-caching/"> Docker层缓存(DLC) </a>的特性来加速这些构建。</p>
+
+<p>当构建Docker映像是CI流程的常规部分时，DLC是一个很好的功能。DLC将保存在您的作业中创建的图像层。DLC缓存作业期间构建的任何Docker图像的各个层，然后在后续CircleCI运行中重用未更改的图像层，而不是每次都重建整个图像。</p>
+
+<p>您的docker文件从提交到提交的变化越少，您的映像构建步骤将运行得越快。DLC可以与机器执行器和远程Docker环境(<code>setup_remote_docker</code>)一起使用。值得注意的是，DLC仅在使用<code>docker build</code>、<code>docker compose</code>或类似的Docker命令创建<i>您自己的Docker映像时有用，它<strong>不会</strong>减少所有构建启动初始环境所需的挂钟时间。如果你有兴趣了解更多关于DLC的知识，你可以在我们的<a href="https://circleci.com/docs/docker-layer-caching/#how-dlc-works">文档</a>中阅读。</i></p>
+
+<p><em>欲了解更多Docker内容，请参见<a href="https://circleci.com/blog/guide-to-using-docker-for-your-ci-cd-pipelines/">CI/CD管道Docker使用指南</a>。</em></p>
+
+<h2>摘要</h2>
+
+<p>在这篇文章中，我介绍了构建Docker映像的优化技术。提供的构建建议将作为高效开发Docker映像的指南。这些构建建议极大地加快了CI管道的速度。</p>
+
+<p>大多数人不需要构建自己的自定义映像。在CircleCI，我们建立了一个由<a href="https://circleci.com/developer/images"> CI优化Docker映像</a>组成的车队，用于您的CI管道。在<a href="https://circleci.com/blog/announcing-our-next-generation-convenience-images-smaller-faster-more-deterministic/">宣布我们的下一代便利图像中，阅读我们关于图像开发的决定:更小、更快、更确定的</a>。</p>
+
+<p>感谢你关注这篇文章，希望你觉得有用。请随时在Twitter <a href="https://twitter.com/punkdata"> @punkdata </a>上寻求反馈。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

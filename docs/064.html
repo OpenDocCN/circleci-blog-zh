@@ -1,0 +1,439 @@
+<html>
+<head>
+<title>Automatic testing for Symfony applications | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Symfony应用的自动测试| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/automatic-testing-for-symfony-applications/#2020-06-15T08:00:00-07:00">https://circleci.com/blog/automatic-testing-for-symfony-applications/#2020-06-15T08:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>必须实现新的web或移动应用程序功能是不可避免的，而且通常非常重要。这些新代码对构建无错误应用程序的可能性构成了威胁，如果不小心的话，可能会破坏已经实现的功能。构建更好、更可靠的应用程序的方法之一是使用单元测试和功能测试来测试您的代码。</p>
+
+<p>测试是推荐的最佳实践，因为它可以确保新版本满足质量和性能目标。不管应用程序是用什么编程语言或框架构建的，测试驱动的开发方法都是相似的。</p>
+
+<p>在本教程中，我们将创建一个新的Symfony应用程序项目来管理客户详细信息。虽然这不是一个具有完整CRUD功能的应用程序，但我们将创建两个方法和一个控制器，然后引入单元测试和功能测试，以确保每个函数都按照预期返回适当的响应。最重要的是，我们将通过利用CircleCI来自动化我们的测试。</p>
+
+<h2>先决条件</h2>
+
+<p>为了最大限度地利用这篇文章，请确保您:</p>
+
+
+
+<h2>入门指南</h2>
+
+<p>首先使用Composer创建一个新的Symfony应用程序，使用以下命令:</p>
+
+<pre><code>composer create-project symfony/website-skeleton new-symfony-app
+</code></pre>
+
+<p>前面的命令将在运行该命令的根文件夹中创建一个名为<code>new-symfony-app</code>的新文件夹。它还将安装所有必需的依赖项。</p>
+
+<p>接下来，进入新创建的项目，安装一个web服务器来运行应用程序:</p>
+
+<pre><code>// move into project
+cd new-symfony-app
+
+// installl web server
+composer require symfony/web-server-bundle --dev ^4.4.2
+</code></pre>
+
+<p>现在您已经建立了一个新项目，接下来在本地用<a href="https://git-scm.com/"> Git </a>初始化该项目，并将其与GitHub连接起来。但在此之前，请前往<a href="https://github.com/"> GitHub </a>并为您的项目创建一个资源库。</p>
+
+<p><img src="../Images/a9a209e734977cca7adf657ff1637971.png" alt="GitHub create new repository" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-create-repo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-create-repo.png"/></p>
+
+<p>在GitHub上可以随意使用相同的项目名称。现在，在您的项目文件夹中本地初始化Git，使用:</p>
+
+<pre><code>git init
+</code></pre>
+
+<p>这将把项目设置为Git存储库。接下来，使用以下命令在本地提交您的更改:</p>
+
+<pre><code>git add .
+
+git commit -m "Initial commit"
+</code></pre>
+
+<p>在项目文件夹内的终端上使用<code>git remote add</code>命令注册远程存储库。该命令有两个参数:</p>
+
+<ul>
+  <li>远程名称，例如<code>origin</code></li>
+  <li>远程URL，例如<code>https://github.com/&lt;your_username&gt;/&lt;your_repo&gt;.git</code></li>
+</ul>
+
+<p>就我而言:</p>
+
+<pre><code>// add remote origin
+git remote add origin https://github.com/yemiwebby/new-symfony-app.git
+</code></pre>
+
+<p>接下来，使用以下命令将本地项目推送到在GitHub帐户上创建的主分支:</p>
+
+<pre><code>// push to the repo
+git push -u origin master
+</code></pre>
+
+<p>现在我们已经建立了一个新的Symfony项目，并将其推送到远程存储库，在下一节中，我们将为客户创建一个控制器和一个实体类。</p>
+
+<h2>创建控制器</h2>
+
+<p>控制器负责处理HTTP请求并返回适当的响应。要为该应用程序自动生成控制器，请通过运行以下命令使用Symfony附带的<a href="https://symfony.com/doc/current/bundles/SymfonyMakerBundle/index.html"> maker bundle </a>:</p>
+
+<pre><code>php bin/console make:controller CustomerController
+</code></pre>
+
+<p>这将为您创建两个新文件:</p>
+<ul>
+  <li>位于<code>src/Controller/CustomerController.php</code>的控制器</li>
+  <li>在<code>templates/customer/index.html.twig</code>中查看页面</li>
+</ul>
+
+<p>打开<code>CustomerController.php</code>文件，将内容替换为:</p>
+
+<pre><code>&lt;?php
+
+namespace App\Controller;
+
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Routing\Annotation\Route;
+
+class CustomerController extends AbstractController
+{
+    /**
+     * @Route("/", name="customer", methods={"GET"})
+     */
+    public function index()
+    {
+        $customerName  = "John Doe";
+        return $this-&gt;render('customer/index.html.twig', [
+            'name' =&gt; $customerName,
+        ]);
+    }
+}
+</code></pre>
+
+<p>Symfony在为应用程序定义路由时，将路由注释作为最首选的选项。这里，我们定义了一条名为<code>customer</code>的路由<code>/</code>。这将指示Symfony将任何对主页的请求指向此处定义的方法。因此，当用户的请求到达这个路径时，<code>index()</code>将呈现一个视图，该视图将在上面的文件中包含一个硬编码的<code>$customerName</code>。</p>
+
+<p>接下来，打开位于<code>templates/customer/index.html.twig</code>的视图文件，将内容替换为以下内容:</p>
+
+<pre><code>{% extends 'base.html.twig' %}
+{% block title %} Customer Page {% endblock %}
+{% block body %}
+&lt;div class="example-wrapper"&gt;
+  &lt;h1&gt;Hello, Welcome to the customer page&lt;/h1&gt;
+
+  &lt;h2&gt;Customer name is : {{ name }}&lt;/h2&gt;
+&lt;/div&gt;
+{% endblock %}
+</code></pre>
+
+<p>我们更新了视图，以动态呈现代表客户默认姓名的<code>name</code>变量。您可以使用以下命令在本地运行该应用程序:</p>
+
+<pre><code>php bin/console server:run
+</code></pre>
+
+<p>现在，导航到<a href="http://localhost:8000"> http://localhost:8000 </a>查看主页。</p>
+
+<p><img src="../Images/a7d9da9dc05be6628efc005bdc12060f.png" alt="Application homepage" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-application-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-application-homepage.png"/></p>
+
+<p>该页面在控制器中呈现硬编码的客户姓名，并将其传递给视图。这是一个类似于在MVC结构的应用程序视图中动态呈现内容的过程。我们稍后将为这种行为编写一个功能测试。</p>
+
+<h2>创建实体</h2>
+
+<p>这里，我们将创建一个模型来表示一个<code>Customer</code>对象。为此，运行以下命令:</p>
+
+<pre><code>php bin/console make:entity Customer
+</code></pre>
+
+<p>系统会提示您向<code>src/Entity/Customer.php</code>文件添加一些字段。如果您愿意，可以手动执行此操作。否则，输入<code>firstName</code>和<code>lastName</code>作为<code>Customer</code>类的字段，Symfony MakerBundle将处理其余部分。查看下图。</p>
+
+<p><img src="../Images/55b1bdc75712f24927ba42a15e8ba240.png" alt="Creating entity using makerbundle" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-create-entity.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-create-entity.png"/></p>
+
+<p>为了确认，下面是<code>Customer.php</code>文件的样子。更新您的以匹配此处显示的内容:</p>
+
+<pre><code>&lt;?php
+
+namespace App\Entity;
+
+use App\Repository\CustomerRepository;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * @ORM\Entity(repositoryClass=CustomerRepository::class)
+ */
+class Customer
+{
+    /**
+     * @ORM\Id()
+     * @ORM\GeneratedValue()
+     * @ORM\Column(type="integer")
+     */
+    private $id;
+
+    /**
+     * @ORM\Column(type="string", length=255)
+     */
+    private $firstName;
+
+    /**
+     * @ORM\Column(type="string", length=255)
+     */
+    private $lastName;
+
+    public function getId(): ?int
+    {
+        return $this-&gt;id;
+    }
+
+    public function getFirstName(): ?string
+    {
+        return $this-&gt;firstName;
+    }
+
+    public function setFirstName(string $firstName): self
+    {
+        $this-&gt;firstName = $firstName;
+
+        return $this;
+    }
+
+    public function getLastName(): ?string
+    {
+        return $this-&gt;lastName;
+    }
+
+    public function setLastName(string $lastName): self
+    {
+        $this-&gt;lastName = $lastName;
+
+        return $this;
+    }
+
+    public function getCustomerFullName(): string
+    {
+        return $this-&gt;getFirstName() . '' . $this-&gt;getLastName();
+    }
+}
+</code></pre>
+
+<p>创建的<code>getters</code>和<code>setters</code>是Symfony自动生成的。我们包含了一个新方法来返回名为<code>getCustomerFullName()</code>的客户的全名。在本教程的后面部分，我们将为这里定义的单个函数编写单元测试。</p>
+
+<h2>使用PHPUnit创建测试</h2>
+
+<p>Symfony与PHP测试框架<a href="https://phpunit.de/"> PHPUnit </a>集成。在编写任何测试之前，通过运行以下命令来执行PHPUnit:</p>
+
+<pre><code>./bin/phpunit
+</code></pre>
+
+<p>因为我们是第一次运行上面的命令，它将为我们的应用程序安装PHPUnit及其所有必需的依赖项。</p>
+
+<h3>编写单元测试</h3>
+
+<p>根据定义，单元测试通常被称为对代码的单个组件(单元)的测试。为Symfony应用程序编写单元测试类似于标准的PHPUnit单元测试。这里，我们将为在客户实体文件中创建的方法编写测试。</p>
+
+<p>首先，在<code>tests</code>文件夹中创建一个名为<code>Entity</code>的新文件夹。在新创建的文件夹中，创建一个新文件并命名为<code>CustomerTest.php</code>。打开文件，并使用以下内容:</p>
+
+<pre><code>&lt;?php
+namespace App\Tests\Entity;
+
+use App\Entity\Customer;
+use PHPUnit\Framework\TestCase;
+
+class CustomerTest extends TestCase
+{
+    public function testSettingCustomerFirstName()
+    {
+        $customer = new Customer();
+        $firstName = "John";
+
+        $customer-&gt;setFirstName($firstName);
+
+        $this-&gt;assertEquals($firstName, $customer-&gt;getFirstName());
+    }
+
+    public function testSettingCustomerLastName()
+    {
+        $customer = new Customer();
+        $lastName = "Doe";
+
+        $customer-&gt;setLastName($lastName);
+
+        $this-&gt;assertEquals($lastName, $customer-&gt;getLastName());
+    }
+
+
+    public function testReturnsCustomerFullName()
+    {
+        $customer = new Customer();
+        $customer-&gt;setFirstName("John");
+        $customer-&gt;setLastName("Deo");
+
+        $fullName = $customer-&gt;getFirstName() . '' . $customer-&gt;getLastName();
+
+        $this-&gt;assertSame($fullName, $customer-&gt;getCustomerFullName());
+    }
+}
+</code></pre>
+
+<p>在上面的文件中，我们编写了三个不同的测试:</p>
+
+<ul>
+  <li><code>testSettingCustomerFirstName()</code>:这里我们创建了一个<code>Customer</code>类的实例，并设置了一个表示客户名字的虚拟值。然后，我们继续使用PHPUnit的断言方法来确认名称。</li>
+  <li><code>testSettingCustomerLastName()</code>:与这里定义的第一个方法类似，我们测试了为客户姓氏创建的getter和setter方法。</li>
+  <li><code>testReturnsCustomerFullName()</code>:最后，这个测试断言客户的<code>firstName</code>和<code>lastName</code>都可以被成功检索。</li>
+</ul>
+
+<h3>在本地运行测试</h3>
+
+<p>之前我们从终端使用<code>./bin/phpunit</code>命令运行了我们的测试。虽然这仍然是相关的和适当的，我们将稍微重组一下，并通过将它添加到<code>composer.json</code>文件的<code>scripts</code>部分来自动化这个命令。打开<code>composer.json</code>，将测试命令添加到<code>scripts</code>部分:</p>
+
+<pre><code>{
+    ...
+    "scripts": {
+        ...,
+        "test": [
+            "./bin/phpunit"
+        ]
+    }
+}
+</code></pre>
+
+<p>此后，测试命令将作为<code>composer test</code>可用。</p>
+
+<p><img src="../Images/3a1b9f8f86dd6be9daabd6e89cafc4bb.png" alt="Run test unit" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-unit.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-run-test-unit.png"/></p>
+
+<p>在我们将项目添加到CircleCI之前，让我们也编写一个非常简单的功能测试。</p>
+
+<h3>编写功能测试</h3>
+
+<p>通过功能测试，你可以命令浏览器浏览你的网站，点击一些链接，填写表格，并断言它在页面上看到的东西。首先，在<code>tests</code>文件夹中创建另一个文件夹并命名为<code>Controller</code>，它将存放<code>CustomerController</code>的测试脚本。继续在新创建的文件夹中创建一个新文件，并将其命名为<code>CustomerControllerTest.php</code>。打开文件，并使用以下内容:</p>
+
+<pre><code>
+&lt;?php
+
+namespace App\Tests\Controller;
+
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+
+class CustomerControllerTest extends WebTestCase
+{
+    public function testShowCustomer()
+    {
+        $client = static::createClient();
+
+        $client-&gt;request('GET', '/');
+
+        $this-&gt;assertResponseStatusCodeSame(200, $client-&gt;getResponse()-&gt;getStatusCode());
+
+        $this-&gt;assertStringContainsString('Customer name is : John Doe', $client-&gt;getResponse()-&gt;getContent());
+    }
+}
+</code></pre>
+
+<p>在上面的代码片段中，我们验证了HTTP响应是成功的，因为它返回了状态代码<code>200</code>。接下来，我们验证了页面包含了本教程前面显示的预期内容。</p>
+
+<p>您可以使用以下命令再次运行测试:</p>
+
+<pre><code>composer test
+</code></pre>
+
+<p><img src="../Images/9fe358040cbd6e249d3955e9407f900a.png" alt="Run test functional" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-run-test-functional.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-run-test-functional.png"/></p>
+
+<h2>用CircleCI自动化测试</h2>
+
+<p>既然我们所有的测试都在本地被证明是成功的，我们需要确保一旦我们将代码的更新推送到GitHub库，测试就会自动运行。</p>
+
+<p>要创建CircleCI将使用的配置文件，导航到项目的根目录，并创建一个名为<code>.circleci</code>的文件夹。在这个文件夹中，创建一个名为<code>config.yml</code>的文件，并使用以下内容:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    docker:
+      # Specify the version you desire here
+      - image: circleci/php:7.4-node-browsers
+
+    steps:
+      - checkout
+
+      - run: sudo apt update # PHP CircleCI 2.0 Configuration File# PHP CircleCI 2.0 Configuration File sudo apt install zlib1g-dev libsqlite3-dev
+      - run: sudo docker-php-ext-install zip
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            # "composer.lock" can be used if it is committed to the repo
+            - v1-dependencies-{{ checksum "composer.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run:
+          name: "Install Dependencies"
+          command: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+
+      # run tests with phpunit
+      - run:
+          name: "Run tests"
+          command: composer test
+</code></pre>
+
+<p>我们在这里所做的是指定PHP的版本，该版本需要作为Docker映像的一部分进行安装，该映像将从CircleCI image registry中获取。接下来，我们指定为我们的项目安装所有的依赖项，然后最后包含一个运行测试的命令。</p>
+
+<p>现在，您可以提交到目前为止所做的所有更改，并将项目推送到GitHub 。</p>
+
+<h2>在CircleCI上建立项目</h2>
+
+<p>这里我们将把我们的Symfony应用程序连接到CircleCI。导航到<a href="https://circleci.com/"> CircleCI网站</a>并使用您的帐户登录。在CircleCI控制台上，进入<strong>添加项目</strong>页面，点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/ded69e5db766217fd83ea4de6f6ca2b1.png" alt="CircleCI project dashboard" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-project-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-project-dashboard.png"/></p>
+
+<p>这将显示下面的页面。</p>
+
+<p><img src="../Images/d98b164ed43b3764d38380dd9a93be17.png" alt="CircleCI project configuration page" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-project-config-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-project-config-page.png"/></p>
+
+<p>现在，点击<strong>开始构建</strong>，您将看到一个提示，要求您将提供的CircleCI配置添加到新分支上的项目中，或者手动设置配置。继续选择<strong>手动添加</strong>。</p>
+
+<p><img src="../Images/09f6b8e8d2226e3290f5b80a044d218e.png" alt="Start building prompt" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-start-building-prompt.png"/></p>
+
+<p>最后，点击<strong>开始构建</strong>,因为在推送到GitHub之前，我们已经在项目中包含了配置文件。这将基于配置文件运行一个<a href="https://circleci.com/continuous-integration/">持续集成</a> (CI)管道，并向您显示管道状态。</p>
+
+<p>它在跑。</p>
+
+<p><img src="../Images/fcb734d8f82abf1f7eb536a87af83138.png" alt="Build running" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-build-running.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-build-running.png"/></p>
+
+<p>这是成功运行后的情况。</p>
+
+<p><img src="../Images/537a413459b6aea79f0f3742b4def4dc.png" alt="Build successful" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-build-successful.png"/></p>
+
+<p><img src="../Images/4519492182f733c0041314eb977363ed.png" alt="Build results" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-27-build-results.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-27-build-results.png"/></p>
+
+<p>这就是了。所有创建的测试都正常运行。</p>
+
+<h2>结论</h2>
+
+<p>Symfony被认为是最古老、最健壮的PHP框架之一，以其优雅的结构和可重用的组件而闻名。在本教程中，我们创建了一个新的Symfony应用程序，并学习了如何利用PHPUnit为我们定义的一些方法和控制器编写单元和功能测试。然后，我们继续使用CircleCI设置自动化CI管道。</p>
+
+<p>从这篇文章中获得的知识不会让你成为测试专家，除非你个人努力去获得更多的知识，因为我们在这里仅仅触及了表面。然而，你在这篇文章中学到的东西将会给你在典型的Symfony应用程序中如何构造测试以及如何自动化测试的基本知识。在GitHub 上随意探索源代码<a href="https://github.com/CIRCLECI-GWP/new-symfony-app">并查看CircleCI的官方文档以了解更多信息。</a></p>
+
+<hr/>
+
+<p>Oluyemi是一个技术爱好者、编程狂和热爱新技术的网络开发迷。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Oluyemi是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他的问题解决技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。作为技术专家，他的爱好包括尝试新的编程语言和框架。</p>
+
+            <p><a href="/blog/author/olususi-oluyemi/" class="arrow-link">阅读更多Olususi Oluyemi的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

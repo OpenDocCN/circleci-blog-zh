@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>Say Hello to CircleCI 2.0 - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>向CircleCI 2.0 - CircleCI问好</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/say-hello-to-circleci-2-0/#2016-11-07T12:44:00-08:00">https://circleci.com/blog/say-hello-to-circleci-2-0/#2016-11-07T12:44:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p><em>更新:截至2017年7月11日，CircleCI 2.0已出测试版，正式发布。你可以在这里阅读更多<a href="https://circleci.com/docs/"/>。</em></p>
+
+
+
+<p>今天我们将发布CircleCI 2.0的封闭测试版。2.0是一个高度可定制的强大平台，包括一流的容器支持。它将帮助各种规模的团队实现CI和CD带来的更多好处。新的和扩展的CircleCI 2.0功能使团队能够做最好的工作，并保持在软件开发的前沿。</p>
+
+<p>如今，围绕软件的制作和交付方式正在发生范式转变，从单一架构和稳定的发布周期到微服务、容器和持续交付。自从CircleCI五年前成立以来，我们的客户使用的技术和方法数量呈指数级增长。我们迅速采取行动来满足这些要求，并在此过程中学到了很多东西。</p>
+
+<p>下面先睹为快，看看2.0的一些关键特性:</p>
+
+<h3>本机Docker支持</h3>
+<p>有了CircleCI 2.0，我们把Docker当成了一等公民。如果能和Docker一起用，就能和CircleCI 2.0一起用。您可以从容器注册表中提取任何图像。您还可以构建映像并将其推送到Docker注册表或部署环境中。您甚至可以在任何注册表上使用现有的docker文件和图像。您可以控制何时/是否更新或更改您的构建。你可以使用Docker生态系统中的任何工具。</p>
+
+<p><img src="../Images/75e8120730b968ace9596491bae33df7.png" alt="1107-Picard Blog-Docker-06.png" srcset="https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/1107-Picard%20Blog-Docker-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/1107-Picard Blog-Docker-06.png"/></p>
+
+<h3>灵活的资源分配</h3>
+<p>我们认识到持续部署不是万能的。使用CircleCI 2.0，团队可以轻松地配置他们的资源(计算/内存)，以最大限度地满足他们对特定构建的需求。</p>
+
+<h3>可定制的图像</h3>
+<p>CircleCI 2.0为开发人员提供了高度可定制的构建映像。这使得团队可以根据他们的需求制作轻量级或复杂的图像。支持任何语言、任何框架和任何数据库。</p>
+
+<h3>本地构建</h3>
+<p>一个新的“本地构建”特性让你可以在本地启动容器和调试应用程序，减少了调试构建所需的时间。</p>
+
+<h2>我们还在为2.0计划什么？</h2>
+
+<p>除了这些特性之外，CircleCI 2.0将具有显著更快的构建性能、更智能的测试分割、更全面的缓存等等。</p>
+
+<p>我们将在测试版和正式版中推出新功能，但使CircleCI成为最受欢迎的CI平台之一的东西将会保留。CircleCI 2.0将继续拥有用户友好的UI、<a href="https://circleci.com/docs/1.0/ssh-build/" target="_blank" rel="noreferrer noopener"> SSH访问</a>、<a href="https://circleci.com/docs/1.0/web-notifications/" target="_blank" rel="noreferrer noopener">通知</a>、洞察、<a href="https://circleci.com/docs/1.0/setting-up-parallelism/" target="_blank" rel="noreferrer noopener">并行</a>、GitHub和Bitbucket集成、OS X和安卓支持、与Slack/HipChat/JIRA的集成，以及出色的客户支持。</p>
+
+<h2>请求封闭测试版邀请</h2>
+
+<p>如果您有兴趣了解CircleCI 2.0能为您和您的团队做些什么，请<a href="/signup/">在此</a>注册。我们将在未来几周内逐步增加功能和客户，并在我们开放更多测试项目时向您发送邀请。</p>
+
+<p><em>更新:截至2017年7月11日，CircleCI 2.0已出测试版，正式发布。你可以在这里阅读更多<a href="https://circleci.com/docs/"/>。</em></p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

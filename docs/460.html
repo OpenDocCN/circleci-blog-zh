@@ -1,0 +1,289 @@
+<html>
+<head>
+<title>Using OpenID Connect identity tokens to authenticate jobs with cloud providers | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用OpenID Connect身份令牌向云提供商认证作业| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/openid-connect-identity-tokens/#2023-02-13T14:00:00-08:00">https://circleci.com/blog/openid-connect-identity-tokens/#2023-02-13T14:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>在CircleCI作业中引入OpenID Connect身份令牌！此令牌使您的CircleCI作业能够向支持OpenID Connect的云提供商(如AWS、Google云平台和HashiCorp Vault)进行身份验证。在这篇博文中，我们将向您介绍OpenID Connect，解释它在CI/CD系统中的用途，并展示如何使用它通过AWS和GCP进行身份验证，让您的CircleCI作业安全地与您的帐户交互，而无需任何静态凭据。</p>
+
+<p>如果您对使用OIDC向第三方凭证管理器进行认证感兴趣，您还可以查看我们关于使用OIDC 将CircleCI与HashiCorp Vault集成的教程<a href="https://circleci.com/blog/oidc-with-vault/">。</a></p>
+
+<h2>什么是OpenID Connect？</h2>
+
+<p>OpenID Connect (OIDC)是一种认证协议，允许云服务验证最终用户的身份。它向OAuth2.0添加了一个身份层，oauth 2.0是一个授权协议，用于提供对云资源的单点登录(SSO)访问。自2014年推出以来，云提供商已经广泛采用<a href="https://www.zdnet.com/article/cloud-era-authentication-infrastructure-taking-shape/" target="_blank" rel="noreferrer noopener"> OpenID Connect </a>作为提供对受保护资源的安全访问的标准。</p>
+
+<p>根据<a href="https://openid.net/foundation/" target="_blank" rel="noreferrer noopener"> OpenID Connect Foundation </a>，<a href="https://openid.net/connect/" target="_blank" rel="noreferrer noopener"> OpenID </a>“允许客户端基于授权服务器执行的认证来验证最终用户的身份。”当您使用CircleCI的OpenID连接令牌时，客户端是AWS等云提供商。最终用户是你在CircleCI运行的作业。授权服务器本身就是CircleCI。</p>
+
+<p>综上所述，这意味着像AWS这样的云提供商可以验证您的作业的身份，并允许它像经过身份验证的用户一样采取行动。这意味着您的工作可以安全地与AWS交互。</p>
+
+<h2>为什么OpenID Connect在CI/CD中有用？</h2>
+
+<p><img src="../Images/44e62e4ab926dae16c9e0db211a7cc89.png" alt="Physical key vs OIDC tokens" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-blog-image-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-08-OIDC-blog-image-02.png"/></p>
+
+<p>在您的CI工作流中，您可能想要将二进制文件、测试工件或者日志上传到云存储中。也许您想要将一个包提交给一个工件存储库。或者您可能想要部署到您的生产环境中。如果您想要安全地访问这些云资源中的任何一个，您的作业需要拥有凭据以通过云提供商的身份验证。CircleCI的<a href="https://circleci.com/docs/contexts/">上下文</a>让您安全地存储凭证，并在整个组织的工作中使用它们。</p>
+
+<p><img src="../Images/895126d903ce224c9b5f29d7e5924ee6.png" alt="Additional OIDC token documentation" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-08-static-cred-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-08-static-cred-process.JPG"/></p>
+
+<p>但是，这些凭据是静态的。物理密钥授予对空间的访问权，直到锁被更改，类似地，这些<a href="https://circleci.com/blog/securing-ci-cd-pipelines-with-circleci-contexts-rest-api/">静态凭证在您轮换它们</a>之前是有效的，这可能是您想要做的安全最佳实践。您可以使用<a href="https://circleci.com/docs/local-cli/#context-management"> CircleCI CLI </a>或<a href="https://circleci.com/docs/api/v2/#operation/addEnvironmentVariableToContext/"> CircleCI API for Contexts </a>在CircleCI web UI中旋转按键。</p>
+
+<p>轮换需要时间投入，这会降低您的工程能力。OpenID连接令牌避免了这个缺点。当您将云提供商配置为信任来自CircleCI作业的OpenID Connect令牌时，您的云提供商将识别CircleCI的签名，并将您的作业请求视为可信。您的作业可以安全地与您的云提供商进行交互，以便您可以上传到云存储，更改生产状态，或者执行您决定允许的任何操作。</p>
+
+<p><img src="../Images/ddd454a8505b76f1fa64595abed35867.png" alt="OIDC token documentation" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-08-OIDC-process.JPG?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-08-OIDC-process.JPG"/></p>
+
+<p>当您的CircleCI作业启动时，CircleCI会对OpenID连接令牌进行签名，并使其可供您的作业使用。您的作业可以将此令牌提交给您的云提供商，云提供商将验证其真实性，授予您的作业临时凭据，并允许它采取一些操作。</p>
+
+<p>你可以在我们的<a href="https://circleci.com/docs/openid-connect-tokens/">文档</a>中读到CircleCI的OIDC令牌的结构。</p>
+
+<h2>使用OpenID连接令牌从CircleCI作业与AWS进行交互</h2>
+
+<p>下面是一个如何使用CircleCI的OpenID连接令牌与AWS交互的示例。首先，我们将进行一次性设置，将您的AWS帐户配置为信任CircleCI的OpenID Connect令牌。然后，我们将运行一个作业，该作业使用令牌与AWS进行交互，并将图像上传到ECR。</p>
+
+<h3>设置AWS</h3>
+
+<p>首先，在AWS中创建IAM身份提供者和IAM角色。这允许您的AWS帐户信任CircleCI的OpenID连接令牌。你只需要做一次。</p>
+
+<p>在IAM中，创建一个OpenID Connect <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html" target="_blank" rel="noreferrer noopener">身份提供者</a>。您将需要您的组织ID，您可以通过转到您的CircleCI组织设置并从概览页面复制组织ID来找到它。</p>
+
+<p>对于提供者URL，提供<code>https://oidc.circleci.com/org/&lt;organization-id&gt;</code>，其中<code>&lt;organization-id&gt;</code>是您的CircleCI组织的ID。</p>
+
+<p>对于受众，请提供相同的组织ID。</p>
+
+<p>在IAM中，<a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html#idp_oidc_Create" target="_blank" rel="noreferrer noopener">创建一个角色</a>。对于受信任的实体，选择<strong> Web身份</strong>，然后选择您之前创建的身份提供者。对于观众，选择唯一选项，即<strong>添加权限</strong>。这允许您指定CircleCI作业可以做什么和不可以做什么。只选择您的工作需要的权限，这是一个<a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege" target="_blank" rel="noreferrer noopener"> AWS最佳实践</a>。</p>
+
+<p><strong>注:</strong> <i>你可能会发现<a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_create-console.html#access_policies_create-start" target="_blank" rel="noreferrer noopener">创建自己的策略</a> </i>很有用。</p>
+
+<h3>从CircleCI作业与AWS交互</h3>
+
+<p>现在您已经设置了一个IAM角色，您已经准备好编写一个与AWS交互的CircleCI作业了。最简单的方法是使用CircleCI的<a href="https://circleci.com/developer/orbs/orb/circleci/aws-cli"> AWS CLI orb </a>来生成临时密钥，并配置一个使用OIDC的配置文件。</p>
+
+<p>orb是可重用的YAML配置包，它将重复的配置压缩成一行代码。在这种情况下，AWS CLI orb使您能够在配置中仅用六行或更少的代码生成临时会话令牌、AWS访问密钥ID和AWS秘密访问密钥。CircleCI有几个支持多种AWS服务的orb。你可以在我们的<a href="https://circleci.com/developer/orbs?query=aws&amp;page=1&amp;pageSize=15">开发者中心</a>找到它们。</p>
+
+<p>首先，在您想要使用OIDC的工作流程中选择CircleCI作业。确保这些作业中的每一个都使用有效的<a href="https://circleci.com/docs/contexts/"> CircleCI上下文</a>。OpenID连接令牌仅适用于至少使用一个上下文的作业。上下文可能不包含环境变量。你可以在我们的<a href="https://circleci.com/docs/openid-connect-tokens/"> OIDC代币文档</a>中读到CircleCI的OIDC代币。</p>
+
+<p>在你的配置中，一定要导入<code>aws-cli</code> orb。接下来，在与任何AWS服务交互之前，在您的作业中运行<code>aws-cli/setup</code>命令。您需要为<code>aws-cli/setup</code>命令提供与您在上一步中创建的角色相关联的<code>role-arn</code>以及您的<code>aws-region</code>。您可以选择提供一个<code>profile-name</code>、<code>role-session-name</code>和<code>session-duration</code>。</p>
+
+<p>如果您提供一个<code>profile-name</code>，临时密钥和令牌将被配置到指定的配置文件。您必须对其余的AWS命令使用相同的<code>profile-name</code>。否则，如果没有提供密钥和令牌，它们将被配置为默认配置文件。此外，如果您不提供<code>role-session-name</code>或<code>session-duration</code>，它们的默认值分别是<code>${CIRCLE_JOB}</code>(您的作业名称)和<code>3600</code>秒。</p>
+
+<p>下面是一个完整的配置文件示例，其中包含一个使用OIDC配置概要文件并使用它登录AWS ECR的作业。您可以使用这个配置文件来运行其他AWS命令，比如S3、EKS、ECS等等，只要已经为<code>role-arn</code>配置了适当的权限。</p>
+
+<pre><code>version: '2.1'
+orbs:
+ # import CircleCI's aws-cli orb
+ aws-cli: circleci/aws-cli@3.1
+jobs:
+ aws-example:
+   docker:
+     - image: cimg/aws:2022.06
+   steps:
+     - checkout
+     # run the aws-cli/setup command from the orb
+     - aws-cli/setup:
+         role-arn: 'arn:aws:iam::123456789012:role/OIDC-ROLE'
+         aws-region: "us-west-1"
+         # optional parameters
+         profile-name: "OIDC-PROFILE"
+         role-session-name: “example-session”
+         session-duration: 1800
+     - run:
+         name: Log-into-AWS-ECR
+         command: |
+           # must use same profile specified in the step above       
+           aws ecr get-login-password --profile "OIDC-PROFILE"
+workflows:
+ OIDC-with-AWS:
+   jobs:
+     - aws-example:
+         # must use a valid CircleCI context
+         context: aws
+</code></pre>
+
+<h3>高级用法</h3>
+
+<p>你可以利用CircleCI的<a href="https://circleci.com/docs/openid-connect-tokens/#format-of-the-openid-connect-id-token"> OIDC令牌</a>中声明的格式来限制你的CircleCI作业在AWS中可以做什么。例如，如果某些项目应该只能访问某些AWS资源，您可以限制您的IAM角色，以便只有特定项目中的CircleCI作业可以担任该角色。</p>
+
+<p>为此，请编辑您的IAM角色的信任策略，以便只有您选择的项目中的OIDC令牌才能担任该角色。信任策略决定了在什么条件下可以担任该角色。</p>
+
+<p>首先，在<strong>项目设置&gt;概述</strong>下找到你项目的项目ID。</p>
+
+<p><img src="../Images/df9f526c51aed2cca12df5a8d39edffc.png" alt="Project settings overview" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-08-image-20220329-200109.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-08-image-20220329-200109.png"/></p>
+
+<p>然后将以下条件添加到您的角色的信任策略中，以便只有您选择的项目中的作业可以担任该角色:</p>
+<pre><code>"StringLike": {
+  "oidc.circleci.com/org/&lt;your organization ID&gt;:sub": "org/&lt;your organization ID&gt;/project/&lt;your project ID&gt;/user/*"
+}
+</code></pre>
+<p>它使用<a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html#Conditions_String" target="_blank" rel="noreferrer noopener"> StringLike </a>来匹配CircleCI的OIDC令牌在您选择的项目中的子声明。现在，您的其他项目中的工作不能承担这个角色。</p>
+
+<h2>使用CircleCI OIDC代币向GCP认证</h2>
+
+<p>您需要部署一些GCP基础设施，以便GCP能够识别CircleCI发送的令牌。需要创建三种资源:</p>
+
+<ul>
+  <li>工作负载身份池</li>
+  <li>工作负载身份池提供程序</li>
+  <li>服务帐户</li>
+</ul>
+
+<p>您可以手动或使用Terraform以编程方式完成此操作。我们将在本文中讨论这两个问题。开始之前，您需要检索您的组织ID。登录<a href="https://app.circleci.com/"> CircleCI </a>点击<strong>组织设置</strong>即可找到。您的ID将显示在页面的顶部。记下您的ID，以便在后面的步骤中使用。</p>
+
+<h3>手动创建GCP资源</h3>
+
+<p>要创建工作负载标识池及其提供者，请导航到<a href="https://console.cloud.google.com/iam-admin/workload-identity-pools" target="_blank" rel="noreferrer noopener">工作负载标识池</a>页面，然后单击<strong>创建池</strong>。命名您的池并选择<strong> Open ID Connect (OIDC) </strong>作为提供商。选择提供商名称和提供商ID。接下来，将发行者URL设置为<code>https://oidc.circleci.com/org/&lt;YOUR ORGANIZATION ID&gt;</code>。点击<strong>允许的观众</strong>并输入您的组织ID。在属性映射下，配置以下属性:</p>
+
+<pre><code>google.subject = assertion.sub
+attribute.org_id = assertion.aud
+</code></pre>
+
+<p>单击“保存”创建新的工作量标识池和工作量标识池提供程序。</p>
+
+<p>下一步是将服务帐户绑定到工作负载标识池。<a href="https://cloud.google.com/iam/docs/creating-managing-service-accounts" target="_blank" rel="noreferrer noopener">创建一个服务帐户</a>或使用一个现有的帐户，该帐户有权执行管道作业所需的GCP操作。接下来，从Workload Identity Pools页面中选择您新创建的工作量身份池。点击页面顶部的<strong>授予访问权限</strong>。从下拉菜单中选择服务帐户。接下来，单击【仅T4】匹配过滤器的身份，选择<strong> org_id </strong>作为属性名称，输入您的CircleCI组织id作为属性值，然后单击<strong>保存</strong>。关闭“配置您的应用程序”提示。</p>
+
+<p>此时，所有必需的GCP资源都应该准备就绪。</p>
+
+<h3>使用Terraform以编程方式创建资源</h3>
+
+<p>此GitHub repo 包含一个Terraform计划，该计划将部署使用CircleCI OIDC令牌进行身份验证所需的GCP基础架构。如果您之前没有在GCP使用过Terraform，您需要<a href="https://learn.hashicorp.com/tutorials/terraform/install-cli" target="_blank" rel="noreferrer noopener">安装Terraform </a>并<a href="https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/getting_started#configuring-the-provider" target="_blank" rel="noreferrer noopener">配置它以与GCP </a>一起使用。</p>
+
+<p>要使用该计划，请填写示例文件<code>terraform.tfvars</code>，然后运行<code>terraform validate</code>和<code>terraform plan</code>。如果输出看起来不错，您可以使用<code>terraform apply</code>来部署资源。有关Terraform计划如何运作的更多详细信息，请查看repo的自述文件。</p>
+
+<h2>使用oidc令牌从circleci作业使用gcp进行身份验证</h2>
+
+<p><a href="https://github.com/jtreutel/circleci-gcp-oidc-test" target="_blank" rel="noreferrer noopener">这个GitHub repo </a>包含了如何在CircleCI作业中使用gcloud向GCP认证的示例。相关的配置部分如下所示。此配置中的命令需要四个环境变量:</p>
+
+<ul>
+  <li><code>GCP_PROJECT_ID</code></li>
+  <li><code>GCP_WIP_ID</code></li>
+  <li><code>GCP_WIP_PROVIDER_ID</code></li>
+  <li><code>GCP_SERVICE_ACCOUNT_EMAIL</code></li>
+</ul>
+
+<p>您可以在上下文中或在项目级别配置它们。如果您需要使用多个GCP项目，我们建议您创建一个上下文来保存每个项目的变量。如果您需要在一个GCP项目中使用多个服务帐户，您可以在作业级别使用环境键来覆盖<code>GCP_SERVICE_ACCOUNT_EMAIL</code>的值，如<a href="https://github.com/jtreutel/circleci-gcp-oidc-test/blob/master/.circleci/config.yml#L76" target="_blank" rel="noreferrer noopener">所示，例如</a>。这个示例作业中的验证步骤假设服务帐户拥有执行<code>gcloud iam service-accounts get-iam-policy</code>的权限。</p>
+
+<pre><code>version: "2.1"
+
+orbs:
+  gcp-cli: circleci/gcp-cli@2.4.1
+
+commands:
+  gcp-oidc-generate-cred-config-file:
+    description: "Authenticate with GCP using a CircleCI OIDC token."
+    parameters:
+      project_id: 
+        type: env_var_name
+        default: GCP_PROJECT_ID
+      workload_identity_pool_id: 
+        type: env_var_name
+        default: GCP_WIP_ID
+      workload_identity_pool_provider_id: 
+        type: env_var_name
+        default: GCP_WIP_PROVIDER_ID
+      service_account_email: 
+        type: env_var_name
+        default: GCP_SERVICE_ACCOUNT_EMAIL
+      gcp_cred_config_file_path: 
+        type: string
+        default: /home/circleci/gcp_cred_config.json
+      oidc_token_file_path: 
+        type: string
+        default: /home/circleci/oidc_token.json
+    steps:
+      - run:
+          command: |
+            # Store OIDC token in temp file
+            echo $CIRCLE_OIDC_TOKEN &gt; &lt;&lt; parameters.oidc_token_file_path &gt;&gt;
+            # Create a credential configuration for the generated OIDC ID Token
+            gcloud iam workload-identity-pools create-cred-config \
+                "projects/${&lt;&lt; parameters.project_id &gt;&gt;}/locations/global/workloadIdentityPools/${&lt;&lt; parameters.workload_identity_pool_id &gt;&gt;}/providers/${&lt;&lt; parameters.workload_identity_pool_provider_id &gt;&gt;}"\
+                --output-file="&lt;&lt; parameters.gcp_cred_config_file_path &gt;&gt;" \
+                --service-account="${&lt;&lt; parameters.service_account_email &gt;&gt;}" \
+                --credential-source-file=&lt;&lt; parameters.oidc_token_file_path &gt;&gt;
+  gcp-oidc-authenticate:
+    description: "Authenticate with GCP using a GCP credentials file."
+    parameters:
+      gcp_cred_config_file_path: 
+        type: string
+        default: /home/circleci/gcp_cred_config.json
+    steps:
+      - run:
+          command: |
+            # Configure gcloud to leverage the generated credential configuration
+            gcloud auth login --brief --cred-file "&lt;&lt; parameters.gcp_cred_config_file_path &gt;&gt;"
+            # Configure ADC
+            echo "export GOOGLE_APPLICATION_CREDENTIALS='&lt;&lt; parameters.gcp_cred_config_file_path &gt;&gt;'" | tee -a $BASH_ENV
+jobs:
+  gcp-oidc-defaults:
+    executor: gcp-cli/default
+    steps:
+      - gcp-cli/install
+      - gcp-oidc-generate-cred-config-file
+      - gcp-oidc-authenticate
+      - run:
+          name: Verify that gcloud is authenticated
+          environment:
+            GCP_SERVICE_ACCOUNT_EMAIL: jennings-oidc-test@makoto-workbench.iam.gserviceaccount.com
+          command: gcloud iam service-accounts get-iam-policy "${GCP_SERVICE_ACCOUNT_EMAIL}"
+      - run:
+          name: Verify that ADC works
+          command: |
+              ACCESS_TOKEN=$(gcloud auth application-default print-access-token)
+              curl -f -i -H "Content-Type: application/x-www-form-urlencoded" -d "access_token=${ACCESS_TOKEN}" https://www.googleapis.com/oauth2/v1/tokeninfo
+
+workflows:
+  main:
+    jobs: 
+      - gcp-oidc-defaults:
+          name: Generate Creds File and Authenticate
+          context: 
+          - gcp-oidc-dev
+</code></pre>
+
+<h2>GCP的高级OIDC用法</h2>
+
+<p>到目前为止，我们已经完成了使用OIDC令牌向GCP进行身份验证所需的最低配置。根据<a href="https://circleci.com/blog/minimize-risk-using-the-principle-of-least-privilege-and-aws-iam-permissions/">最小特权</a>的原则，我们建议配置您的工作负载身份池提供者，根据OIDC令牌的声明限制访问。这可以通过以<a href="https://github.com/google/cel-spec" target="_blank" rel="noreferrer noopener"> CEL表达式</a>的形式向提供者添加属性条件来实现。</p>
+
+<p>CEL表达式可以使用CircleCI标记中包含的声明来限制谁能够模拟服务帐户。除了一些常见的标准声明之外，令牌还包含对项目ID和上下文的声明。</p>
+
+<p>以下是限制特定组织和用户访问的表达式示例:</p>
+
+<pre><code>attribute.org_id=='01234567-89ab-cdef-0123-4567890abcde' &amp;&amp; 
+google.subject.matches('org/([\da-f]{4,12}-?){5}/project/([\da-f]{4,12}-?){5}/user/76543210-ba98-fedc-3210-edcba0987654')
+</code></pre>
+
+<p>下面是另一个将访问权限限制在能够访问特定上下文的用户的示例(参见我们的文档以了解更多关于如何限制对上下文的访问的信息):</p>
+
+<pre><code>attribute.org_id=='01234567-89ab-cdef-0123-4567890abcde' &amp;&amp; 
+attribute.context_id=='76543210-ba98-fedc-3210-edcba0987654'
+</code></pre>
+
+<p>以下示例将限制特定项目的任何用户的访问权限:</p>
+
+<pre><code>attribute.org_id=='01234567-89ab-cdef-0123-4567890abcde' &amp;&amp; 
+attribute.project_id=='76543210-ba98-fedc-3210-edcba0987654'
+</code></pre>
+
+<p>您可以使用这些声明来分别限制对单个项目中的作业或对特定上下文具有访问权限的用户的访问。有关CircleCI OIDC代币索赔的更多详细信息，请参见我们的<a href="https://circleci.com/docs/openid-connect-tokens/#format-of-the-openid-connect-id-token">文档</a>。</p>
+
+<h2>结论</h2>
+
+<p>干得好！过去使用上下文的作业现在包含CircleCI的<a href="https://circleci.com/docs/openid-connect-tokens/"> OpenID连接令牌</a>。使用这些令牌在您的工作中安全地与云提供商交互，而没有密钥轮换的负担。</p>
+
+
+
+        
+          
+          
+        
+          
+          
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

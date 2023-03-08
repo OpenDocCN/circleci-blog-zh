@@ -1,0 +1,32 @@
+<html>
+<head>
+<title>Drawn Out Conversation, featuring CircleCI Principal Software Engineer Pat Shields | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>由CircleCI首席软件工程师Pat Shields | CircleCI主持的冗长对话</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/drawn-out-conversation-featuring-circleci-principal-software-engineer-pat-shields/#2020-05-15T07:00:00-07:00">https://circleci.com/blog/drawn-out-conversation-featuring-circleci-principal-software-engineer-pat-shields/#2020-05-15T07:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>在这一集的《冗长的对话》中，我们将谈论一些与我们的心息息相关的东西——circle ci。我们和Spotify、脸书、福特和Aetna等公司成千上万的其他开发人员一起，每天都在使用CircleCI，以确保我们部署了高质量的代码，并在我们的工程流程中提高了效率。</p>
+
+<p>但是，我们的平台下面到底是什么呢？</p>
+
+<p>加入我们的首席技术官Rob Zuber，他将主持CircleCI的首席软件工程师Pat Shields，讨论我们的技术和平台的内部工作方式。他们讨论从产品功能到架构的一切，并谈论我们平台的核心元素是如何以及为什么构建的。</p>
+
+<p><img src="../Images/212d5649a367af914fa926f31ac5ff50.png" alt="rob-pat.png" srcset="https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/rob-pat.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/rob-pat.png"/></p>
+
+<p>Rob甚至轮流与标记讨论领域驱动的设计、认证等等。在今天的对话中，了解你想知道的关于CircleCI的一切。</p>
+
+<p><a href="https://youtu.be/WL9RQ6fMle0"><video autoplay="" loop="" muted="" playsinline="" title="Drawn Out Conversations with Pat Shields"><source src="/blog/media/2020-05-15-drawn-out-pat-shields.mp4" type="video/mp4"/></video>T4】</a></p>
+<p class="text-center"><a href="https://youtu.be/WL9RQ6fMle0">点击此处观看完整视频</a></p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

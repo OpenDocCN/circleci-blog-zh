@@ -1,0 +1,92 @@
+<html>
+<head>
+<title>CircleCI Hacks - Automate the Decision to Skip Builds Using a Git Hook - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Git钩子自动决定跳过构建</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-hacks-automate-the-decision-to-skip-builds-using-a-git-hook/#2016-06-23T09:06:00-07:00">https://circleci.com/blog/circleci-hacks-automate-the-decision-to-skip-builds-using-a-git-hook/#2016-06-23T09:06:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>开发人员使用CircleCI构建各种项目。这些项目中的许多都遵循典型的一个项目一个回购的代码组织方法。有些包括文档、日志、供应商包、部署脚本等等。还有谷歌等公司使用的单边回购协议。这些回购带来的额外复杂性导致我们许多客户的工作流程不同。</p>
+
+
+
+<p>！[快进_图标_- <em>宏_摄影_of_a_remote_control.jpg](/blog/media/快进_图标</em>-_宏_摄影_ of _ a _ remote _ control . jpg)</p>
+
+<p>有时候，客户不希望CircleCI构建一个微不足道的提交。也许他们只是在自述文件中添加了注释，或者更新了日志文件。不构建可以为实际需要的提交节省容器时间。CircleCI通过支持提交消息中的<code>[ci skip]</code>或<code>[skip ci]</code>标志来解决这个问题。如果经常需要这样做，每次在提交消息前加上<code>[skip ci]</code>会很快变得令人讨厌。这可以用Git钩子自动完成。</p>
+
+<p>在这篇博文中，我们将使用<code>commit-msg</code> Git钩子创建我们的自动构建跳过特性。</p>
+
+
+
+<h2>我们将使用什么</h2>
+
+<h3>Git挂钩</h3>
+<p>对于那些不熟悉的人，Git有一个钩子系统。这些是时间点，在Git中可以运行脚本的特定操作之前或之后。例如，假设每次提交时，我们都希望确保使用最新的上游代码。在Git保存提交之前，可以利用Git挂钩来更新主服务器，并在主服务器上重置当前分支。</p>
+
+<h3>[跳过配置项]</h3>
+<p>如前所述，CircleCI支持CI标准提交标志<code>[skip ci]</code>。当该标志出现在提交消息中时，CircleCI不会运行构建。这可以节省运行的容器数量和使用的总构建时间。</p>
+
+<h3>使用. ciignore文件</h3>
+<p>为了模仿Git对<code>.gitignore</code>文件的使用，我们将为这篇博文创建一个<code>.ciignore</code>文件的概念。我们正在创建的Git钩子将使用这个文件来知道在运行构建时应该忽略哪些文件、目录和模式</p>
+
+<h2>正在实施。回购中的ci忽略</h2>
+
+<p>本文中我们使用的场景是根目录中的一个<code>.ciignore</code>文件，它将告诉Git我们不想在CircleCI上构建，因为提交中唯一的更改是在<code>logs/</code>目录中。我们回购的根源可能是这样的:</p>
+
+<pre><code>$ ls -la
+total 9
+drwxrwxr-x 4 felicianotech felicianotech 4096 Jun 15 00:44 ./
+drwxrwxr-x 4 felicianotech felicianotech 4096 Jun 15 00:44 ../
+-rw-rw-r-- 1 felicianotech felicianotech    7 Jun 15 00:32 .ciignore
+-rw-rw-r-- 1 felicianotech felicianotech 1077 Jun  1 20:29 circle.yml
+-rw-rw-r-- 1 felicianotech felicianotech  135 Jun  1 20:23 Dockerfile
+drwxrwxr-x 8 felicianotech felicianotech 4096 Jun 15 00:52 .git/
+drwxrwxr-x 2 felicianotech felicianotech 4096 Jun 15 00:45 logs/
+-rw-rw-r-- 1 felicianotech felicianotech   43 Apr 29 22:23 main.go
+-rw-rw-r-- 1 felicianotech felicianotech   20 Apr  1 16:40 README.md
+-rw-rw-r-- 1 felicianotech felicianotech   31 Jun 15 00:44 test.txt
+</code></pre>
+
+<p><code>.ciignore</code>文件放在回购的根目录中，而我们的Git钩子的文件路径将是<code>.git/hooks/commit-msg</code>。这些文件的内容可以通过下面的GitHub Gists看到。</p>
+
+
+
+<p><strong>。ci ignore</strong>——这个文件包含一个单一的模式，<code>logs/*</code>。我们希望跳过日志目录中的变更构建。</p>
+
+<p><strong>。这是我们的钩子，一个简单的Bash脚本。这里有一个快速分类:</strong></p>
+
+<ol>
+  <li>脚本首先检查<code>.ciignore</code>是否存在。如果它不存在，那很酷。一切照旧。</li>
+  <li>然后，我们调用<code>git diff</code>来获取一个机器可读的文件列表，这些文件是暂存的(将在这次提交中被更改)。</li>
+  <li>我们为要忽略的模式列表加载<code>.ciignore</code>。</li>
+  <li>我们循环遍历这些更改，每当它匹配一个忽略模式时就删除它。</li>
+  <li>如果我们仍然有更改，这意味着我们需要实际构建提交，这样我们就退出了。</li>
+  <li>如果我们到达这一步，我们将在提交消息(存储在文件$1中)前面加上<code>[skip ci]</code>，这样可以节省一些构建时间。</li>
+</ol>
+
+<p>第4步和第5步很重要，因为即使在我们想要忽略的目录中发生了变化，如果主要的源代码也发生了变化，我们仍然想要构建。否则，我们可能会在一个场景中结束，在这个场景中，我们在同一次提交中添加了一个特性并更新了一个日志文件，而它永远不会被构建，这意味着该特性的推出现在被延迟了。</p>
+
+<h2>笔记</h2>
+
+<p>需要记住的一点是，钩子不会随着回购而移动。这意味着客户端钩子，我们在这里使用的，不在Git的版本控制之下，当一个回购被克隆或推送时，它们也不会被复制。为了绕过这一点，有些人在回购本身的目录中保留挂钩，然后在克隆回购后将它们符号链接到位。</p>
+
+<p>使用Git钩子创建一个<code>.ciignore</code>文件只是如何利用Git钩子改进CircleCI日常工作流程的一个例子。其他的想法可以是使用Git钩子在提交时修改<code>circle.yml</code>,只运行特定的测试。</p>
+
+<p>你用Git钩子和CircleCI吗？我们很想在<a href="https://discuss.circleci.com/">讨论</a>上听到它。</p>
+
+<p>想加入才华横溢的CircleCI团队吗？我们正在招聘！</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

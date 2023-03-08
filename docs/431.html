@@ -1,0 +1,111 @@
+<html>
+<head>
+<title>Migrating from buddybuild to CircleCI - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>从buddybuild迁移到CircleCI - CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/migrating-from-buddybuild-to-circleci/#2018-01-03T09:43:00-08:00">https://circleci.com/blog/migrating-from-buddybuild-to-circleci/#2018-01-03T09:43:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>在被苹果收购后，昨天buddybuild宣布他们将停止为Android版本和免费iOS计划提供服务。祝贺buddybuild团队，尽管这个消息让一些团队为他们的移动构建寻找一个替代的CI系统。我们将这种比较放在一起，以帮助团队决定CircleCI是否是适合他们的工具。</p>
+
+<h2>CircleCI和buddybuild如何比较？</h2>
+<p><a name="chart"/></p>
+<table>
+  <tr>
+    <th/>
+    <th>绕圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈圈</th>
+    <th>buddybuild</th>
+  </tr>
+  <tr>
+    <td>移动支持(macOS、Android)</td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+   <tr>
+    <td>Non-mobile project support</td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+ <tr>
+    <td>为macOS和Android构建隔离</td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+ <tr>
+    <td>支持开源项目</td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+ <tr>
+    <td>自动上传到iTunes Connect</td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+ <tr>
+    <td>在同一工作流程中运行macOS和Linux作业</td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+ <tr>
+    <td>工作流的手动批准步骤</td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+ <tr>
+    <td>UI中的配置</td>
+    <td>❌</td>
+    <td>✅</td>
+  </tr>
+ <tr>
+    <td>没有GitHub / Bitbucket访问权限的合作者</td>
+    <td>❌</td>
+    <td>✅</td>
+   </tr>
+</table>
+
+
+
+<h2>CircleCI和buddybuild的主要区别是什么？</h2>
+<h3>git中存储的配置文件</h3>
+
+<p>buddybuild的配置完全通过他们的web用户界面完成，而CircleCI将配置存储在git存储库中的配置文件中。将配置作为文件存储在存储库中的好处是:</p>
+
+<ul>
+  <li>更好的审计跟踪。查看谁对您的配置进行了更改，并在GitHub和Bitbucket上并排比较新旧配置。</li>
+  <li>轻松恢复以前的配置版本。既然配置存储在git中，就很容易恢复以前版本的配置文件。</li>
+  <li>将配置复制到新的存储库。如果您有多个存储库需要配置，您可以在它们之间复制配置文件，并在每个存储库中调整细节。</li>
+</ul>
+
+<p>当您注册CircleCI时，我们会为您提供一个配置文件模板，您可以在您的项目中使用它。我们在本文档中提供了当前最佳实践配置以供参考<a href="https://circleci.com/docs/testing-ios/#basic-setup">。</a></p>
+
+<p>你可以在CircleCI <a href="https://github.com/CircleCI-Public/circleci-demo-ios">这里</a>找到一个使用fastlane的示例iOS应用程序。</p>
+
+<h3>使用fastlane进行代码签名、测试和部署</h3>
+
+<p>buddybuild为代码签名、运行测试命令和部署应用程序提供了内置机制。CircleCI不提供任何内置机制，相反我们依赖于使用<a href="https://fastlane.tools/"> fastlane </a>，这是一个用于构建、测试和发布iOS和Android应用的开源工具。</p>
+
+<p>我们选择依赖fastlane，因为fastlane和相关工具背后的社区在跟踪苹果和其他供应商实现的改进和变化方面做得很好。这确保您在与Apple构建工具和第三方服务进行交互以进行部署时，能够获得最一致的构建体验。</p>
+
+<p>我们建议使用fastlane运行您的测试，导出您的应用程序，并部署到TestFlight(以及其他测试服务)和iTunes Connect。请<a href="https://circleci.com/docs/testing-ios/#using-fastlane">查看此文档部分，了解在CircleCI </a>上使用fastlane的示例。你可以在这里找到关于通过快速通道匹配<a href="https://circleci.com/docs/ios-codesigning/">设置代码签名的说明。你可以在这里</a>找到更详细的快车道文件<a href="https://docs.fastlane.tools/">。</a></p>
+
+<h3>相同配置的iOS和Android</h3>
+<p>使用CircleCI工作流，可以在一个配置文件中包含iOS和Android配置。这在构建React原生项目时尤其有用。</p>
+
+<p>使用像Danger和swiftlint这样的iOS开发工具的项目也可以利用这一点:例如，如果swiftlint没有通过，您可以提前使工作流失败，或者并行运行iOS测试和Danger。</p>
+
+<p>您将在这里找到一个在工作流<a href="https://circleci.com/docs/testing-ios/#sample-configuration-with-multiple-executor-types-macos--docker">中将swiftlint和Danger作为单独作业运行的示例。请看一下在CircleCI </a>上构建iOS和Android应用的<a href="https://github.com/CircleCI-Public/circleci-demo-react-native">示例React Native项目。</a><a href="https://circleci.com/docs/workflows/">工作流程文档</a>显示了所有可用的工作流程选项。</p>
+
+<h3>试试CircleCI</h3>
+<p><a href="https://circleci.com/docs/testing-ios/">阅读我们的iOS文档以了解更多信息</a>或查看我们的<a href="https://github.com/CircleCI-Public/circleci-demo-ios">circle ci示例iOS项目</a>。准备好开始建造了吗？<a href="https://circleci.com/signup/">报名并立即开始</a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

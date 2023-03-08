@@ -1,0 +1,208 @@
+<html>
+<head>
+<title>Building Docker images for multiple operating system architectures | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>为多个操作系统架构构建Docker映像| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/building-docker-images-for-multiple-os-architectures/#2020-10-26T17:00:00-07:00">https://circleci.com/blog/building-docker-images-for-multiple-os-architectures/#2020-10-26T17:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>经常有这样的情况，软件被编译并打包成工件，这些工件必须在多个<a href="https://en.wikipedia.org/wiki/Operating_system">操作系统</a>和<a href="https://en.wikipedia.org/wiki/Microarchitecture">处理器架构</a>上运行。几乎不可能在不同的操作系统/架构平台上执行应用程序。这就是为什么为许多不同的平台构建版本是一种常见的做法。当您用来构建工件的平台与您想要部署的平台不同时，这可能很难实现。例如，在Windows上开发一个应用程序并将其部署到Linux和macOS机器上，需要为每个操作系统和目标架构平台提供和配置构建机器。管道内的多操作系统构建可以使用各种技术来实现，但是由于处理器架构的严格特性，工件必须在它们所针对的同一硬件上编译和生产。</p>
+
+<p>Docker 是一种将应用程序打包成不可变且可部署的工件的现代方式，其形式为<a href="https://docs.docker.com/engine/reference/commandline/images/"> Docker映像</a>和<a href="https://www.docker.com/resources/what-container">容器</a>。与传统的工件封装一样，Docker映像也面临着相同的处理器架构构建限制。Docker映像还必须构建在它们打算运行的硬件架构上。在这篇文章中，我将讨论如何在针对多处理器架构的<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/"> CI管道</a>中构建Docker镜像，例如linux/amd64、linux/arm64、linux/riscv64等。</p>
+
+<h2>入门指南</h2>
+
+<p>让我们来看一个由Chad Metcalf构建的<a href="https://github.com/metcalfc/docker-circleci-example">示例代码库</a>，它演示了如何将一个应用打包成多架构Docker映像。我们将只关注构建这些多架构Docker映像的<a href="https://circleci.com/continuous-integration/">持续集成</a>方面。CircleCI <code>config.yml</code>文件定义了CI管道构建指令。它位于<code>.circleci/config.yml</code>目录中。在这篇文章中，我将重点放在这次回购的<code>.circleci/config.yml</code>文件和<code>Makefile</code>文件上。</p>
+
+<p><a href="https://www.gnu.org/prep/standards/html_node/Makefile-Basics.html#Makefile-Basics"> Makefiles </a>可以被视为自动化构建过程的<a href="https://www.gnu.org/software/make/"> make实用程序</a>所需的构建/编译指令。这个项目中的<code>Makefile</code>包含从CI管道执行的指令和命令。</p>
+
+<h2>使用Docker Buildx</h2>
+
+<p>在我深入讨论<code>Makefile</code>和<code>config.yml</code>文件分解之前，我想花点时间讨论一下<a href="https://docs.docker.com/buildx/working-with-buildx/"> Buildx </a>，这是一个当前的CLI插件，它用莫比BuildKit builder工具包提供的全套功能扩展了Docker CLI。它提供了与<code>docker build</code>相同的用户体验，并增加了许多新的特性，比如创建限定范围的构建器实例和同时构建多个节点。</p>
+
+<p>在撰写本文时，Buildx特性仍处于<strong>试验</strong>状态，需要在将要构建Docker映像的机器上进行一些环境配置。以下是Docker版本<code>19.03</code>及更高版本的Buildx安装说明。完整的<a href="https://github.com/docker/buildx#installing"> Buildx安装说明可以在这里找到</a>，下面是TL；安装了Docker 19.03的Linux机器的灾难恢复说明。以下命令从源代码编译并构建<code>Buildx</code>二进制文件，并将其安装到Docker插件目录中:</p>
+
+<pre><code>export DOCKER_BUILDKIT=1
+docker build --platform=local -o . git://github.com/docker/buildx
+mkdir -p ~/.docker/cli-plugins
+mv buildx ~/.docker/cli-plugins/docker-buildx
+</code></pre>
+
+<p>你也可以在这里为你的操作系统下载<a href="https://github.com/docker/buildx/releases">最新的Buildx二进制文件，并使用这些Buildx发布二进制文件的说明</a>安装它<a href="https://github.com/docker/buildx#binary-release">。</a></p>
+
+<p>在Docker builder机器上安装Buildx之后，您可以利用Buildx的所有功能:</p>
+
+
+
+<p>我建议您花时间更好地熟悉Buildx特性。在构建多架构Docker映像时，这是一项必不可少的技术，并且在下面的示例中大量使用。</p>
+
+<h2>配置您的CI渠道</h2>
+
+<p>示例项目中的<code>config.yml</code>文件利用<code>Makefile</code>文件及其功能来执行适当的命令，以完成多架构构建。这个<code>config.yml</code>演示了如何使用<a href="https://circleci.com/docs/executor-types/#using-machine">机器执行器</a>来利用单个构建作业。这似乎有点不正常，因为CircleCI提供了使用<a href="https://circleci.com/docs/executor-types/#using-docker"> Docker执行器</a>构建Docker映像的能力。</p>
+
+<p>Docker平台利用<a href="https://docs.docker.com/get-started/overview/">共享和管理其主机操作系统内核</a>与<a href="https://en.wikipedia.org/wiki/Kernel-based_Virtual_Machine">虚拟机(VMs) </a>中的内核仿真。由于运行Docker容器共享主机操作系统内核，它们在架构上与虚拟机非常不同。虚拟机不基于容器技术。它们由操作系统的用户空间和内核空间组成。虚拟机服务器硬件是虚拟化的，每个虚拟机都有自己独立的操作系统和应用。它共享来自主机的硬件资源，并可以在虚拟机中模拟各种处理器架构/内核。虚拟机的内核和硬件仿真能力是<code>machine executor</code>成为构建多架构Docker映像的最佳选择的主要原因。</p>
+
+<p>让我们看看示例项目中的<code>config.yml</code>:</p>
+
+<pre><code>version: 2.1
+jobs:
+  build:
+    machine:
+      image: ubuntu-1604:202007-01
+    environment:
+      DOCKER_BUILDKIT: 1
+      BUILDX_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm/v7,linux/arm/v6
+    steps:
+      - checkout
+      - run:
+          name: Unit Tests
+          command: make test
+      - run:
+          name: Log in to docker hub
+          command: |
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+      - run:
+          name: Build from dockerfile
+          command: |
+            TAG=edge make build
+      - run:
+          name: Push to docker hub
+          command: |
+            TAG=edge make push
+      - run:
+          name: Compose Up
+          command: |
+            TAG=edge make run
+      - run:
+          name: Check running containers
+          command: |
+            docker ps -a
+      - run:
+          name: Check logs
+          command: |
+            TAG=edge make logs
+      - run:
+          name: Compose down
+          command: |
+            TAG=edge make down
+      - run:
+          name: Install buildx
+          command: |
+            BUILDX_BINARY_URL="https://github.com/docker/buildx/releases/download/v0.4.2/buildx-v0.4.2.linux-amd64"
+
+            curl --output docker-buildx \
+              --silent --show-error --location --fail --retry 3 \
+              "$BUILDX_BINARY_URL"
+
+            mkdir -p ~/.docker/cli-plugins
+
+            mv docker-buildx ~/.docker/cli-plugins/
+            chmod a+x ~/.docker/cli-plugins/docker-buildx
+
+            docker buildx install
+            # Run binfmt
+            docker run --rm --privileged tonistiigi/binfmt:latest --install "$BUILDX_PLATFORMS"
+      - run:
+          name: Tag golden
+          command: |
+            BUILDX_PLATFORMS="$BUILDX_PLATFORMS" make cross-build
+</code></pre>
+
+<p>您可能已经注意到，这个配置文件中的大多数<code>command:</code>键执行<code>Makefile</code>中定义的功能。这种模式在配置文件中产生的YAML语法要少得多，但是确实使在<code>Makefile</code>中实际执行的内容变得复杂了。</p>
+
+<p>接下来，我将重点解释这个配置文件中的关键<code>command:</code>键。</p>
+
+<pre><code>version: 2.1
+jobs:
+  build:
+    machine:
+      image: ubuntu-1604:202007-01
+    environment:
+      DOCKER_BUILDKIT: 1
+      BUILDX_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm/v7,linux/arm/v6
+    steps:
+      - checkout
+      - run:
+          name: Unit Tests
+          command: make test
+      - run:
+          name: Log in to docker hub
+          command: |
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+      - run:
+          name: Build from dockerfile
+          command: |
+            TAG=edge make build
+      - run:
+          name: Push to docker hub
+          command: |
+            TAG=edge make push
+</code></pre>
+
+<p>在上面的代码中，构建使用了一个<code>machine executor</code>并将值赋给了<code>DOCKER_BUILDKIT</code>变量，使Docker能够访问实验特性和Buildx。<code>BUILDX_PLATFORMS</code>变量是将产生Docker映像的操作系统和处理器架构的列表。这个列表是针对Linux操作系统和各种处理器架构的。</p>
+
+<p>剩下的<code>run:</code>和<code>command:</code>键演示了如何执行应用的单元测试，向Docker Hub认证以拉和推图像，使用在<code>/app</code>目录中找到的<code>Dockerfile</code>构建Docker图像，并将该图像推送到Docker Hub。</p>
+
+<p><strong>注意:</strong> <i>上面的<code>docker login</code>步骤确保您对Docker Hub的请求得到验证。无论何时你用CircleCI从Docker Hub提取图像或向其推送图像，我们都建议你在CircleCI配置中的<code>docker pull</code>和<code>docker push</code>步骤中使用<strong>登录你的Docker Hub账户</strong>。登录将确保您的作业可以访问更高的<a href="https://docs.docker.com/docker-hub/download-rate-limit/"> Docker Hub速率限制</a>。</i></p>
+
+<pre><code>      - run:
+          name: Install buildx
+          command: |
+            BUILDX_BINARY_URL="https://github.com/docker/buildx/releases/download/v0.4.2/buildx-v0.4.2.linux-amd64"
+
+            curl --output docker-buildx \
+              --silent --show-error --location --fail --retry 3 \
+              "$BUILDX_BINARY_URL"
+
+            mkdir -p ~/.docker/cli-plugins
+
+            mv docker-buildx ~/.docker/cli-plugins/
+            chmod a+x ~/.docker/cli-plugins/docker-buildx
+
+            docker buildx install
+            # Run binfmt
+            docker run --rm --privileged tonistiigi/binfmt:latest --install "$BUILDX_PLATFORMS"
+</code></pre>
+
+<p>在上面的代码片段中，Buildx特性用于安装Buildx二进制文件，并对其进行配置，以便在执行器中使用。Buildx工具可以使用多种策略构建多架构映像，但是最简单的方法是使用<a href="https://wiki.qemu.org/Main_Page"> Qemu仿真</a>。它是一个通用的、开源的机器模拟器和虚拟器。当BuildKit需要为不同的架构运行二进制文件时，它会通过在<code>binfmt_misc</code>处理程序中注册的二进制文件自动加载它。为了让在主机操作系统上用<code>binfmt_misc</code>注册的QEMU二进制文件在容器中透明地工作，它们必须用<code>fix_binary</code>标志注册。</p>
+
+<p><code>docker run --rm --privileged tonistiigi/binfmt:latest --install "$BUILDX_PLATFORMS"</code>命令为文件前面定义的<code>$BUILD_PLATFORMS</code>变量中列出的每个平台拉出并生成一个<a href="https://github.com/tonistiigi/binfmt#installing-emulators"> binfmt </a>容器。</p>
+
+<pre><code>      - run:
+          name: Tag golden
+          command: |
+            BUILDX_PLATFORMS="$BUILDX_PLATFORMS" make cross-build
+</code></pre>
+
+<p>上面的代码片段指定了管道中要执行的最后一个命令。它构建了我们想要的多架构Docker映像。<code>command:</code>键调用在<code>Makefile</code>中定义的<code>cross-build</code>函数，所以让我们看看与这个函数相关的底层命令。</p>
+
+<pre><code># Makefile cross-build function
+
+.PHONY: cross-build
+cross-build:
+	@docker buildx create --name mybuilder --use
+	@docker buildx build --platform ${BUILDX_PLATFORMS} -t ${PROD_IMAGE} --push ./app
+</code></pre>
+
+<p>上面的代码片段是实际的<code>cross-build</code> <code>make</code>命令，它创建了一个新的Buildx builder实例。接下来，使用<code>docker buildx build</code>命令触发进程，为<code>${BUILDX_PLATFORMS}</code>环境变量中列出的每个平台构建一个单独的Docker映像。这被输入到指挥的<code>--platform</code>旗中。<code>-t</code>标志标记/命名Docker映像，而<code>--push</code>标志会自动将构建结果推送到Docker注册表。在这种情况下，它是Docker Hub。</p>
+
+<h2>摘要</h2>
+
+<p>这篇文章展示了如何在CI管道中为多个操作系统和处理器架构构建各种Docker映像。这篇文章还简要介绍了Docker Buildx特性，它目前是一个实验性的工具，有望在Docker的未来版本中成为事实上的构建工具。我认为Buildx是下一代Docker映像构建工具，它将提供扩展、高级和优化的功能来增强当前的映像构建体验。</p>
+
+<p>我还简要讨论了构建针对多个操作系统和平台架构的Docker映像的一些复杂性，这突出了Docker容器和VM之间的技术差异。虽然从抽象的角度看，它们看起来很相似，但本质上是不同的。最后，我要重申的是，<strong> Docker已经实施了新的<a href="https://docs.docker.com/docker-hub/download-rate-limit/"> Docker Hub速率限制</a> </strong>，该限制要求对Docker Hub的所有呼叫进行认证。每当您从CircleCI上的Docker Hub提取图像或向其推送图像时，我们建议您使用<strong>登录您的Docker Hub帐户</strong>,以完成CircleCI配置中的<code>docker pull</code>和<code>docker push</code>步骤。</p>
+
+<p>感谢你关注这篇文章，希望你觉得有用。请随时在Twitter <a href="https://twitter.com/punkdata"> @punkdata </a>上寻求反馈。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

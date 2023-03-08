@@ -1,0 +1,81 @@
+<html>
+<head>
+<title>What is YAML? A beginner's guide | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>什么是YAML？初学者指南| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/#2022-01-12T15:00:00-08:00">https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/#2022-01-12T15:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <h2>什么是YAML？</h2>
+
+<p>YAML是一种易于理解的数据序列化语言，常用于用任何编程语言创建配置文件。</p>
+
+<p>YAML是为人类交互而设计的，是另一种数据序列化语言JSON的严格超集。但是因为它是一个<em>严格的</em>超集，它可以做JSON能做的一切，甚至更多。一个主要的区别是，换行符和缩进在YAML中实际上是有意义的，与JSON相反，JSON使用括号和大括号。</p>
+
+<p>这种格式有助于指定配置，这就是我们在CircleCI使用它的方式。</p>
+
+<p><img src="../Images/fd9d43fcfacffc2a3bf94276642d6ada.png" alt="What is YAML diagram" srcset="https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-05-13-info-yaml-final.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-05-13-info-yaml-final.png"/></p>
+
+<h2>如何写YAML</h2>
+<p>YAML文件的基本结构是地图。你可以称之为字典、散列或对象，这取决于你的编程语言或情绪。</p>
+
+<p>非常普遍的是，键和值一直向下:</p>
+
+<pre><code>key: value
+</code></pre>
+
+<h3>YAML示例:标量类型</h3>
+<p>您可以使用各种标量类型作为值:数字、布尔值和字符串(带引号或不带引号)。例如，<code>config.yml</code>的第一行通常是:</p>
+
+<pre><code>version: 2
+</code></pre>
+
+<p>键中的单词可以用下划线、破折号或空格分隔。在CircleCI，我们<a href="https://circleci.com/docs/configuration-reference/#example-full-configuration">使用下划线</a>。</p>
+
+<p>如果键值是多行字符串，您可以使用带有“|”字符的“文字块”样式。这在定义shell命令时特别有用:</p>
+
+<pre><code>command: |
+    if [ "${CIRCLE_BRANCH}" == "master" ];
+      then ansible-playbook site.yml -i production;
+    fi
+</code></pre>
+
+<p>请注意，多行字符串的前导缩进将被去除。</p>
+
+<h3>YAML示例:集合类型</h3>
+<p>创建收藏所要做的就是使用缩进:</p>
+
+<pre><code>environment:
+    TEST_REPORTS: /tmp/test-reports
+</code></pre>
+
+<p>如果你有一个事物列表(比如图像)，你可以用破折号来表示这个序列:</p>
+
+<pre><code>docker:
+    - image: ubuntu:14.04
+    - image: mongo:2.6.8
+      command: [mongod, --smallfiles]
+    - image: postgres:9.4.1
+</code></pre>
+
+<p>注意，序列中的第二项有两个键:<code>image</code>和<code>command</code>。<code>command</code>键使用JSON风格的序列，因为(记住！)YAML是JSON的超集。</p>
+
+<p>最后，YAML不允许制表符，所以如果你使用这些来缩进，让你的文本编辑器把它们转换成空格。你的YAML中的语法错误有时会导致CircleCI构建挂起，但是通过让你的<code>circle.yml/config.yml</code>运行一个<a href="http://codebeautify.org/yaml-validator">在线验证器</a>也很容易避免。</p>
+
+<h2>进一步阅读</h2>
+<p>本指南中的内容应该是您轻松编写CircleCI配置文件所需的全部内容。YAML确实支持额外的功能，你可以在官方网站上读到这些功能，或者在不那么吓人(但不那么详尽)的T2网站上读到这些功能。</p>
+
+<p>阅读更多信息:</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

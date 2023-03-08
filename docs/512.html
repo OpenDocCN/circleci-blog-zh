@@ -1,0 +1,100 @@
+<html>
+<head>
+<title>SAST vs DAST: what they are and when to use them | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>SAST vs DAST:他们是什么以及何时使用他们</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/sast-vs-dast-when-to-use-them/#2022-08-29T05:30:00-07:00">https://circleci.com/blog/sast-vs-dast-when-to-use-them/#2022-08-29T05:30:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>随着数字化转型的加速，越来越多的组织使用软件解决方案来促进工作运营，安全威胁变得越来越普遍。网络犯罪分子不知疲倦地开发各种方法来利用软件应用程序漏洞来攻击组织网络。一个显著的例子是<a href="https://www.csoonline.com/article/3444488/equifax-data-breach-faq-what-happened-who-was-affected-what-was-the-impact.html" target="_blank" rel="noreferrer noopener"> 2017年Equifax数据泄露</a>，曝光了1.45亿美国人的个人信息。</p>
+
+<p>开发团队不能仅仅依靠一种测试来防止这些漏洞并保证应用程序的安全。您的团队应该考虑所有可用的策略，并以最适合您的工作流程的方式组合它们，以提供尽可能多的覆盖面。在您寻求保护您的代码和客户信息的过程中，请超越最常见的测试方法。</p>
+
+<p><iframe src="https://www.youtube.com/embed/r771wwlnIxs" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="">视频</iframe></p>
+
+<p>由<a href="https://circleci.com/blog/unit-testing-vs-integration-testing/">单元和集成测试</a>组成的功能测试是一个很好的起点，就像<a href="https://circleci.com/blog/what-is-end-to-end-testing/">端到端测试</a>一样。功能测试是有帮助的，但是它只检查你预先想到的问题，并且集中于满足业务目标。它不会检查导致数据泄露的安全缺陷。</p>
+
+<p>还有其他测试工具可以填补最常见的测试方法留下的空白。其中两个是<strong>静态应用安全测试(SAST) </strong>和<strong>动态应用安全测试(DAST) </strong>。本文探讨了每种类型，并讨论了何时使用SAST或DAST。然后，它强调了可以用来提高应用程序安全性的其他形式的应用程序测试。</p>
+
+<h2>什么是SAST？</h2>
+
+<p>静态应用程序安全测试分析程序源代码以识别安全漏洞。这些漏洞包括<a href="https://circleci.com/blog/sql-injection/"> SQL注入</a>，缓冲区溢出，XML外部实体(XXE)攻击，以及其他<a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noreferrer noopener"> OWASP十大</a>安全风险。</p>
+
+<p>SAST正在进行开箱测试。它从里到外扫描软件应用程序，以便在编译或执行之前发现代码中的安全漏洞。</p>
+
+<p>SAST方法指导开发人员在早期开发阶段开始测试他们的应用程序，而不执行功能组件。这种方法可以在早期发现应用程序源代码的安全缺陷，避免将安全问题留给以后的开发阶段。这减少了开发时间并增强了整个程序的安全性。</p>
+
+<h3>SAST测试工具</h3>
+
+<p>两种最流行的SAST测试工具是:</p>
+<ul>
+  <li><a href="https://www.perforce.com/products/klocwork" target="_blank" rel="noreferrer noopener"> Klocwork </a>，C、C++、C#、Java、JavaScript、Python的静态代码分析器。</li>
+  <li><a href="https://checkmarx.com/" target="_blank" rel="noreferrer noopener"> Checkmarx </a>，支持多种编程语言的工具。</li>
+</ul>
+
+<p>为了减少严重的安全错误并产生更安全的应用程序，许多开发人员现在将SAST测试纳入他们的<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/">持续集成和持续部署(CI/CD)管道</a>。使用SAST创建更安全的应用程序有很多用例。</p>
+
+<h3>我什么时候可以使用SAST？</h3>
+
+<p>这里有一个例子:SAST可以持续监控源代码漏洞，找出违反软件开发安全最佳实践的有问题的编码模式。它还可以使用流行的安全行业标准，如OWASP Top 10和<a href="https://www.sans.org/top25-software-errors/" target="_blank" rel="noreferrer noopener"> SANS Top 25 </a>，自动测试您的应用程序代码的一系列漏洞。SAST支持遵守数据保护法，如健康保险便携性和责任法案(HIPAA)和<a href="https://www.pcisecuritystandards.org/" target="_blank" rel="noreferrer noopener">支付卡行业数据安全标准</a> (PCI DSS)。</p>
+
+<h2>什么是DAST？</h2>
+
+<p>动态应用程序安全测试评估软件应用程序。DAST测试模拟试图远程闯入您的应用程序的恶意行为者的行为。DAST针对领先的漏洞源(如OWASP Top 10或SANS/CWE 25)实时扫描软件应用程序，以查找安全缺陷或公开的漏洞。</p>
+
+<p>DAST和SAST的主要区别在于各自如何进行安全测试。SAST扫描静止的应用程序代码，以发现造成安全威胁的错误代码，而DAST测试正在运行的应用程序，无法访问其源代码。</p>
+
+<p>DAST是封闭盒测试的一种形式，它刺激外部攻击者的视角。它假设测试人员不知道应用程序的内部功能。它可以检测SAST不能检测的安全漏洞，例如那些只在程序运行时出现的漏洞。</p>
+
+<p>因为DAST测试需要一个完整的工作应用程序，所以将其保留到应用程序开发过程的稍后阶段。测试人员需要与应用程序交互:提供输入，检查输出，以及模拟其他典型的用户交互行为。这些测试有助于确保应用程序不易受到web攻击，如跨站脚本(XXS)或SQL注入。</p>
+
+<h3>从开源DAST工具开始</h3>
+
+<p>虽然大多数DAST工具都是商业化的，但Arachni是一个开源工具，提供了丰富的功能。Arachni的Ruby框架支持扫描web应用程序的漏洞，包括XSS(带有DOM变体)、SQL注入、NoSQL注入、代码注入和文件包含变体。在决定以后购买哪种商业DAST工具之前，尝试一下这个免费工具会有所帮助。</p>
+
+<h3>我应该什么时候使用DAST？</h3>
+
+<p>DAST对于检测运行时影响web应用程序安全性的服务器或数据库中的<a href="https://circleci.com/blog/cloud-misconfiguration/">错误配置</a>非常有用。它还可以发现允许未授权访问的认证和加密问题，这是SAST做不到的。此外，除了网络和数据存储等IT基础设施资源，DAST还可以测试您的web应用程序连接的其他API或web服务。因此，DAST对于测试您的应用程序或web服务运行的整个IT环境是有价值的。</p>
+
+<h2>SAST与DAST:你应该使用哪一个？</h2>
+
+<p>既然您已经知道了SAST和DAST测试方法的主要特征和目标，那么让我们来讨论哪一个最适合您的应用程序测试环境。组织不应该选择其中的一个，而是将两种方法都应用到测试应用程序中。</p>
+
+<p>SAST在早期开发阶段测试应用程序的内部源代码，以确保开发人员在编写代码时遵循<a href="https://circleci.com/blog/security-best-practices-for-ci-cd/">最佳安全实践</a>。相比之下，DAST测试在工作应用程序的后期开发阶段开始。它在应用程序运行时对其进行测试，以发现其对最常见网络威胁的敏感性。</p>
+
+<p>SAST测试依赖于技术。因此，您的SAST工具应该支持您的编程语言和开发框架，以确保完整的测试覆盖。另一方面，DAST是技术独立的，因为它从外部用户的角度在运行时测试应用程序。</p>
+
+<p>为了实现软件应用的最大安全性，考虑将SAST和DAST工具集成为应用的CI/CD管道的一部分。DevSecOps 应该使用这两种方法将安全性集成到每个开发阶段。这种方法有助于开发团队将安全控制集成到他们的设计过程中，而不会影响工作效率。<strong>使用CI/CD自动进行SAST和DAST扫描，可加快开发速度，同时不会影响最终产品的安全性。</strong></p>
+
+<h2>其他形式的应用程序安全性(IAST、RASP和HAST)</h2>
+
+<p>SAST和DAST不是唯一可用的测试方法。开发社区也使用类似IAST、RASP和HAST的变体。</p>
+
+<h3>交互式应用安全测试</h3>
+<p>交互式应用安全测试(IAST)是一种结合了SAST和DAST功能的测试方法。它使用应用程序后端的监控机制(传感器或代理)在运行时收集信息。</p>
+
+<p>这种方法允许开发人员使用DAST测试技术在运行时测试他们的应用程序的行为，同时仍然监控源代码的执行，就像SAST测试一样。IAST减轻了SAST方法的一个重大限制:它无法跟踪和测试现代web应用程序使用的所有依赖项，如库和框架。</p>
+
+<h3>运行时应用程序自我保护(RASP)</h3>
+<p>运行时应用程序自我保护(RASP)测试并保护应用程序免受执行或运行时常见漏洞的影响。DevOps可以使用RASP来监控生产中的应用程序，并在检测到异常活动(如网络攻击或其他恶意行为)时采取纠正措施。</p>
+
+<h3>混合应用安全测试(HAST)</h3>
+<p>HAST结合了SAST和DAST的方法来发现和修复应用程序的安全漏洞。尽管这种方法需要更多的时间和预算，但它是设计安全应用程序的最佳选择。</p>
+
+<h2>结论</h2>
+
+<p>大多数安全事件都是由于未修复的安全错误被当今复杂的IT威胁环境所利用。您的开发团队应该结合使用开放和封闭测试来保护应用程序和客户免受网络威胁。</p>
+
+<p>自动化这种安全测试可以节省时间并产生更准确的结果。了解更多关于CircleCI <a href="https://circleci.com/blog/devsecops-and-circleci-orbs-security-focused-ci-cd-best-practices/"> DevSecOps工具</a>如何将自动测试集成到您的CI/CD管道中。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

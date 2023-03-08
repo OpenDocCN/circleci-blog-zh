@@ -1,0 +1,789 @@
+<html>
+<head>
+<title>CI/CD and state management for Flutter apps with MobX | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>借助MobX | CircleCI为Flutter应用提供CI/CD和状态管理</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/state-management-for-flutter-apps-with-mobx/#2021-11-03T10:00:00-07:00">https://circleci.com/blog/state-management-for-flutter-apps-with-mobx/#2021-11-03T10:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>MobX是一个可扩展的库，旨在简化前端应用程序中的状态管理过程。在本教程中，您将学习如何使用MobX管理您的Flutter应用程序的状态，然后使用CircleCI为您的应用程序设置一个<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/" target="_blank" rel="noreferrer noopener">持续集成/持续部署(CI/CD) </a>管道。您可以在<a href="https://github.com/thedejifab/reviewapp" target="_blank" rel="noreferrer noopener">GitHub资源库</a>中找到为本教程开发的示例项目。</p>
+
+<h2>先决条件</h2>
+
+<p>在开始之前，你需要一个关于Flutter的工作知识。如果需要帮助入门，可以关注<a href="https://flutter.io/docs/codelabs" target="_blank" rel="noreferrer noopener"> Flutter网站</a>上的codelabs。</p>
+
+<p>您需要在计算机上安装以下项目:</p>
+
+<ul>
+  <li><a href="https://flutter.io/docs/get-started/install" target="_blank" rel="noreferrer noopener"> Flutter SDK </a>，1.0或更高版本。(这附带了一个<a href="https://www.dartlang.org/install" target="_blank" rel="noreferrer noopener"> Dart SDK </a>安装)。</li>
+  <li>开发环境。选择以下选项之一:</li>
+</ul>
+
+<p>无论你选择哪个IDE，你都需要安装Dart和Flutter插件。这些插件对于编辑和重构你的Flutter应用程序是至关重要的。</p>
+
+<h2>MobX简史</h2>
+<p>根据<a href="https://mobx.js.org" target="_blank" rel="noreferrer noopener">mobx.js.org</a>的说法，MobX是一个经过战斗测试的库，它通过透明地应用函数式反应式编程(<a href="https://github.com/mobxjs/mobx/issues/220" target="_blank" rel="noreferrer noopener"> TFRP </a>)使状态管理变得简单和可扩展。最初开发MobX时考虑的是React应用程序，现在它已经支持用其他JavaScript库构建的应用程序，最近还支持Flutter应用程序。</p>
+
+<h2>在Flutter应用中使用MobX进行状态管理</h2>
+<p>使用MobX管理状态依赖于该库的三个主要概念:</p>
+<ul>
+  <li>可观察状态</li>
+  <li>行动</li>
+  <li>计算值</li>
+</ul>
+
+<p>可观察的状态是应用程序的那些易受变化影响的属性。这些状态是用<code>@observable</code>注释声明的。例如，待办应用程序中的可观察状态包括所有待办事项的列表。该列表还包括其值可以更新的所有其他属性。</p>
+
+<p>动作是旨在改变可观察状态的值的操作。动作用<code>@action</code>注释声明。在运行一个动作时，MobX处理应用程序中使用被该动作修改的可观察对象的更新部分。待办事项应用程序中的动作的一个例子是用新的待办事项更新待办事项列表的功能。</p>
+
+<p>计算出的值类似于可观察的状态，并用<code>@computed</code>注释声明。计算值不直接依赖于动作。相反，计算值取决于可观测状态的值。如果计算值所依赖的可观察状态被一个动作修改，则计算值也被更新。在实践中，开发人员经常忽略计算值的概念，而是经常无意地使用可观察值来代替它们。</p>
+
+<h3>比较MobX、BLoC、Redux和setState()中的范例</h3>
+<p>MobX建立在一个简单的理念上，即任何可以从应用程序状态<i>派生的东西都应该从</i>派生出来。这意味着MobX覆盖了应用程序状态中的所有属性，这些属性被定义为有可能改变。MobX仅在此类属性改变时才重建UI。这种方法不同于BLoC、Redux和setState使用的方法。BLoC使用流来传播更改，而Redux基于一个应用程序，该应用程序拥有一个真实的来源，其小部件从该来源继承。提供与MobX类似的简单性，需要您自己处理状态传播。凭借其抽象状态变化细节的能力，MobX相对于其他方法提供了更平滑的学习曲线。</p>
+
+<h2>建立一个颤振项目</h2>
+
+<p>要创建新的Flutter项目，您将使用Flutter CLI工具。打开您的终端，导航到您的项目目录并运行以下命令:</p>
+
+<pre><code>$ flutter create reviewapp
+</code></pre>
+<p>CLI工具会生成一个模板项目，让您在几秒钟内就可以开始工作。项目生成后，您可以在IDE中打开它。</p>
+
+<h2>安装项目依赖项</h2>
+<p>您的新项目需要五个主要依赖项:</p>
+
+<ul>
+  <li><a href="https://pub.dartlang.org/packages/mobx" target="_blank" rel="noreferrer noopener"> mobx </a>是mobx的Dart端口，用于编写状态修改逻辑。</li>
+  <li><a href="https://pub.dartlang.org/packages/flutter_mobx" target="_blank" rel="noreferrer noopener"> flutter_mobx </a>是mobx的flutter集成，它提供了<code>Observer</code>小部件，可以根据可观察状态的变化自动重建。</li>
+  <li><a href="https://pub.dartlang.org/packages/shared_preferences" target="_blank" rel="noreferrer noopener"> shared_preferences </a>是一个本地持久性库。</li>
+  <li><a href="https://pub.dartlang.org/packages/mobx_codegen" target="_blank" rel="noreferrer noopener"> mobx_codegen </a>是mobx的代码生成库，允许使用MobX注释。</li>
+  <li><a href="https://pub.dartlang.org/packages/build_runner" target="_blank" rel="noreferrer noopener"> build_runner </a>是一个运行代码生成操作的独立库。</li>
+</ul>
+
+<p>在IDE中打开项目后，导航到您的<code>/pubspec.yaml</code>文件以添加依赖项。用以下代码片段替换<code>dependencies</code>部分:</p>
+
+<pre><code>dependencies:
+  flutter:
+    sdk: flutter
+  mobx: ^0.3.5
+  flutter_mobx: ^0.3.0+1
+  shared_preferences: ^0.5.3+4
+</code></pre>
+<p>然后用这段代码替换<code>dev_dependencies</code>部分:</p>
+
+<pre><code>dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^1.6.5
+  mobx_codegen: ^0.3.3+1
+</code></pre>
+
+<p>现在，在项目的根目录下运行这个命令来下载依赖项:</p>
+<pre><code>$ flutter packages get
+</code></pre>
+
+<p><a name="#what-you-are-building"/></p>
+<h2>你在建造什么</h2>
+<p>在本教程中，您将构建一个简单的审阅应用程序，该应用程序允许用户添加评论和星号，如下图所示:</p>
+
+<p><img src="../Images/97d09de80f31858fbf8af4bb43b547cb.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_9FA5E04E840817EAFBCC80C5FD3ABF7CD01DBF3917C3A4DF2314C038597A4C79_1565277911023_Screenshot_20190808_161547.jpg"/> <img src="../Images/bf01e6b23c4c0e52f74e9c533913a11f.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_9FA5E04E840817EAFBCC80C5FD3ABF7CD01DBF3917C3A4DF2314C038597A4C79_1565277911316_Screenshot_20190808_161648.jpg"/></p>
+
+<h2>如何构建样本颤振项目</h2>
+<p>在<a href="#what-you-are-building">您正在构建的内容</a>一节中描述的示例项目工作如下:</p>
+
+<ul>
+  <li>启动应用程序</li>
+  <li>从本地首选项获取评论</li>
+  <li>用检索到的评论更新UI</li>
+  <li>添加评论</li>
+  <li>更新应用状态中的评论列表</li>
+  <li>在首选项中保留更新的评论列表</li>
+</ul>
+
+<p>在开始之前，通过在项目的<code>/lib</code>目录中运行该命令，创建<code>/widgets</code>、<code>/screens</code>和<code>/models</code>文件夹:</p>
+
+<pre><code>$ mkdir widgets screens models
+</code></pre>
+<h3>创建数据模型</h3>
+<p>首先，通过在<code>/lib/models/</code>目录中创建一个<code>reviewmodel.dart</code>文件，为评审定义一个数据模型。将以下代码片段添加到其中:</p>
+
+<pre><code>import 'package:meta/meta.dart';
+class ReviewModel {
+  final String comment;
+  final int stars;
+  const ReviewModel({@required this.comment, @required this.stars});
+
+  factory ReviewModel.fromJson(Map&lt;String, dynamic&gt; parsedJson) {
+    return ReviewModel(
+      comment: parsedJson['comment'],
+      stars: parsedJson['stars'],
+    );
+  }
+
+  Map&lt;String, dynamic&gt; toJson(){
+    return {
+      'comment': this.comment,
+      'stars': this.stars,
+    };
+  }
+}
+</code></pre>
+<h3>创建用户界面</h3>
+<p>我们正在构建的示例应用程序需要一种用户与之交互的方式。该应用程序将包含一个评论表单，显示现有评论的列表，评论的总数，以及每个评论的平均星级数。该表单还允许用户添加新的评论。</p>
+
+<p>首先在<code>/lib/screens</code>目录下创建一个<code>review.dart</code>文件。添加以下代码片段:</p>
+
+<pre><code>import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
+import '../widgets/info_card.dart';
+
+class Review extends StatefulWidget {
+  @override
+  ReviewState createState() {
+    return new ReviewState();
+  }
+}
+class ReviewState extends State&lt;Review&gt; {
+  final List&lt;int&gt; _stars = [1, 2, 3, 4, 5];
+  final TextEditingController _commentController = TextEditingController();
+  int _selectedStar;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+  @override
+  Widget build(BuildContext context) {
+    Size screenSize = MediaQuery.of(context).size;
+    double screenWidth = screenSize.width;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Review App'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: &lt;Widget&gt;[
+            SizedBox(height: 12.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: &lt;Widget&gt;[
+                Container(
+                  width: screenWidth * 0.6,
+                  child: TextField(
+                    controller: _commentController,
+                    decoration: InputDecoration(
+                      contentPadding: EdgeInsets.all(10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      hintText: "Write a review",
+                      labelText: "Write a review",
+                    ),
+                  ),
+                ),
+                Container(
+                  child: DropdownButton(
+                    hint: Text("Stars"),
+                    elevation: 0,
+                    value: _selectedStar,
+                    items: _stars.map((star) {
+                      return DropdownMenuItem&lt;int&gt;(
+                        child: Text(star.toString()),
+                        value: star,
+                      );
+                    }).toList(),
+                    onChanged: (item) {
+                      setState(() {
+                        _selectedStar = item;
+                      });
+                    },
+                  ),
+                ),
+                Container(
+                  child: Builder(
+                    builder: (BuildContext context) {
+                      return IconButton(
+                        icon: Icon(Icons.done),
+                        onPressed: () {},
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12.0),
+            //contains average stars and total reviews card
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: &lt;Widget&gt;[
+                InfoCard(
+                    infoValue: '2',
+                    infoLabel: "reviews",
+                    cardColor: Colors.green,
+                    iconData: Icons.comment),
+                InfoCard(
+                  infoValue: '2',
+                  infoLabel: "average stars",
+                  cardColor: Colors.lightBlue,
+                  iconData: Icons.star,
+                  key: Key('avgStar'),
+                ),
+              ],
+            ),
+            SizedBox(height: 24.0),
+            //the review menu label
+            Container(
+              color: Colors.grey[200],
+              padding: EdgeInsets.all(10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: &lt;Widget&gt;[
+                  Icon(Icons.comment),
+                  SizedBox(width: 10.0),
+                  Text(
+                    "Reviews",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
+            ),
+            //contains list of reviews
+            Expanded(
+              child: Container(
+                child: Text("No reviews yet"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<h3>创建自定义小部件</h3>
+<p>在这段代码中，有一个对<code>InfoCard</code>的引用。<code>InfoCard</code>是一个自定义小部件，显示评论总数和平均星级数:</p>
+
+<p><img src="../Images/c1b7d131d16eb3723a35ca58caa07f32.png" alt="Infocard custom widget for review app" data-original-src="https://paper-attachments.dropbox.com/s_9FA5E04E840817EAFBCC80C5FD3ABF7CD01DBF3917C3A4DF2314C038597A4C79_1565277866480_Screenshot_20190808_154907.jpg"/></p>
+
+<p>要创建<code>InfoCard</code>小部件，在<code>/lib/widgets</code>目录中创建一个名为<code>info_card.dart</code>的文件。添加以下代码片段:</p>
+
+<pre><code>import 'package:flutter/material.dart';
+
+class InfoCard extends StatelessWidget {
+  final String infoValue;
+  final String infoLabel;
+  final Color cardColor;
+  final IconData iconData;
+  const InfoCard(
+      {Key key,
+      @required this.infoValue,
+      @required this.infoLabel,
+      @required this.cardColor,
+      @required this.iconData,
+      })
+      : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    Size screenSize = MediaQuery.of(context).size;
+    double screenWidth = screenSize.width;
+    return Container(
+      height: 100,
+      width: screenWidth / 2,
+      child: Card(
+        color: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(5.0),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: &lt;Widget&gt;[
+            Icon(
+              iconData,
+              size: 28.0,
+              color: Colors.white,
+            ),
+            Text(
+              "$infoValue $infoLabel",
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p>尽管在本教程的后面部分您还不需要它，但是创建一个<code>ReviewWidget</code>类。这个类将被用来显示一个单独的评论项目。首先在项目的<code>lib/widgets</code>目录下创建一个<code>review.dart</code>文件。添加以下代码片段:</p>
+
+<pre><code>import 'package:flutter/material.dart';
+import '../models/reviewmodel.dart';
+import '../models/reviews.dart';
+import '../widgets/review.dart';
+import '../widgets/info_card.dart';
+
+class ReviewWidget extends StatelessWidget {
+  final ReviewModel reviewItem;
+
+  const ReviewWidget({Key key, @required this.reviewItem}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: &lt;Widget&gt;[
+        Padding(
+          padding: EdgeInsets.all(10.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: &lt;Widget&gt;[
+              Expanded(
+                child: Text(
+                  reviewItem.comment,
+                ),
+              ),
+              Row(
+                children: List(reviewItem.stars).map((listItem) {
+                  return Icon(Icons.star);
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        Divider(
+          color: Colors.grey,
+        )
+      ],
+    );
+  }
+}
+</code></pre>
+
+<h2>实现MobX</h2>
+<p>要在应用程序中实现MobX，您需要在应用程序状态中定义观察值、动作和计算值。</p>
+
+<p>在应用程序中的任何时间点，评论列表、平均星级数和评论总数必须是最新的可用值。这意味着它们必须用注释声明，以便MobX可以跟踪对它们的更改。</p>
+
+<p>为此，在项目的<code>/lib/models</code>目录中创建一个文件<code>reviews.dart</code>。添加以下代码片段:</p>
+
+<pre><code>import 'dart:async';
+import 'dart:convert';
+import 'package:mobx/mobx.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import './reviewmodel.dart';
+part 'reviews.g.dart';
+class Reviews = ReviewsBase with _$Reviews;
+abstract class ReviewsBase with Store {
+  @observable
+  ObservableList&lt;ReviewModel&gt; reviews = ObservableList.of([]);
+
+  @observable
+  double averageStars = 0;
+
+  @computed
+  int get numberOfReviews =&gt; reviews.length;
+
+  int totalStars = 0;
+
+  @action
+  void addReview(ReviewModel newReview) {
+    //to update list of reviews
+    reviews.add(newReview);
+    // to update the average number of stars
+    averageStars = _calculateAverageStars(newReview.stars);
+    // to update the total number of stars
+    totalStars += newReview.stars;
+    // to store the reviews using Shared Preferences
+    _persistReview(reviews);
+  }
+
+  @action
+  Future&lt;void&gt; initReviews() async {
+    await _getReviews().then((onValue) {
+      reviews = ObservableList.of(onValue);
+      for (ReviewModel review in reviews) {
+        totalStars += review.stars;
+      }
+    });
+    averageStars = totalStars / reviews.length;
+  }
+
+  double _calculateAverageStars(int newStars) {
+    return (newStars + totalStars) / numberOfReviews;
+  }
+
+  void _persistReview(List&lt;ReviewModel&gt; updatedReviews) async {
+    List&lt;String&gt; reviewsStringList = [];
+    SharedPreferences _preferences = await SharedPreferences.getInstance();
+    for (ReviewModel review in updatedReviews) {
+      Map&lt;String, dynamic&gt; reviewMap = review.toJson();
+      String reviewString = jsonEncode(ReviewModel.fromJson(reviewMap));
+      reviewsStringList.add(reviewString);
+    }
+    _preferences.setStringList('userReviews', reviewsStringList);
+  }
+  
+  Future&lt;List&lt;ReviewModel&gt;&gt; _getReviews() async {
+    final SharedPreferences _preferences =
+        await SharedPreferences.getInstance();
+    final List&lt;String&gt; reviewsStringList =
+        _preferences.getStringList('userReviews') ?? [];
+    final List&lt;ReviewModel&gt; retrievedReviews = [];
+    for (String reviewString in reviewsStringList) {
+      Map&lt;String, dynamic&gt; reviewMap = jsonDecode(reviewString);
+      ReviewModel review = ReviewModel.fromJson(reviewMap);
+      retrievedReviews.add(review);
+    }
+    return retrievedReviews;
+  }
+}
+</code></pre>
+
+<p>这段代码声明了两个变量:</p>
+<ol>
+  <li><code>reviews</code>是所有用户评论的列表</li>
+  <li>是从所有评论中计算出的可观测恒星的平均数量。它们被计算为可观察的，因为它们的值被期望响应于动作而改变。然后，代码定义了<code>addReview()</code>函数，它向评论列表中添加了一个新的评论。它还添加了一个<code>initReviews()</code>函数，用来自共享偏好的现有数据初始化评论列表，作为更新可观察状态的动作。</li>
+</ol>
+
+<p>虽然也可以将<code>numberOfReviews</code>变量声明为可观察变量，但是可以使用计算值，因为其值的变化取决于动作的结果(更新的可观察状态),而不是直接取决于动作本身。就当是余波效应吧。最后，声明一个<code>totalStars</code>变量和函数<code>_calculateAverageStars()</code>、<code>_persistReview()</code>和<code>_getReviews()</code>。这些参数没有注释，因为它们是不直接更新状态的辅助参数。</p>
+
+<h2>运行CodeGen</h2>
+
+<p>由于MobX专注于抽象高级实现细节，库处理生成数据存储的过程。相比之下，Redux甚至要求存储都是手工编写的。MobX通过使用其<code>mobx_codegen</code>库和Dart的<code>build_runner</code>库来执行代码生成，并在搭建存储时考虑所有带注释的属性。</p>
+
+<p>转到项目的根目录，运行命令:</p>
+
+<pre><code>$ flutter packages pub run build_runner build
+</code></pre>
+<p>在您生成存储之后，您将在您的<code>/lib/models</code>目录中找到一个<code>review.g.dart</code>文件。</p>
+
+<h2>使用观察者</h2>
+<p>即使实现了MobX存储，在应用程序的UI中反映状态变化也需要使用来自<code>flutter_mobx</code>库的观察者。observer是一个小部件，它包装了一个可观察值或计算值，以将它们值的变化呈现给UI。</p>
+
+<p>添加每个新评论时，平均星级、评论数和评论总数的值都会更新。这意味着用于呈现值的小部件被包装在一个<code>Observer</code>小部件中。要使用observer小部件，请导航到您的<code>/lib/screens/review.dart</code>文件。使用以下代码修改<code>ReviewState</code>类:</p>
+
+<pre><code>class ReviewState extends State&lt;Review&gt; {
+  final Reviews _reviewsStore = Reviews();
+  final TextEditingController _commentController = TextEditingController();  
+  final List&lt;int&gt; _stars = [1, 2, 3, 4, 5];
+  int _selectedStar;
+  @override
+  void initState() {
+    _selectedStar = null;
+    _reviewsStore.initReviews();
+    super.initState();
+  }
+  @override
+  Widget build(BuildContext context) {
+    Size screenSize = MediaQuery.of(context).size;
+    double screenWidth = screenSize.width;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Review App'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: &lt;Widget&gt;[
+            SizedBox(height: 12.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: &lt;Widget&gt;[
+                Container(
+                  width: screenWidth * 0.6,
+                  child: TextField(
+                    controller: _commentController,
+                    decoration: InputDecoration(
+                      contentPadding: EdgeInsets.all(10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      hintText: "Write a review",
+                      labelText: "Write a review",
+                    ),
+                  ),
+                ),
+                Container(
+                  child: DropdownButton(
+                    hint: Text("Stars"),
+                    elevation: 0,
+                    value: _selectedStar,
+                    items: _stars.map((star) {
+                      return DropdownMenuItem&lt;int&gt;(
+                        child: Text(star.toString()),
+                        value: star,
+                      );
+                    }).toList(),
+                    onChanged: (item) {
+                      setState(() {
+                        _selectedStar = item;
+                      });
+                    },
+                  ),
+                ),
+                Container(
+                  child: Builder(
+                    builder: (BuildContext context) {
+                      return IconButton(
+                        icon: Icon(Icons.done),
+                        onPressed: () {
+                          if (_selectedStar == null) {
+                            Scaffold.of(context).showSnackBar(SnackBar(
+                              content:
+                                  Text("You can't add a review without star"),
+                              duration: Duration(milliseconds: 500),
+                            ));
+                          } else if (_commentController.text.isEmpty) {
+                            Scaffold.of(context).showSnackBar(SnackBar(
+                              content: Text("Review comment cannot be empty"),
+                              duration: Duration(milliseconds: 500),
+                            ));
+                          } else {
+                            _reviewsStore.addReview(ReviewModel(
+                                comment: _commentController.text,
+                                stars: _selectedStar));
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12.0),
+            //contains average stars and total reviews card
+            Observer(
+              builder: (_) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: &lt;Widget&gt;[
+                    InfoCard(
+                      infoValue: _reviewsStore.numberOfReviews.toString(),
+                      infoLabel: "reviews",
+                      cardColor: Colors.green,
+                      iconData: Icons.comment
+                    ),
+                    InfoCard(
+                      infoValue: _reviewsStore.averageStars.toStringAsFixed(2),
+                      infoLabel: "average stars",
+                      cardColor: Colors.lightBlue,
+                      iconData: Icons.star,
+                      key: Key('avgStar'),
+                    ),
+                  ],
+                );
+              },
+            ),
+            SizedBox(height: 24.0),
+            //the review menu label
+            Container(
+              color: Colors.grey[200],
+              padding: EdgeInsets.all(10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: &lt;Widget&gt;[
+                  Icon(Icons.comment),
+                  SizedBox(width: 10.0),
+                  Text(
+                    "Reviews",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
+            ),
+            //contains list of reviews
+            Expanded(
+              child: Container(
+                child: Observer(
+                  builder: (_) =&gt; _reviewsStore.reviews.isNotEmpty
+                      ? ListView(
+                          children:
+                              _reviewsStore.reviews.reversed.map((reviewItem) {
+                            return ReviewWidget(
+                              reviewItem: reviewItem,
+                            );
+                          }).toList(),
+                        )
+                      : Text("No reviews yet"),
+                ),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+</code></pre>
+
+<p>这段代码通过从<code>/lib/models/reviews.dart</code>创建一个<code>Review</code>类的实例来追加第一次修改，作为访问存储的一种方式。然后，它用一个observer小部件包装显示平均星级和总评论数据的<code>Row</code>。然后它使用<code>Review</code>类的<code>reviewStore</code>实例来引用数据。</p>
+
+<p>接下来，当商店中的评论列表为空时，将显示占位符“no reviews”<code>Text</code>小部件。否则，<code>ListView</code>显示列表中的项目。最后，修改“完成”按钮的<code>onPressed()</code>功能，向商店添加新的评论。</p>
+
+<p>至此，您的应用程序差不多完成了。下一步是将审查屏幕导入到您的<code>main.dart</code>文件的导入部分。打开文件，并添加以下代码片段:</p>
+
+<pre><code>$ import './screens/review.dart';
+</code></pre>
+<p>在<code>/lib/main.dart</code>中，修改<code>MyApp</code>类的<code>build()</code>方法中的<code>home</code>属性。将<code>home</code>属性从<code>MyHomePage()</code>更改为<code>Review()</code>。代码如下:</p>
+
+<pre><code>@override
+Widget build(BuildContext context) {
+  return MaterialApp(
+    title: 'Flutter Demo',
+    theme: ThemeData(
+      primarySwatch: Colors.blue,
+    ),
+    home: Review() //previously MyHomePage(),
+  );
+}
+</code></pre>
+
+<p>最后，使用<code>flutter run</code>命令运行应用程序。</p>
+
+<h2>编写样本测试</h2>
+
+<p>为了理解测试如何适应CI/CD管道，您将需要创建一个简单的单元测试和小部件测试。</p>
+
+<p>为了编写单元测试，在项目的<code>/test</code>目录中创建一个名为<code>unit_test.dart</code>的文件。添加以下代码片段:</p>
+
+<pre><code>import 'package:flutter_test/flutter_test.dart';
+import '../lib/models/reviewmodel.dart';
+import '../lib/models/reviews.dart';
+
+void main() {
+  test('Test MobX state class', () async {
+    final Reviews _reviewsStore = Reviews();
+
+    _reviewsStore.initReviews();
+
+    expect(_reviewsStore.totalStars, 0);
+
+    expect(_reviewsStore.averageStars, 0);
+    _reviewsStore.addReview(ReviewModel(
+      comment: 'This is a test review',
+      stars: 3,
+    ));
+
+    expect(_reviewsStore.totalStars, 3);
+    _reviewsStore.addReview(ReviewModel(
+      comment: 'This is a second test review',
+      stars: 5,
+    ));
+
+    expect(_reviewsStore.averageStars, 4);
+  });
+}
+</code></pre>
+
+<p>接下来，通过用以下代码片段完全替换项目的<code>test</code>目录中现有的<code>widget_test.dart</code>文件的内容来添加小部件测试:</p>
+
+<pre><code>import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import '../lib/main.dart';
+
+void main() {
+  testWidgets('Test for rendered UI', (WidgetTester tester) async {
+    await tester.pumpWidget(MyApp());
+    Finder starCardFinder = find.byKey(Key('avgStar'));
+
+    expect(starCardFinder, findsOneWidget);
+  });
+}
+</code></pre>
+
+<p>通过执行项目根目录中的<code>flutter test</code>命令来运行测试。</p>
+
+<h2>带CircleCI的CI/CD</h2>
+<p>除了为您提供一个构建项目的环境之外，持续集成(CI)工具还为运行自动化测试和自动上传部署工件提供了一个可靠而稳定的环境。在本节中，您将学习如何使用CircleCI为您的颤振项目设置和利用CI/CD管道。</p>
+
+<p>首先，通过执行项目根目录中的<code>git init</code>命令来初始化项目中的本地Git存储库。用<code>git add .</code>把你的文件添加进去。把那些文件交给<code>git commit -m "First commit"</code>。然后，在GitHub上为您的项目创建一个在线存储库。将GitHub存储库添加为本地存储库的远程引用，然后通过在项目根目录下运行以下命令将更改推送到远程存储库:</p>
+
+<pre><code>$ git remote add origin https://link_to_repo &amp;&amp; git push -u origin master
+</code></pre>
+
+<h2>创建配置文件</h2>
+<p>通过运行项目根目录中的<code>mkdir .circleci</code>命令创建一个名为<code>.circleci</code>的文件夹。创建一个<a href="https://circleci.com/docs/configuration-reference/" target="_blank" rel="noreferrer noopener">配置文件</a>，这样文件路径的结构就是这样的<code>/your_project_path/.circleci/config.yml</code>。</p>
+
+<p>然后，用下面的代码片段填充<code>/.circleci/config.yml</code>文件:</p>
+
+<pre><code>version: 2
+jobs:
+  build:    
+    docker:
+      - image: cirrusci/flutter:v1.5.8 
+
+    branches:
+      only: master
+
+    steps:
+      - checkout
+
+      - run:
+          name: Run Flutter doctor
+          command: flutter doctor
+
+      - run:
+          name: Run the application tests
+          command: flutter test
+
+      - run:
+          name: Build the Android version
+          command: flutter build apk 
+
+      - store_artifacts:
+          path: build/app/outputs/apk/release/app-release.apk
+</code></pre>
+
+<p>在这个配置文件中，<a href="https://circleci.com/docker/" target="_blank" rel="noreferrer noopener"> Docker </a>被用作<a href="https://circleci.com/docs/executor-types/" target="_blank" rel="noreferrer noopener"> executor </a>。Flutter没有官方的CircleCI <a href="https://circleci.com/docs/building-docker-images/" target="_blank" rel="noreferrer noopener"> Docker图片</a>，但是DockerHub上有一个很大的Flutter图片列表。最突出的是<a href="https://hub.docker.com/r/cirrusci/flutter" target="_blank" rel="noreferrer noopener"> cirrusci/flutter </a>图像。这张图片的使用频率超过100万次。</p>
+
+<p>配置文件中可选的<code>branches</code>部分用于过滤部署流程运行的分支。当没有明确定义时，CircleCI假设<code>master</code>为要处理的分支。</p>
+
+<p>配置定义了使用哪个Docker映像。它还固定了一个镜像版本，该版本与运行项目本地副本的Flutter版本相匹配(在我的例子中是<a href="https://hub.docker.com/r/cirrusci/flutter/tags" target="_blank" rel="noreferrer noopener"> v1.5.8)。</a></p>
+
+<p>在步骤部分中，配置文件定义了每次在项目的存储库上运行部署时要执行的每个过程，按照它们的执行顺序。</p>
+
+<p>最后，在上面代码片段的<code>store-artifacts</code>部分，引用了我们的<a href="https://circleci.com/docs/artifacts/" target="_blank" rel="noreferrer noopener">构建工件</a>的路径。这使得工件能够自动上传到CircleCI仪表板的<strong>工件</strong>选项卡。工件可以部署到AWS S3存储桶或任何其他托管服务。对于生产就绪的Flutter应用程序，您可以将应用程序商店的部署添加到该配置中。</p>
+
+<h2>设置CircleCI</h2>
+<p>要将CircleCI与您的项目集成，请转到CircleCI仪表板，然后单击<strong>添加项目</strong>。它位于仪表板页面的最左侧。接下来，导航到页面的最右侧，点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/d800806fa1360ce00d78544d841aa173.png" alt="Add Projects Screen" data-original-src="https://paper-attachments.dropbox.com/s_9FA5E04E840817EAFBCC80C5FD3ABF7CD01DBF3917C3A4DF2314C038597A4C79_1565279048839_Screenshot+80_LI.jpg"/> <br/></p>
+
+<p>在下一页，点击<strong>开始建造</strong>。</p>
+
+<p><img src="../Images/17fce05b0856bb5555ac6a9d8a29cf19.png" alt="Project setup interface" data-original-src="https://paper-attachments.dropbox.com/s_9FA5E04E840817EAFBCC80C5FD3ABF7CD01DBF3917C3A4DF2314C038597A4C79_1565370944876_Screenshot+81.png"/> <br/></p>
+
+<p>您的构建将开始。</p>
+
+<p><img src="../Images/3f43cb01d7d640b5aabcda76acd97178.png" alt="Building project" data-original-src="https://paper-attachments.dropbox.com/s_9FA5E04E840817EAFBCC80C5FD3ABF7CD01DBF3917C3A4DF2314C038597A4C79_1565370969691_Screenshot+82.png"/></p>
+
+<p>现在，新代码的每一次提交都将为您的Flutter应用程序触发一个自动化的构建、测试和部署管道。</p>
+
+<h2>结论</h2>
+
+<p>在这篇文章中，我们介绍了如何使用MobX状态管理库管理Flutter应用程序的状态。我们还介绍了如何使用CircleCI为您的应用程序设置CI/CD管道。</p>
+
+<p>尽管在为颤振项目(尤其是大型项目)选择状态管理方法时需要考虑权衡，但MobX为中型项目提供了可靠的选择。图书馆为你做最难的工作，同时给你权力在必要的地方负责。当您决定下一个Flutter项目的状态管理，甚至可能重写当前的项目时，这是一个很大的好处！</p>
+
+<p>开发团队继续在他们的颤振项目中采用MobX。查看<a href="https://github.com/mobxjs/mobx.dart" target="_blank" rel="noreferrer noopener">图书馆的GitHub知识库</a>，了解有助于其发展的方法。</p>
+
+<p>我真的希望你喜欢这个教程。祝编码愉快！</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Fabusuyi是Busha的一名软件工程实习生，在那里他与移动开发团队一起工作。他目前是计算机科学专业的学生，对计算理论有研究兴趣。</p>
+
+            <p><a href="/blog/author/fabusuyi-ayodeji/" class="arrow-link">阅读更多Fabusuyi Ayodeji的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,139 @@
+<html>
+<head>
+<title>How to Handle Java OOM Errors - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>如何处理Java OOM错误</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/how-to-handle-java-oom-errors/#2017-12-06T07:18:00-08:00">https://circleci.com/blog/how-to-handle-java-oom-errors/#2017-12-06T07:18:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>试图在一个<a href="https://circleci.com/continuous-integration/"> CI </a>环境中控制Java的内存使用可能是一种黑暗的艺术。</p>
+
+<p>由于Java/Android项目有丰富的构建框架可用——Java、Gradle、Maven(更不用说Kotlin和它自己的工具生态系统了)——很难控制内存的去向以及如何限制内存。您可以设置各种不同的环境变量来管理内存使用，它们都具有相似的名称和语法。这些变量以一种最初可能没有多大意义的方式相互作用。默认情况下，CircleCI上的项目构建在具有4GB RAM的虚拟环境中。这个RAM由项目中运行的所有进程共享:数据库、测试、各种工具/框架，以及贪婪的Java虚拟机(JVM)。</p>
+
+<p>在没有任何内存限制的情况下，众所周知，Java虚拟机会以大块的形式预先分配大量内存，这有时会导致您在CircleCI和其他CI平台上看到的内存不足(OOM)错误。此外，CircleCI运行在具有大量RAM的虚拟机上，使用<a href="https://en.wikipedia.org/wiki/Cgroups"> cgroups </a>为每个单独的构建分配一块馅饼。当JVM询问它的主机它可以使用多少RAM时，它看到的是整个饼图，而不是分配给它的构建的特定cgroup的RAM。</p>
+
+<p>最后，当OOM错误确实出现时，它们通常只不过是一个<code>exit code 137</code>错误，隐藏在一个长长的构建日志的底部。是什么导致了这些类型的错误，减轻这些错误的最好方法是什么？让我们看看设置JVM内存限制的不同方法。您可以参考这个方便的图表来查看这些不同的环境变量是如何相互作用的。</p>
+
+<p>数字表示优先顺序，即0优先，3优先。<a name="chart"/></p>
+<table>
+  <tr>
+    <th>Java环境变量</th>
+    <th>Java语言（一种计算机语言，尤用于创建网站）</th>
+    <th>格拉德勒</th>
+    <th>专家</th>
+    <th>科特林</th>
+    <th>莱因</th>
+  </tr>
+  <tr>
+    <td>_ JAVA _选项</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+  </tr>
+   <tr>
+    <td>JAVA _工具_选项</td>
+    <td>2</td>
+    <td>3</td>
+    <td>2</td>
+    <td>2</td>
+    <td>2</td>
+  </tr>
+ <tr>
+    <td>JAVA_OPTS</td>
+    <td>不</td>
+    <td>2</td>
+    <td>不</td>
+    <td>一</td>
+    <td>不</td>
+  </tr>
+ <tr>
+    <td>JVM_OPTS</td>
+    <td>*</td>
+    <td>不</td>
+    <td>不</td>
+    <td>不</td>
+    <td>*</td>
+  </tr>
+ <tr>
+    <td>LEIN_JVM_OPTS</td>
+    <td>不</td>
+    <td>不</td>
+    <td>不</td>
+    <td>不</td>
+    <td>一</td>
+  </tr>
+ <tr>
+    <td>梯度光学</td>
+    <td>不</td>
+    <td>一</td>
+    <td>不</td>
+    <td>不</td>
+    <td>不</td>
+  </tr>
+ <tr>
+    <td>MAVEN_OPTS</td>
+    <td>不</td>
+    <td>不</td>
+    <td>一</td>
+    <td>不</td>
+    <td>不</td>
+  </tr>
+ <tr>
+    <td>CLI参数</td>
+    <td>一</td>
+    <td>不</td>
+    <td>不</td>
+    <td>不</td>
+    <td>不</td>
+  </tr>
+</table>
+
+<p><i> <strong> * </strong> lein会将JVM_OPTS的值传递给它所衍生的Java进程；然而，这个env变量不影响lein本身(为此，使用LEIN_JVM_OPTS)，也不会影响任何直接启动的单独Java进程(为此，使用_JAVA_OPTIONS或JAVA_TOOL_OPTIONS) </i></p>
+
+<p>_JAVA_OPTIONS <br/>这是最强大的JAVA环境变量。它由JVM直接读取，并覆盖任何其他Java环境变量，以及您在命令行上传递的任何参数(例如，java -Xmx512m -Xms64m)。出于这个原因，通常不推荐使用_ JAVA _ OPTIONS——更集中的方法通常也能很好地完成工作。</p>
+
+<p>同样值得注意的是<code>_JAVA_OPTIONS</code>是特定于Oracle的，所以它并不适用于所有情况。例如，对于IBM的Java工具，您需要使用<code>IBM_JAVA_OPTIONS</code>。</p>
+
+<p><em>JAVA _ TOOL _ OPTIONS</em><br/><a href="https://docs.oracle.com/javase/8/docs/platform/jvmti/jvmti.html#tooloptions">这个</a>是设置JAVA内存限制的安全选择。所有Java虚拟机都可以读取它，并且很容易被覆盖，要么使用命令行参数，要么使用更具体的环境变量，这取决于您的构建工具。而且<a href="https://bugs.openjdk.java.net/browse/JDK-4971166">比<code>_JAVA_OPTIONS</code> </a>更擅长处理报价。</p>
+
+<p>JAVA_OPTS  <br/>有些令人误解的是，JAVA_OPTS实际上并不被JVM读取，而是被各种常见的基于JAVA的工具/语言用来将内存限制传递给JVM。</p>
+
+<p>JVM_OPTS  <br/> JVM_OPTS是Clojure特有的:lein用它向JVM传递内存限制。然而，它实际上并不影响lein自己的可用内存——为此，您将需要LEIN_JVM_OPTIONS。再者，它不是Java原生识别的，所以不能用它直接把内存限制传递给Java；为此，请参见_JAVA_OPTIONS_或JAVA_TOOL_OPTIONS。</p>
+
+<p><em> GRADLE_OPTS </em> <br/>可以预见，这个变量用于为GRADLE项目设置内存限制。它优先于任何用于设置JVM内存限制的通用env变量——除了_JAVA_OPTIONS。_</p>
+
+<p><em> MAVEN_OPTS </em> <br/>您可以使用MAVEN_OPTS为用Apache Maven构建的项目设置Java内存限制。像GRADLE_OPTS一样，这将覆盖JAVA_TOOL_OPTIONS，但不会覆盖_JAVA_OPTIONS。_</p>
+
+<h2>调试OOM错误</h2>
+
+<p><img src="../Images/42f90c8e9a85bf87b93d7f2302fc849f.png" alt="oom1.png" srcset="https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/oom1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/oom1.png"/><img src="../Images/cfd81dd1b1c2e0bb08f291b96d7129e2.png" alt="oom2.png" srcset="https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/oom2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/oom2.png"/>T2】</p>
+
+<p>当谈到调试不透明的OOM错误时，您最好的选择是寻找那个<code>exit code 137</code>。让我们以Gradle builds为例。当构建在Docker上使用太多内存并被Linux OOM killer终止时，Gradle会产生令人困惑的错误消息。</p>
+
+<p>Gradle通过为构建过程启动子过程来工作。当一个构建使用太多内存时，通常是子进程的错误，而不是父进程的错误。子进程被终止，父进程被告知两个进程都以代码137退出。错误消息可能会说“意外的进程退出，代码为137”，或者您可能会看到“Gradle build daemon意外消失”(退出代码1)，或者甚至只是”。/gradlew意外死亡”，根本没有任何退出代码。这些错误消息都没有提到“内存”、“cgroup”、“docker”或“oom killer”这样的词，所以诊断这个问题真的很难。</p>
+
+<p>不过，现在已经有帮助了:Java有了一个新的(有点)能力,可以读取你构建的Docker容器的cgroup内存限制，而不是(错误地)读取整个机器的总内存。这些新选项应该可以让JVM更容易地使用机器上的“大部分”内存，而不会溢出。</p>
+
+<p>总之，最好确保您的<code>-Xmxn</code>最大大小足够让您的Java/Gradle/Maven应用程序构建、测试和部署，但又足够小，让其他进程充分共享您的CircleCI构建容器中的剩余内存！</p>
+
+<p>当然，如果有必要的话，我们可以随时<a href="https://circleci.com/docs/configuration-reference/#resource_class">提高你项目的RAM </a>。</p>
+
+<h3>延伸阅读:</h3>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

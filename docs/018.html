@@ -1,0 +1,136 @@
+<html>
+<head>
+<title>A guide to test splitting | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>测试分裂指南| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/a-guide-to-test-splitting/#2022-06-10T06:27:00-07:00">https://circleci.com/blog/a-guide-to-test-splitting/#2022-06-10T06:27:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>测试分割是在CircleCI上加速构建的最简单的方法之一。特别是，通过计时数据分割测试可以极大地改善构建时间。本教程描述了如何使用CirlceCI进行测试分割。我们将使用jest-junit设置一个React.js应用程序来保存测试结果，这样您就可以在后续运行中通过计时数据进行分割。</p>
+
+<h2>先决条件</h2>
+
+<ul>
+  <li><a href="https://reactjs.org/" target="_blank" rel="noreferrer noopener"> React.js </a>的基础知识</li>
+  <li>系统上安装的<a href="https://nodejs.org/en/" target="_blank" rel="noreferrer noopener"> Node.js </a></li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li><a href="https://classic.yarnpkg.com/en/docs/install/#mac-stable" target="_blank" rel="noreferrer noopener">纱</a>包管理器(此流程也可应用于npm)</li>
+</ul>
+
+<p><iframe src="https://www.youtube.com/embed/zeukH6V_gEk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="">视频</iframe></p>
+
+<h2>测试拆分会带来什么</h2>
+
+<p>CircleCI接受一个测试列表，并将这些测试划分到parallelism键定义的多个节点上。每个节点都有自己独立的容器，所以每个节点都需要启动，检查代码，并执行运行测试所需的任何步骤。运行测试的步骤会使每个容器上运行的步骤在时间上有所不同。</p>
+
+<blockquote>
+  <p>了解为什么CircleCI Rob Zuber认为测试拆分是<a href="https://circleci.com/blog/intelligent-ci-cd-with-circleci-test-splitting/">智能CI/CD </a>的重要组成部分。</p>
+</blockquote>
+
+<p>如果启动容器、签出代码和安装缓存的依赖项需要大约60秒，那么您应该预期这在所有并行节点上都是一致的。这些步骤在所有容器中都是相同的。测试步骤是我们在每个容器上运行的唯一独特的步骤。这就是为什么并行度为2并不能将时间精确地减少1/2。</p>
+
+<p>在许多测试中，并行性大大减少了执行冗长步骤所需的时间。CircleCI CLI分散测试，以便步骤尽可能以均匀的步调完成。也就是说，没有神奇的排比数。每个测试套件都是不同的，所以我们建议您尝试找到最适合您的节点数量。</p>
+
+<h2>用纱线测试分裂</h2>
+
+<p>要分割测试，您需要给<a href="https://circleci.com/docs/local-cli/"> CircleCI CLI </a>一个要分割的测试文件或类名的列表。</p>
+
+<p>像许多其他测试套件一样，Jest不接受作为文件或类名列表的测试文件。默认情况下，Jest会寻找符合其<a href="https://create-react-app.dev/docs/running-tests/#filename-conventions" target="_blank" rel="noreferrer noopener">命名约定</a>的文件。这不是问题。我们可以通过Jest查找测试文件的方式将测试文件打包，并将其作为标准输入传送到CLI。</p>
+
+<pre><code>            - run:
+                name: Test application
+                command: |
+                    TEST=$(circleci tests glob "src/__tests__/*.js" | circleci tests split)
+                    yarn test $TEST
+</code></pre>
+
+<p>该示例查找位于任何<code>__tests__</code>子目录中的任何<code>.js</code>文件。如果您的设置不同，<a href="https://globster.xyz/" target="_blank" rel="noreferrer noopener"> globster.xyz </a>是一个非常有用的工具，可以用来试验像大括号扩展这样的globbing模式。</p>
+
+<p>CLI可以按名称、文件大小或历史计时数据进行分割(稍后将详细介绍)。目前，由于没有定义任何内容，CLI将退回到按名称拆分。</p>
+
+<h2>按时序数据分割</h2>
+
+<p>对于大多数项目来说，通过计时数据分割测试是最快的。CircleCI查看历史计时数据，并跨节点动态拆分测试，以使测试套件尽可能一致地完成。要启用按时间划分，设置您的管道来收集和存储测试结果。这一步我们将使用jest-junit。</p>
+
+<p>要使这项工作成功，您需要在我们的项目中添加一些东西。首先将它安装为一个开发依赖项:</p>
+
+<pre><code>yarn add --dev jest-junit
+</code></pre>
+
+<p>接下来，将您的测试分割步骤更新为按时序数据分割:</p>
+<pre><code>            - run:
+                name: Test application
+                command: |
+                    TEST=$(circleci tests glob "src/__tests__/*.js" | circleci tests split --split-by=timings)
+                    yarn test $TEST
+</code></pre>
+
+<p>接下来，您需要在<code>package.json</code>文件中做一些修改。</p>
+<ul>
+  <li>向<code>jest</code>配置添加一个<code>reporters</code>条目</li>
+  <li>添加一个<code>jest-junit</code>条目</li>
+  <li>让jest-junit知道向测试结果添加一个文件属性</li>
+</ul>
+
+<p>CircleCI需要这些信息来筛选计时数据。这些新增内容将确保测试结果得到正确存储:</p>
+
+<pre><code>...
+  "jest": {
+    ...
+    "reporters": [
+      "default",
+      "jest-junit"
+    ],
+    ...
+  }
+  ...
+  "jest-junit": {
+    "addFileAttribute": "true"
+  },
+...
+</code></pre>
+
+<p>接下来，让CircleCI知道它需要使用<code>store_test_results</code>步骤存储这些信息。使用<code>store_artifacts</code>步骤，可以将每个节点的结果保存为与作业相关的工件。这是我们最后的测试工作:</p>
+
+<pre><code>    build-and-test:
+        docker:
+            - image: cimg/node:12.16
+        parallelism: 5
+        steps:
+            - checkout
+            - node/install-packages:
+                pkg-manager: yarn      
+            - run: mkdir ~/junit
+            - run:
+                name: Test application
+                command: |
+                    TEST=$(circleci tests glob "src/__tests__/*.js" | circleci tests split --split-by=timings)
+                    yarn test $TEST
+            - run:
+                command: cp junit.xml ~/junit/
+                when: always
+            - store_test_results:
+                path: ~/junit
+            - store_artifacts:
+                path: ~/junit
+</code></pre>
+
+<h3>确认一切正常</h3>
+<p>要确认正在使用计时数据，请检查测试步骤的日志。<img src="../Images/b4a443736974e5789f3d3fc3bdb88361.png" alt="Test logs" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-08-19-test-logs.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-08-19-test-logs.png"/></p>
+
+<h2>结论</h2>
+<p>就是这样！我们涵盖了并行运行测试套件和存储计时数据所需的一切。</p>
+
+<p>本教程中使用的项目的完整存储库可从<a href="https://github.com/ryanpedersen42/circleci-react-test-splitting" target="_blank" rel="noreferrer noopener">这里</a>获得。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

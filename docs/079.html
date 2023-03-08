@@ -1,0 +1,303 @@
+<html>
+<head>
+<title>Benchmarking Android applications in CI/CD pipelines | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CI/CD管道中的Android应用基准测试| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/benchmarking-android/#2021-07-27T11:00:00-07:00">https://circleci.com/blog/benchmarking-android/#2021-07-27T11:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>加载速度快、交互流畅的高性能应用已经成为必需。这些品质是用户所期望的，而不仅仅是一个好东西。确保顺利交互的方法是将性能验证作为发布流程的一部分。</p>
+
+<p>谷歌最近发布了对他们的<a href="https://developer.android.com/studio/profile/benchmarking-overview"> Jetpack基准库</a>的更新。一个值得注意的新增功能是Macrobenchmark库。这让你可以测试你的应用在启动和滚动等方面的性能。在本教程中，您将从Jetpack基准库开始，并学习如何将其作为CI/CD流的一部分来实现。</p>
+
+<h2>先决条件</h2>
+
+<p>要从本教程中获得最大收益，您需要几样东西:</p>
+
+<ul>
+  <li>有Android开发和测试经验，包括仪器测试</li>
+  <li>与格拉德的经历</li>
+  <li>一个免费的CircleCI账户</li>
+  <li>Firebase和谷歌云平台账户</li>
+  <li>安卓工作室北极狐</li>
+</ul>
+
+<p><strong>注:</strong> <i>我写这个教程用的版本是2020.3.1 Beta 4。在撰写本文时(2021年7月)，Android Studio的当前稳定版本不支持Macrobenchmark。</i></p>
+
+<h2>关于项目</h2>
+
+<p>该项目基于我为一篇关于在CI/CD管道中测试Android应用的博客文章创建的早期测试样本。</p>
+
+<p>我已经扩展了示例项目的<a href="https://github.com/CircleCI-Public/android-testing-circleci-examples">,将<code>benchmark</code>任务作为CI/CD构建的一部分。这个新作业使用Jetpack Macrobenchmark库运行应用程序启动基准。</a></p>
+
+<h2>Jetpack基准测试</h2>
+
+<p>Android Jetpack提供了两种基准测试:微基准测试和宏基准测试。自2019年以来一直存在的微基准测试允许对应用程序代码进行性能测量(想想可能需要一段时间处理的缓存或类似过程)。</p>
+
+<p>Macrobenchmark是Jetpack的新成员。它允许你在应用程序启动和滚动等容易注意到的地方测量应用程序的整体性能。示例应用程序使用这些宏基准测试来测量应用程序的启动。</p>
+
+<p>基准测试库和方法都与运行在连接设备和仿真器上的熟悉的Android工具框架一起工作。</p>
+
+<h3>建立图书馆</h3>
+
+<p>在官方的Jetpack网站上有详细的库设置文档<a href="https://developer.android.com/studio/profile/macrobenchmark#setup">-macro benchmark设置</a>。注意:我们不会详细介绍所有步骤，因为它们可能会在未来的预览版中发生变化。相反，下面是该过程的概述:</p>
+
+<ul>
+  <li>创建一个名为<code>macrobenchmark</code>的新测试模块。在Android Studio中创建一个Android库模块，并将<code>build.gradle</code>改为使用<code>com.android.test</code>作为插件。新模块需要最低SDK级别的API 29: Android 10 (Q)。</li>
+  <li>对新模块的<code>build.gradle</code>文件进行一些修改。将测试实现更改为implementation，指向您想要测试的app模块，并使发布构建类型为<code>debuggable</code>。</li>
+  <li>将profileable标签添加到您的应用程序的<code>AndroidManifest</code>。</li>
+  <li>指定本地版本签名配置。您可以使用现有的<code>debug</code>配置。</li>
+</ul>
+
+<p>完整的分步说明请参考官方Macrobenchmark库文档中的指南:https://developer . Android . com/studio/profile/macro benchmark # setup。</p>
+
+<h3>编写和执行宏基准测试</h3>
+
+<p>Macrobenchmark库引入了一些新的JUnit规则和指标。</p>
+
+<p>我们使用的<code>StartupTimingMetric</code>取自GitHub 上的<a href="https://github.com/android/performance-samples/tree/main/MacrobenchmarkSample/macrobenchmark">性能样本项目。</a></p>
+
+<pre><code>const val TARGET_PACKAGE = "com.circleci.samples.todoapp"
+
+fun MacrobenchmarkRule.measureStartup(
+    profileCompiled: Boolean,
+    startupMode: StartupMode,
+    iterations: Int = 3,
+    setupIntent: Intent.() -&gt; Unit = {}
+) = measureRepeated(
+    packageName = TARGET_PACKAGE,
+    metrics = listOf(StartupTimingMetric()),
+    compilationMode = if (profileCompiled) {
+        CompilationMode.SpeedProfile(warmupIterations = 3)
+    } else {
+        CompilationMode.None
+    },
+    iterations = iterations,
+    startupMode = startupMode
+) {
+    pressHome()
+    val intent = Intent()
+    intent.setPackage(TARGET_PACKAGE)
+    setupIntent(intent)
+    startActivityAndWait(intent)
+}
+
+@LargeTest
+@RunWith(Parameterized::class)
+class StartupBenchmarks(private val startupMode: StartupMode) {
+
+    @get:Rule
+    val benchmarkRule = MacrobenchmarkRule()
+
+    @Test
+    fun startupMultiple() = benchmarkRule.measureStartup(
+        profileCompiled = false,
+        startupMode = startupMode,
+        iterations = 5
+    ) {
+        action = "com.circleci.samples.target.STARTUP_ACTIVITY"
+    }
+
+    companion object {
+        @Parameterized.Parameters(name = "mode={0}")
+        @JvmStatic
+        fun parameters(): List&lt;Array&lt;Any&gt;&gt; {
+            return listOf(StartupMode.COLD, StartupMode.WARM, StartupMode.HOT)
+                .map { arrayOf(it) }
+        }
+    }
+}
+</code></pre>
+
+<p>上面的代码将3种类型的启动度量作为参数化选项:热启动、热启动和冷启动。使用<code>MacroBenchmarkRule</code>将这些选项传递给测试(意味着应用程序最近运行了多久，以及它是否被保存在内存中)。</p>
+
+<h3>在CI/CD管道中运行基准测试</h3>
+
+<p>你可以在Android Studio中运行这些样本，它会给你一个很好的应用程序性能指标的打印输出，但不会做任何事情来确保你的应用程序总是高性能的。为此，您需要在CI/CD流程中集成基准。</p>
+
+<p>所需的步骤是:</p>
+
+<ul>
+  <li>构建app和Macrobenchmark模块的发布版本</li>
+  <li>在Firebase测试实验室(FTL)或类似工具上运行测试</li>
+  <li>下载基准测试结果</li>
+  <li>将基准存储为工件</li>
+  <li>处理基准测试结果以获得计时数据</li>
+  <li>基于结果通过或不通过构建</li>
+</ul>
+
+<p>我创建了一个新的<code>benchmark-ftl</code>作业来运行我的测试:</p>
+
+<pre><code>orbs:
+  android: circleci/android@1.0.3
+  gcp-cli: circleci/gcp-cli@2.2.0
+
+...
+
+jobs:
+  ...
+    benchmarks-ftl:
+    executor:
+      name: android/android
+      sdk-version: "30"
+      variant: node
+    steps:
+      - checkout
+      - android/restore-gradle-cache
+      - android/restore-build-cache
+      - run:
+          name: Build app and test app
+          command: ./gradlew app:assembleRelease macrobenchmark:assemble
+      - gcp-cli/initialize:
+          gcloud-service-key: GCP_SA_KEY
+          google-project-id: GCP_PROJECT_ID
+      - run:
+          name: run on FTL
+          command: |
+            gcloud firebase test android run \
+              --type instrumentation \
+              --app app/build/outputs/apk/release/app-release.apk \
+              --test macrobenchmark/build/outputs/apk/release/macrobenchmark-release.apk \
+              --device model=flame,version=30,locale=en,orientation=portrait \
+              --directories-to-pull /sdcard/Download \
+              --results-bucket gs://android-sample-benchmarks \
+              --results-dir macrobenchmark \
+              --environment-variables clearPackageData=true,additionalTestOutputDir=/sdcard/Download,no-isolated-storage=true
+      - run:
+          name: Download benchmark data
+          command: |
+            mkdir ~/benchmarks
+            gsutil cp -r 'gs://android-sample-benchmarks/macrobenchmark/**/artifacts/sdcard/Download/*'  ~/benchmarks
+            gsutil rm -r gs://android-sample-benchmarks/macrobenchmark
+      - store_artifacts:
+            path: ~/benchmarks
+      - run:
+          name: Evaluate benchmark results
+          command: node scripts/eval_startup_benchmark_output.js
+
+</code></pre>
+
+<p>这个片段代表了在<a href="https://firebase.google.com/docs/test-lab/android/command-line"> Firebase测试实验室</a>的真实设备上运行宏基准测试的作业。我们将Docker executor与Android orb提供的图像一起使用，它安装了Android SDK 30并包含NodeJS。我们将在评估结果的脚本中使用Node。</p>
+
+<p>在构建了app和macrobenchmark模块APKs之后，我们需要使用orb 初始化<a href="https://circleci.com/developer/orbs/orb/circleci/gcp-cli#commands-initialize"> Google Cloud CLI。这是我们在CircleCI中为Google Cloud提供环境变量的地方。然后，我们在Firebase测试实验室中运行测试:</a></p>
+
+<pre><code>- run:
+    name: run on FTL
+    command: |
+      gcloud firebase test android run \
+        --type instrumentation \
+        --app app/build/outputs/apk/release/app-release.apk \
+        --test macrobenchmark/build/outputs/apk/release/macrobenchmark-release.apk \
+        --device model=flame,version=30,locale=en,orientation=portrait \
+        --directories-to-pull /sdcard/Download \
+        --results-bucket gs://android-sample-benchmarks \
+        --results-dir macrobenchmark \
+        --environment-variables clearPackageData=true,additionalTestOutputDir=/sdcard/Download,no-isolated-storage=true
+</code></pre>
+
+<p>这将apk上传到Firebase，指定设备(在我们的例子中是Pixel 4)，为测试提供环境变量，并指定存储结果的云存储桶。我们总是把它放在<code>macrobenchmark</code>目录中，以便于获取。我们不需要安装用于运行测试的<code>gcloud</code>工具；它与CircleCI Android Docker映像捆绑在一起。</p>
+
+<p>一旦作业终止，我们需要使用与GCP CLI工具捆绑在一起的<code>gsutil</code>工具下载基准数据:</p>
+
+<pre><code>- run:
+    name: Download benchmark data
+    command: |
+      mkdir ~/benchmarks
+      gsutil cp -r 'gs://android-sample-benchmarks/macrobenchmark/**/artifacts/sdcard/Download/*'  ~/benchmarks
+      gsutil rm -r gs://android-sample-benchmarks/macrobenchmark
+- store_artifacts:
+    path: ~/benchmarks
+</code></pre>
+
+<p>这将创建一个<code>benchmarks</code>目录，并将基准从云存储中复制到其中。复制完文件后，我们还删除了存储桶中的<code>macrobenchmark</code>目录，以避免它与之前的跟踪文件混淆。例如，您也可以将文件保留在Google Cloud Storage中，而不是根据作业ID构造目录名。</p>
+
+<h3>评估基准结果</h3>
+
+<p>如果基准测试已经完成，基准测试命令将成功终止。不过，它不会给你任何迹象表明他们实际表现如何。为此，您需要分析基准测试的结果，并自己决定测试是失败还是通过。</p>
+
+<p>结果被导出到一个JSON文件中，该文件包含每个测试的最小、最大和中间计时。我编写了一个简短的Node.js脚本来比较这些基准，如果它们中的任何一个超出了我的预期时间，就会失败。Node.js非常适合处理JSON文件，并且在CircleCI机器映像上很容易获得。</p>
+
+<p>运行该脚本只是一个命令:</p>
+
+<pre><code>- run:
+    name: Evaluate benchmark results
+    command: node scripts/eval_startup_benchmark_output.js
+
+</code></pre>
+
+<pre><code>const benchmarkData = require('/home/circleci/benchmarks/com.circleci.samples.todoapp.macrobenchmark-benchmarkData.json')
+
+const COLD_STARTUP_MEDIAN_THRESHOLD_MILIS = YOUR_COLD_THRESHOLD
+const WARM_STARTUP_MEDIAN_THRESHOLD_MILIS = YOUR_WARM_THRESHOLD
+const HOT_STARTUP_MEDIAN_THRESHOLD_MILIS = YOUR_HOT_THRESHOLD
+
+const coldMetrics = benchmarkData.benchmarks.find(element =&gt; element.params.mode === "COLD").metrics.startupMs
+const warmMetrics = benchmarkData.benchmarks.find(element =&gt; element.params.mode === "WARM").metrics.startupMs
+const hotMetrics = benchmarkData.benchmarks.find(element =&gt; element.params.mode === "HOT").metrics.startupMs
+
+let err = 0
+let coldMsg = `Cold metrics median time - ${coldMetrics.median}ms `
+let warmMsg = `Warm metrics median time - ${warmMetrics.median}ms `
+let hotMsg = `Hot metrics median time - ${hotMetrics.median}ms `
+
+if(coldMetrics.median &gt; COLD_STARTUP_MEDIAN_THRESHOLD_MILIS){
+    err = 1
+    console.error(`${coldMsg} ❌ - OVER THRESHOLD ${COLD_STARTUP_MEDIAN_THRESHOLD_MILIS}ms`)
+} else {
+    console.log(`${coldMsg} ✅`)
+}
+
+if(warmMetrics.median &gt; WARM_STARTUP_MEDIAN_THRESHOLD_MILIS){
+    err = 1
+    console.error(`${warmMsg} ❌ - OVER THRESHOLD ${WARM_STARTUP_MEDIAN_THRESHOLD_MILIS}ms`)
+} else {
+    console.log(`${warmMsg} ✅`)
+}
+
+if(hotMetrics.median &gt; HOT_STARTUP_MEDIAN_THRESHOLD_MILIS){
+    err = 1
+    console.error(`${hotMsg} ❌ - OVER THRESHOLD ${HOT_STARTUP_MEDIAN_THRESHOLD_MILIS}ms`)
+} else {
+    console.log(`${hotMsg} ✅`)
+}
+
+process.exit(err)
+</code></pre>
+
+<p>为了建立计时的阈值，我将我的预期计时建立在之前的基准运行结果的基础上。如果我们引入一些减慢启动速度的代码，比如一个冗长的网络调用，基准评估将会在阈值之上运行，并且构建失败。</p>
+
+<p>要使一个构建失败，我可以调用<code>process.exit(err)</code>，它从一个脚本中返回一个非零的状态代码，这导致基准评估工作失败。</p>
+
+<p>这是一个非常简单的基准测试示例。从事Jetpack基准测试库工作的人已经写了一些文章，将基准测试与最近的构建进行比较，使用逐步拟合的方法来检测任何回归。你可以在<a href="https://medium.com/androiddevelopers/fighting-regressions-with-benchmarks-in-ci-6ea9a14b5c71">这篇博文</a>中读到。</p>
+
+<p>使用CircleCI的开发人员可以通过使用circle ci API:https://circle ci . com/docs/API/v2/# operation/getJobArtifacts从以前的构建中获取历史作业数据来实现类似的分步拟合方法。</p>
+
+<h2>警告</h2>
+
+<p>根据定义，端到端基准测试是不可靠的测试，需要在真实设备上运行。在模拟器上运行不会产生接近用户所看到的结果。为了说明这一点，我创建了一个<code>benchmarks-emulator</code>作业来展示计时的不同。</p>
+
+<p>撰写本文时(2021年7月)，基准测试工具仍处于测试阶段。要使用它们，您需要预览Android Studio(北极狐)版本。插件和库正在积极开发，所以更新一切可能不会像描述的那样工作。</p>
+
+<h2>结论</h2>
+
+<p>在本文中，我介绍了如何将Android应用程序性能基准测试与其他测试一起包含在CI/CD管道中。这可以防止当您添加新功能和其他改进时，性能退化影响到您的用户。</p>
+
+<p>我们使用了新的Android Jetpack宏基准库，并展示了将其与Firebase Test Lab集成的方法，以在真实设备上运行基准。我们展示了如何分析结果，如果应用程序启动时间超过我们允许的阈值，则通过构建。</p>
+
+<p>如果你对我接下来应该报道的话题有任何反馈或建议，请通过<a href="https://twitter.com/zmarkan/"> Twitter - @zmarkan </a>联系我。</p>
+
+<h2>资源</h2>
+
+<p><a href="https://developer.android.com/studio/profile/run-benchmarks-in-ci">在CI中运行基准</a></p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

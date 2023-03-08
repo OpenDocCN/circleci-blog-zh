@@ -1,0 +1,424 @@
+<html>
+<head>
+<title>CI for Ionic applications | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>离子应用的| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continous-integration-for-ionic-apps/#2020-05-18T17:00:00-07:00">https://circleci.com/blog/continous-integration-for-ionic-apps/#2020-05-18T17:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>在混合移动开发的世界中，没有其他框架比Ionic框架对行业的贡献更大。Ionic创建于2013年，最初建立在<a href="https://angularjs.org/"> Angular.js </a>和<a href="https://cordova.apache.org/"> Apache Cordova </a>的基础上，现已发展成为一个功能齐全的应用框架，用于开发移动、桌面和<a href="https://web.dev/progressive-web-apps/">渐进式网络应用</a>。Ionic也变得与框架无关，允许开发人员使用<a href="https://angular.io/"> Angular.js </a>、<a href="https://reactjs.org/"> React.js </a>或<a href="https://vuejs.org/"> Vue.js </a>进行开发。</p>
+
+<p>在本教程中，我们将建立一个方便的任务管理器。我们将为应用程序中的特性编写测试，并建立一个<a href="https://circleci.com/continuous-integration/">持续集成</a> (CI)管道来自动化我们的开发和测试。我们将使用<a href="https://ionicframework.com/react"> Ionic React </a>开发我们的应用程序，Ionic版本支持使用<a href="https://reactjs.org/"> React.js </a>开发。</p>
+
+<h2>先决条件</h2>
+
+<p>要跟进这篇文章，需要做一些事情:</p>
+
+<ol>
+  <li>React.js的基础知识(不是一个交易破坏者，您只需要复制粘贴代码片段)</li>
+  <li>系统上安装的<a href="https://nodejs.org"> Node.js </a></li>
+  <li>安装在您系统上的<a href="https://ionicframework.com/docs/cli"> Ionic CLI </a></li>
+  <li>一个<a href="https://circleci.com/">圆</a>的账户</li>
+</ol>
+
+<h2>搭建离子应用平台</h2>
+
+<p>首先，让我们通过运行以下命令来构建一个新的Ionic应用程序:</p>
+
+<pre><code>ionic start task-manager tabs --type=react
+</code></pre>
+
+<p>这将立即触发Ionic CLI使用名为<code>task-manager</code>的文件夹中的<code>tabs</code>模板为我们搭建一个新项目。</p>
+
+<p><strong>注意:</strong> <i>你可能会在某个时候被提示<code>Create free Ionic account?</code>。点击<code>n</code>拒绝。关于创建Ionic账户的更多信息，请参见<a href="https://ionicframework.com/appflow">此处</a>。</i></p>
+
+<p>完成后，进入应用程序的根目录(<code>cd task-manager</code>)，运行以下命令在您的web浏览器中为应用程序提供服务:</p>
+
+<pre><code>ionic serve
+</code></pre>
+
+<p>此命令完成后，您将在浏览器中看到一个类似于下图的应用程序视图。</p>
+
+<p><strong>注:</strong> <i>我用的是Chrome开发工具中激活的移动预览。</i></p>
+
+<p><img src="../Images/ede0aeb2e8a8ac720bcf2a1ec25058b0.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-scaffold-preview.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-scaffold-preview.png"/></p>
+
+<p>如果你的字体是黑色背景和白色字体，不要惊讶。它使用您机器的默认模式。</p>
+
+<h2>构建任务管理器应用程序</h2>
+
+<p>接下来，让我们开始构建主应用程序。进入应用程序的<code>src/pages</code>文件夹，打开<code>Tab1.tsx</code>文件。这是新搭建的应用程序的默认主页。删除该文件中的所有内容，并替换为以下代码:</p>
+
+<pre><code>// src/pages/Tab1.tsx
+
+import React, { useState } from "react";
+import {
+  IonContent,
+  IonHeader,
+  IonPage,
+  IonTitle,
+  IonToolbar,
+  IonList,
+  IonItemSliding,
+  IonItem,
+  IonLabel,
+  IonItemOptions,
+  IonItemOption,
+  IonFab,
+  IonFabButton,
+  IonIcon,
+  IonModal,
+  IonButton,
+  IonCard,
+  IonCardContent,
+  IonInput,
+} from "@ionic/react";
+
+import { add } from "ionicons/icons";
+
+import "./Tab1.css";
+
+interface Task {
+  id: number;
+  name: string;
+}
+
+const Tab1: React.FC = () =&gt; {
+  const [tasks, setTasks] = useState&lt;Task[]&gt;([]);
+  const [showModal, setShowModal] = useState(false);
+  const [taskName = "", setTaskName] = useState&lt;string&gt;();
+
+  function addNewTask() {
+    const new_id = tasks.length + 1;
+
+    const newTask = {
+      id: new_id,
+      name: taskName,
+    };
+
+    tasks.push(newTask);
+
+    setTasks(tasks);
+
+    setTaskName("");
+
+    setShowModal(false);
+  }
+
+  return (
+    &lt;IonPage&gt;
+      &lt;IonHeader&gt;
+        &lt;IonToolbar&gt;
+          &lt;IonTitle&gt;Task Manager&lt;/IonTitle&gt;
+        &lt;/IonToolbar&gt;
+      &lt;/IonHeader&gt;
+      &lt;IonContent&gt;
+        &lt;IonList&gt;
+          {tasks.length &gt; 0 ? (
+            tasks.map((item: Task) =&gt; {
+              return (
+                &lt;IonItemSliding key={item.id}&gt;
+                  &lt;IonItem className="todo-item"&gt;
+                    &lt;IonLabel&gt;{item.name}&lt;/IonLabel&gt;
+                  &lt;/IonItem&gt;
+                  &lt;IonItemOptions side="end"&gt;
+                    &lt;IonItemOption onClick={() =&gt; {}}&gt;Done&lt;/IonItemOption&gt;
+                  &lt;/IonItemOptions&gt;
+                &lt;/IonItemSliding&gt;
+              );
+            })
+          ) : (
+            &lt;IonItem&gt;
+              &lt;IonLabel&gt;You have yet to add tasks for today&lt;/IonLabel&gt;
+            &lt;/IonItem&gt;
+          )}
+        &lt;/IonList&gt;
+
+        {/* Modal*/}
+        &lt;IonModal isOpen={showModal}&gt;
+          &lt;IonCard&gt;
+            &lt;IonItem&gt;
+              &lt;IonLabel&gt;Add New Task&lt;/IonLabel&gt;
+            &lt;/IonItem&gt;
+
+            &lt;IonCardContent&gt;
+              &lt;IonItem&gt;
+                &lt;IonInput
+                  value={taskName}
+                  placeholder="Enter Task Name..."
+                  onIonChange={(e) =&gt; setTaskName(e.detail.value!)}
+                &gt;&lt;/IonInput&gt;
+              &lt;/IonItem&gt;
+
+              &lt;IonButton
+                expand="full"
+                color="primary"
+                onClick={() =&gt; addNewTask()}
+              &gt;
+                Add Task
+              &lt;/IonButton&gt;
+            &lt;/IonCardContent&gt;
+          &lt;/IonCard&gt;
+          &lt;IonButton onClick={() =&gt; setShowModal(false)}&gt;Close Modal&lt;/IonButton&gt;
+        &lt;/IonModal&gt;
+
+        {/* Add Task Button */}
+        &lt;IonFab vertical="bottom" horizontal="end" slot="fixed"&gt;
+          &lt;IonFabButton onClick={() =&gt; setShowModal(true)}&gt;
+            &lt;IonIcon icon={add} /&gt;
+          &lt;/IonFabButton&gt;
+        &lt;/IonFab&gt;
+      &lt;/IonContent&gt;
+    &lt;/IonPage&gt;
+  );
+};
+
+export default Tab1;
+
+
+</code></pre>
+
+<p>现在我们来看一下上面的代码片段。这是我们的任务管理器应用程序的全部代码。</p>
+
+<p>我们首先导入必要的依赖项，包括页面的css文件。然后我们定义一个接口来定义我们的任务对象。</p>
+
+<pre><code>interface Task {
+  id: number;
+  name: string;
+}
+</code></pre>
+
+<p>接下来，我们将我们的组件创建为React function组件类型<code>React.FC</code>，并通过使用钩子定义我们想要在状态中保存的数据来开始该功能:一个由<code>Task</code>组成的<code>tasks</code>数组，一个用于控制任务创建表单的打开和关闭的<code>showModal</code>布尔值，以及一个在创建过程中保存新任务值的<code>taskName</code>。</p>
+
+<pre><code>const [tasks, setTasks] = useState&lt;Task[]&gt;([]);
+const [showModal, setShowModal] = useState(false);
+const [taskName = "", setTaskName] = useState&lt;string&gt;();
+</code></pre>
+
+<p>接下来是我们调用的添加新任务的函数。该函数通过根据数组的长度设置其<code>id</code>来创建一个新任务，并在将新任务添加到我们现有的任务列表后清除表单。</p>
+
+<pre><code>function addNewTask() {
+  const new_id = tasks.length + 1;
+
+  const newTask = {
+    id: new_id,
+    name: taskName,
+  };
+
+  tasks.push(newTask);
+
+  setTasks(tasks);
+
+  setTaskName("");
+
+  setShowModal(false);
+}
+</code></pre>
+
+<p>接下来，我们呈现我们的模板以显示我们的任务列表，并且当任务列表为空时，还显示一条有帮助的消息，内容为<code>You have yet to add tasks for today</code>。</p>
+
+<p>列表后面是一个模态组件，它包含用于添加新任务的任务表单。组件下面是一个浮动的操作按钮，用户单击它可以打开模式。</p>
+
+<p>在预览之前，打开与<code>Tab1.tsx</code>位于同一文件夹中的<code>Tab1.css</code>，并用以下代码替换其内容:</p>
+
+<pre><code>/* src/pages/Tab1.css */
+
+.todo-item {
+  --min-height: 70px;
+  font-size: 1.2em;
+}
+</code></pre>
+
+<p>这只是增加了列表项的高度和字体大小。</p>
+
+<p>现在，进入你的浏览器，加载你的应用程序的主页(Tab1)。您将看到下面显示的页面。</p>
+
+<p><img src="../Images/59191cc21a2f334933baae595f0e7cd8.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-home-no-tasks.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-home-no-tasks.png"/></p>
+
+<p>因为我们还没有添加任何任务，所以会显示消息<strong>您还没有添加今天</strong>的任务。右下角还有我们的<strong>添加任务</strong>按钮，带有<code>plus</code>符号。</p>
+
+<h2>添加任务</h2>
+
+<p>要添加新任务，请单击右下角的蓝色按钮，弹出任务创建表单，然后键入一个任务，如下所示。</p>
+
+<p><img src="../Images/d9d60accc4b4215cd2f880d7df1201b2.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-add-task.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-add-task.png"/></p>
+
+<p>点击<strong>添加任务</strong>添加任务，并继续添加2到3个任务。现在我们应该在页面上有足够的任务来让我们的应用程序看起来正常。</p>
+
+<p><img src="../Images/90bafb73e5924fc96f807350a1cd8331.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-task-list.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-task-list.png"/></p>
+
+<p>太好了！</p>
+
+<p>现在我们有了一个功能应用程序。不是生产就绪，但足够好，可以开始测试。</p>
+
+<h2>向任务管理器应用程序添加测试</h2>
+
+<p>我们测试Ionic应用程序的一个优势是，在搭建应用程序的同时，Ionic CLI已经设置了应用程序测试所需的所有包和配置。</p>
+
+<p>使用<a href="https://jestjs.io/"> Jest </a>测试框架以及<a href="https://testing-library.com/docs/react-testing-library/intro"> React测试库</a>和<a href="https://github.com/ionic-team/ionic-react-test-utils"> Ionic React测试实用程序库</a>来测试Ionic React应用程序，这是一个小的实用程序套件，用于模拟Ionic中的常见功能，如触发定制的Ionic事件。</p>
+
+<p>该项目已经在<code>src</code>文件夹中为<code>App.tsx</code>文件提供了一个测试文件。正如您可能已经猜到的，测试文件被命名为<code>App.test.tsx</code>，它遵循Jest测试的惯例。</p>
+
+<pre><code>// src/App.test.tsx
+
+import React from "react";
+import { render } from "@testing-library/react";
+import App from "./App";
+
+test("renders without crashing", () =&gt; {
+  const { baseElement } = render(&lt;App /&gt;);
+  expect(baseElement).toBeDefined();
+});
+</code></pre>
+
+<p>该测试只是检查应用程序是否正确呈现并且没有崩溃。</p>
+
+<p>若要运行此测试，请运行以下命令:</p>
+
+<pre><code>npm run test
+</code></pre>
+
+<p>这将调用<code>jest</code>命令来运行文件中定义的测试。按照指示，按下<code>a</code>运行所有测试。上面的命令是我们将用来运行应用程序中所有测试的命令。</p>
+
+<p>现在，让我们添加一些我们自己的测试。我们将创建一个测试文件来测试我们的应用程序所在的<code>Tab1.tsx</code>文件中的应用程序逻辑。</p>
+
+<p>在<code>src/pages</code>文件夹中创建一个名为<code>Tab1.test.tsx</code>的文件。也是<code>Tab1.tsx</code>文件所在的地方。在新创建的文件中，放置以下代码:</p>
+
+<pre><code>// src/pages/Tab1.test.tsx
+
+import React from "react";
+import { render } from "@testing-library/react";
+import Tab1 from "./Tab1";
+
+test("Page title is Task Manager", async () =&gt; {
+  const { findByText } = render(&lt;Tab1 /&gt;);
+  await findByText("Task Manager");
+});
+
+test("When there are no Tasks, inform the user that no tasks have been created", async () =&gt; {
+  const { findByText } = render(&lt;Tab1 /&gt;);
+  await findByText("You have yet to add tasks for today");
+});
+</code></pre>
+
+<p>在这个文件中，我们添加了两个测试。第一个测试检查我们的页面是否显示了正确的标题，即<strong>任务管理器</strong>。第二个测试检查我们的应用程序最初加载时是否没有任务，如果有，它显示消息<strong>您还没有为今天添加任务</strong>。</p>
+
+<p>太好了！</p>
+
+<p>现在，让我们通过在项目的根目录下运行以下命令来运行这些测试:</p>
+
+<pre><code>npm run test
+</code></pre>
+
+<p>您将在命令行界面上看到一个类似于下图的屏幕。</p>
+
+<p><img src="../Images/c8615340094852852d29bf4c468d3d54.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-tests-local-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-tests-local-run.png"/></p>
+
+<p>太棒了。</p>
+
+<p>现在，我们已经按照预期运行了我们的测试。</p>
+
+<h2>自动化我们的测试</h2>
+
+<p>我们的最终任务是自动化我们的持续集成过程。为此，我们将采取以下措施:</p>
+
+<ol>
+  <li>向我们的项目添加一个配置脚本，以便在CircleCI上设置CI管道</li>
+  <li>将我们的项目推到GitHub库</li>
+  <li>为我们的应用程序创建CircleCI项目</li>
+  <li>在CircleCI上运行CI管道</li>
+</ol>
+
+<p>我们开始吧。</p>
+
+<p>首先，让我们将CI管道的配置文件添加到项目中。</p>
+
+<p>在项目的根目录下，在<code>.circleci</code>文件夹中创建一个<code>config.yml</code>文件。在<code>config.yml</code>文件中，输入以下代码:</p>
+
+<pre><code>version: 2.1
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: cimg/node:12.16
+    steps:
+      - checkout
+      - run:
+          name: update-npm
+          command: "sudo npm install -g npm@5"
+      - restore_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+      - run:
+          name: install-packages
+          command: npm install
+      - save_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+          paths:
+            - ./node_modules
+      - run:
+          name: test
+          command: npm run test
+</code></pre>
+
+<p>这个配置获取一个Node.js映像，并安装在<code>package.json</code>中定义的所有依赖项。一旦安装完成，就执行测试脚本<code>npm run test</code>来运行我们应用程序中的所有测试。</p>
+
+<p>我们的管道配置文件准备就绪。</p>
+
+<p>接下来，提交您的所有更改，并将项目推送到GitHub帐户上的GitHub存储库，该帐户连接到您的CircleCI帐户。</p>
+
+<p>下一步是将我们的项目的存储库设置为CircleCI项目。</p>
+
+<p>在CircleCI控制台上，转到<strong>添加项目</strong>页面添加项目:</p>
+
+<p><img src="../Images/a7f65e3fd43093e13256897ba214e5ee.png" alt="Add Project" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-add-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>。这将加载下一个屏幕。</p>
+
+<p><img src="../Images/49e0b017b52cac41f607b3fdec87617e.png" alt="Start Building - Config sample" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-start-building1.png"/></p>
+
+<p>在设置页面上，点击<strong>开始构建</strong>。在构建开始之前，您会得到一个提示，要么下载并使用所提供的CircleCI配置文件，并将它放在一个单独的分支上，要么手动设置一个。</p>
+
+<p><img src="../Images/c059c79e34d95fe86be3d29932cd8be6.png" alt="Start Building - Add manually" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-start-building2.png"/></p>
+
+<p>选择<strong>手动添加</strong>继续。这将提示另一个对话框，检查确认您已经设置了配置文件，可以开始构建了。</p>
+
+<p><img src="../Images/4709c2ede7974dc5e5d62adc23eaa807.png" alt="Start Building - Confirm configuration" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-start-building3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-start-building3.png"/></p>
+
+<p>点击<strong>开始构建</strong>完成设置。这将使用我们项目中的配置文件立即触发管道。</p>
+
+<p>构建运行完成后，您将获得一个成功的构建。</p>
+
+<p><img src="../Images/89d292ee5679c36c6865bafc9b959196.png" alt="Build successful" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-build-successful.png"/></p>
+
+<p>点击<strong>构建</strong>查看幕后流程(我已经折叠了<em>测试</em>步骤)。</p>
+
+<p><img src="../Images/66ae7856bd56e70d070549ba61249a1e.png" alt="Build process" srcset="https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-05-16-build-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-05-16-build-process.png"/></p>
+
+<p>从上面的屏幕可以看出，我们的项目设置正确，所有的测试都运行良好。</p>
+
+<p>现在，随着你的开发，你所要做的就是添加更多的功能，给它们添加测试，然后推送到GitHub。一旦您推送，CI管道将会运行，并且您的所有测试都将被执行。如果任何测试失败，您的构建将失败，这将表明您的应用程序中有一个需要修复的bug。</p>
+
+<p>这将确保您不会将任何错误推入您的应用程序。</p>
+
+<h2>结论</h2>
+
+<p>在本文中，我们为Ionic应用程序建立了一个自动化CI管道，通过自动化测试过程来改进我们的开发工作流程。拥有一个能够正确运行我们的测试的CI管道，可以通过确保我们不会以失败的应用程序而告终，或者在一起工作于一个项目时，我们不会将有问题的代码推送到我们团队的存储库中，来保护我们自己。</p>
+
+<p>快乐编码:)</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,299 @@
+<html>
+<head>
+<title>Publishing npm Packages Using CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用CircleCI发布npm软件包</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/publishing-npm-packages-using-circleci-2-0/#2018-03-30T04:36:00-07:00">https://circleci.com/blog/publishing-npm-packages-using-circleci-2-0/#2018-03-30T04:36:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p><i>这是由<a href="http://packagecloud.io"> packagecloud </a>的联合创始人Armando Canals写的一篇客座博文。</i></p>
+
+<p>本文将介绍使用CircleCI 2.0为NodeJS项目实现连续部署管道的必要步骤。</p>
+
+<p>我们将使用新的CircleCI 2.0配置来设置项目，在CircleCI中运行测试，并在标记提交被推送到git存储库时将包部署到官方npm注册表。</p>
+<h2>npm和npm包</h2>
+<p>Npm是JavaScript编程语言的包管理器，它是与Node.js JavaScript运行时环境捆绑在一起的默认包管理器。</p>
+
+<p>Npm包用于方便可靠地分发JavaScript代码。使用Npm包最常见的情况是分发Node.js程序，并轻松地将它们安装在不同的系统上。</p>
+
+<p>在<a href="https://docs.npmjs.com/getting-started/packages"> npm文档网站</a>上阅读更多关于npm包的信息，或者阅读更多关于<a href="https://circleci.com/blog/continuous-package-publishing-part-ii-automated-npm-publishing-with-circleci-and-packagecloud/" target="_blank" rel="noreferrer noopener">使用CircleCI和packagecloud进行自动npm发布的信息</a>。</p>
+
+<h2>为什么要发布npm包？</h2>
+<p>如果您想与其他开发人员、商业客户甚至持续集成工具(如CircleCI)共享Node.js程序和JavaScript库，将npm包发布到注册表是最简单的方法。</p>
+
+<p>在本帖中，我们将回顾将软件包发布到官方(公共)npm注册表和托管在packagecloud.io 上的<a href="https://packagecloud.io/l/npm-registry" target="_blank" rel="noreferrer noopener">私有npm注册表。</a></p>
+
+<h2>使用CircleCI 2.0配置npm注册表</h2>
+<h3>向NodeJS项目添加一个<code>.circleci/config.yml</code></h3>
+<p>在项目根目录中，创建一个名为<code>.circleci</code>的文件夹，并在该文件夹中创建一个名为<code>config.yml</code>的文件。</p>
+
+<p>以下是这篇博文的完整示例<a href="https://github.com/computology/circleci-npm-example/blob/master/.circleci/config.yml" target="_blank" rel="noreferrer noopener"> <code>.circleci/config.yml</code> </a>文件:</p>
+
+<pre><code class="language-yaml"># Javascript Node CircleCI 2.0 configuration file
+#
+# Check {{ '/language-javascript' | docs_url }} for more details
+#
+version: 2
+
+defaults: &amp;defaults
+  working_directory: ~/repo
+  docker:
+    - image: circleci/node:8.9.1
+
+jobs:
+  test:
+    &lt;&lt;: *defaults  
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "package.json" }}
+	  # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+
+      - run: npm install
+      - run:
+          name: Run tests
+          command: npm test
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+  deploy:
+    &lt;&lt;: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Authenticate with registry
+          command: echo "//registry.npmjs.org/:_authToken=$npm_TOKEN" &gt; ~/repo/.npmrc
+      - run:
+          name: Publish package
+          command: npm publish
+            
+workflows:
+  version: 2
+  test-deploy:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /^v.*/
+      - deploy:
+          requires:
+            - test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+</code></pre>
+
+<p>现在，让我们分解这个配置来解释每项工作中涉及的步骤。</p>
+
+<h3>设置默认值</h3>
+<p>在<code>config.yml</code>中使用的下面一节允许我们通过定义一个名为<code>defaults</code>的映射并使用YAML合并<code>(&lt;&lt;: *)</code>键将其插入配置文件的后续部分来节省一些击键。</p>
+
+<pre><code class="language-yaml">defaults: &amp;defaults
+  working_directory: ~/repo
+  docker:
+    - image: circleci/node:8.9.1
+</code></pre>
+
+<p>这些默认值设置项目代码将被检出的工作目录，以及用于作业的版本<code>NodeJS</code>。</p>
+
+<h3>在CircleCI中设置<code>$npm_TOKEN</code>环境变量</h3>
+<p>使用<a href="https://docs.npmjs.com/cli/npm" target="_blank" rel="noreferrer noopener"> npm CLI </a>并使用<code>login</code>命令检索npm身份验证令牌。在终端中运行<code>npm login</code>命令，并在出现提示时使用您的npm凭据。</p>
+
+<p>一旦完成，一个<code>.npmrc</code>文件将在运行该命令的机器上的用户目录中创建。</p>
+
+<p>通常这是在<code>~/.npmrc</code>里。</p>
+
+<p>这个令牌是假的，永远不要发布你的授权令牌。</p>
+
+<p>从npm中检索到auth令牌后，在CircleCI上的项目设置中创建一个名为<code>$npm_TOKEN</code>的环境变量。</p>
+
+<p><img src="../Images/5ad9301a67082d184982e540720fcf54.png" alt="CircleCI Environment Variable Section" data-original-src="https://gist.github.com/armandocanals/210c79abddd1cb0e6d212f933d4e18e0/raw/07408b36ca1c7ad4639dd8bbfa116e6ac71ae24c/circleci-env-var.png"/></p>
+
+<p>或者，如果您喜欢将您的敏感环境变量签入git，但是加密，您可以遵循在<a href="https://github.com/circleci/encrypted-files" target="_blank" rel="noreferrer noopener"> circleci/encrypted-files </a>中概述的过程。</p>
+
+<h3>作业配置</h3>
+<p><code>config.yml</code>的作业部分定义了将在工作流中运行的作业，以及每个作业的步骤。</p>
+
+<h4>试验</h4>
+<p>我们定义的第一个作业是<code>test</code>作业，它检索项目代码，将依赖项安装到我们的工作区，并运行我们的测试:</p>
+
+<pre><code class="language-yaml">jobs:
+  test:
+    &lt;&lt;: *defaults  
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "package.json" }}.
+          # fallback to using the latest cache if no exact match is found
+	  - v1-dependencies-
+
+      - run: npm install
+      - run:
+          name: Run tests
+          command: npm test
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+</code></pre>
+
+<p>由<code>npm test</code>运行的命令定义在npm包中<code>package.json</code>的<code>scripts</code>部分。</p>
+
+<p>此步骤还会从缓存中恢复任何依赖关系，以便在从以前的作业重建时节省资源。我们可以使用<code>{{checksum “package.json”}}</code>作为CircleCI的缓存键，这样它只在<code>package.json</code>的校验和改变时安装依赖项。</p>
+
+<p>在<a href="https://circleci.com/docs/language-javascript/"> CircleCI文档</a>中了解有关此配置的更多信息。</p>
+
+<h4>部署</h4>
+<p>部署作业有几个步骤，运行这些步骤是为了向官方npm注册表进行身份验证和发布:</p>
+
+<pre><code class="language-yaml">jobs:
+...
+  deploy:
+    &lt;&lt;: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Authenticate with registry
+          command: echo "//registry.npmjs.org/:_authToken=$npm_TOKEN" &gt; ~/repo/.npmrc
+      - run:
+          name: Publish package
+          command: npm publish
+
+</code></pre>
+
+<ul>
+  <li>
+    <p>步骤1 -连接到我们配置的工作区</p>
+  </li>
+  <li>
+    <p>步骤2 -使用CircleCI项目设置中设置为环境变量的<code>$npm_TOKEN</code>向npm注册表进行身份验证。</p>
+  </li>
+  <li>
+    <p>步骤3 -从工作目录运行<code>npm publish</code>命令。</p>
+  </li>
+</ul>
+
+<p>打包回购</p>
+
+<h4>部署到私有npm注册表</h4>
+<p>将包部署到私有注册表非常类似于在npm提供的官方注册表上发布包。</p>
+
+<p>通过在使用npm注册表进行身份验证之前添加额外的步骤，我们可以指定npm命令在部署时将使用哪个注册表。</p>
+
+<p>我们将以<a href="https://packagecloud.io" target="_blank" rel="noreferrer noopener"> packagecloud </a>上的npm注册表为例:</p>
+
+<pre><code class="language-yaml">jobs:
+...
+deploy:
+    &lt;&lt;: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Set registry URL
+          command: npm set registry https://packagecloud.io/armando/node-test-package/npm/
+      - run:
+          name: Authenticate with registry
+          command: echo "//packagecloud.io/armando/node-test-package/npm/:_authToken=$npm_TOKEN" &gt; ~/repo/.npmrc
+      - run:
+          name: Publish package
+          command: npm publish
+</code></pre>
+
+
+
+<pre><code>https://packagecloud.io/:username/:repo_name/npm/
+</code></pre>
+
+<p>其中，<code>:username</code>是packagecloud npm注册表上的用户，<code>:repo_name</code>是由packagecloud用户创建的npm注册表的名称。</p>
+
+<ul>
+  <li>
+    <p>步骤3 -使用CircleCI项目设置中设置为环境变量的<code>$npm_TOKEN</code>向npm注册表进行身份验证。在这种情况下，有效的<a href="https://packagecloud.io/docs/api#api_tokens" target="_blank" rel="noreferrer noopener"> packagecloud API令牌</a>将授予对packagecloud npm注册表的写访问权限。查看<a href="https://packagecloud.io" target="_blank" rel="noreferrer noopener"> packagecloud.io </a>上的<a href="https://packagecloud.io/docs#npm_login" target="_blank" rel="noreferrer noopener"> <code>npm login</code>文档</a>了解更多信息。</p>
+  </li>
+  <li>
+    <p>步骤4 -从工作目录运行<code>npm publish</code>命令。</p>
+  </li>
+</ul>
+
+<h3>使用CircleCI工作空间</h3>
+<p>我们在<code>config.yml</code>中设置了一个工作区，以便在作业之间共享数据。创建一个工作空间允许我们签出项目代码，并在<code>test</code>和<code>deploy</code>任务之间共享。</p>
+
+<p>作为<code>test</code>作业中的一个步骤，我们将作业中之前完成的步骤保存到工作区，包含以下部分:</p>
+
+<pre><code>- persist_to_workspace:
+    root: ~/repo
+    paths: .
+</code></pre>
+
+<p>然后，在随后的<code>deploy</code>作业中，我们使用以下配置连接到工作区，作为作业的第一步:</p>
+
+<pre><code>- attach_workspace:
+    at: ~/repo
+</code></pre>
+
+<h3>Git标记作业执行-在标记提交时部署</h3>
+<p>作为我们连续交付管道的一部分，我们希望确保<code>deploy</code>作业/仅/在提交被标记了版本号并被推送时运行。</p>
+
+<pre><code class="language-yaml">workflows:
+  version: 2
+  test-deploy:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /^v.*/
+      - deploy:
+          requires:
+            - test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+</code></pre>
+
+<p>上面的工作区配置将在所有分支和所有标记上运行<code>test</code>作业，并且仅当提交被标记了版本号并被推送时才运行<code>deploy</code>作业。</p>
+
+<p><code>tags</code>部分使用正则表达式来匹配以<code>v</code>开头的标签，例如<code>v0.1.0</code>。</p>
+
+<p><a href="https://circleci.com/docs/workflows/#git-tag-job-execution">在此阅读更多关于Git标签作业执行的信息</a></p>
+
+<p><img src="../Images/c89f8fcd3b847b29fac84b50ddcb9e89.png" alt="Completed CircleCI workflow image" data-original-src="https://gist.github.com/armandocanals/210c79abddd1cb0e6d212f933d4e18e0/raw/fe63f24590b1a380b562bb7ce0b41fab4a2cb4aa/workflow.png"/></p>
+
+<h2>结论</h2>
+<p>在软件开发生命周期中自动化手动过程可以显著减少错误、开发时间和用户挫折感。使用CircleCI这样的工具可以让您的团队构建一个健壮的软件分发管道，快速可靠地将软件提供给用户，而无需增加额外的基础设施。</p>
+
+<p>使用功能强大的CircleCI 2.0自动化工具，开始将npm软件包直接发布到任何公共或私有注册表。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,480 @@
+<html>
+<head>
+<title>Automate AWS lambda function deployments with AWS CDK | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>通过AWS CDK | CircleCI自动部署AWS lambda功能</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/deploy-aws-lambda-cdk/#2022-08-12T09:00:00-07:00">https://circleci.com/blog/deploy-aws-lambda-cdk/#2022-08-12T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>定义您的AWS CDK应用程序和AWS Lambda处理程序</li>
+    <li>手动构建和部署CDK应用程序</li>
+    <li>自动化部署</li>
+  </ol>
+</blockquote>
+
+<p>这是由两部分组成的系列教程的第一部分。您还可以学习如何使用AWS CDK来自动部署带有Lambda授权器的REST APIs】。</p>
+
+<p>当您构建基于云的应用程序时，您可以选择使用云提供商提供的GUI(图形用户界面)或CLI(命令行界面)来部署资源。这种方法在只有少量资源的情况下可以很好地工作，但是随着应用程序复杂性的增加，手动管理基础设施会变得很困难。</p>
+
+<p>您可以使用像Terraform或AWS CDK这样的解决方案，让您以编程方式管理基础设施代码，而不是手动部署云资源。借助富有表现力的面向对象编程语言，AWS CDK允许您使用现有的技能和工具来开发云基础设施，从而加快开发过程。使用AWS CDK消除了对上下文切换的需要，因为您可以使用相同的IDE和工具来定义基础结构代码和运行时代码。AWS CDK还使您的代码与git工作流的集成更加容易，并允许您使用<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/"> CI/CD管道</a>来自动化部署过程。</p>
+
+<p>在本教程中，我将指导您使用AWS云开发工具包(CDK)来部署一个与AWS S3和AWS DynamoDB交互的AWS Lambda函数。</p>
+
+<h2>先决条件</h2>
+
+<p>对于本教程，您需要在系统上设置Node.js来定义您的AWS CDK应用程序和AWS Lambda处理程序。您还需要在您的系统上安装AWS CLI和AWS CDK CLI，以便您可以配置AWS凭据并手动构建您的CDK应用程序。您将需要一个用于部署应用程序的AWS帐户和一个用于自动化部署的CircleCI帐户。</p>
+
+<p>下面是跟随本教程所需的所有东西的列表:</p>
+
+
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<h2>创建新的AWS CDK项目</h2>
+
+<p>首先，为您的CDK项目创建一个新目录，并导航到其中。</p>
+
+<pre><code class="language-bash">mkdir aws-cdk-lambda-circle-ci
+cd aws-cdk-lambda-circle-ci
+</code></pre>
+
+<p>接下来，使用CDK CLI运行<code>cdk init</code>命令，这将使用TypeScript创建一个新的CDK项目。<code>app</code>参数指定初始化项目时使用的模板。</p>
+
+<pre><code class="language-bash">cdk init app --language typescript
+</code></pre>
+
+<p>执行此命令会创建一个新的CDK项目，其中包含几个文件。在本教程的后面，我将解释其中一些文件的重要性以及它们中定义的结构。</p>
+
+<p><strong>注意:</strong> <i> CDK支持TypeScript、Python、Java、C#等多种语言。你可以选择使用任何你觉得舒服的语言。</i></p>
+
+<h2>添加NodeJS Lambda函数</h2>
+
+<p>在本节中，您将使用Node.js定义一个AWS Lambda函数。Lambda函数演示了如何将CSV文件保存到AWS S3并向DynamoDB表中添加一个条目。</p>
+
+<p>首先，在CDK项目的根目录下创建一个<code>lambda</code>目录。在<code>lambda</code>目录中，添加一个用于lambda处理程序的<code>index.js</code>文件和一个用于定义依赖关系的<code>package.json</code>文件。</p>
+
+<p>在<code>package.json</code>文件中，定义NodeJS项目的名称，并添加一些将被我们的处理程序使用的依赖项。以下是该文件应该包含的内容:</p>
+
+<pre><code class="language-json">{
+    "name": "ddb-s3-lambda-function",
+    "version": "0.1.0",
+    "dependencies": {
+        "csv-stringify": "^6.0.5",
+        "fs": "0.0.1-security",
+        "uuid": "^8.3.2"
+    }
+}
+</code></pre>
+
+<p>添加完依赖项后，运行<code>lambda</code>目录中的<code>npm install</code>命令来安装软件包。</p>
+
+<p>接下来，在<code>index.js</code>文件中，定义一个空函数。在本教程的后面部分，您将实现这个函数。</p>
+
+<pre><code class="language-js">exports.handler = async function (event) {
+
+}
+</code></pre>
+
+<p>现在，您可以开始实施了。创建一个包含虚拟数据的CSV文件，并将其保存为临时文件。将这段代码添加到您之前创建的<code>index.js</code>文件的底部:</p>
+
+<pre><code class="language-js">// add imports at the top of the file
+var fs = require('fs');
+const {stringify} = require('csv-stringify');
+
+function writeCsvToFileAndUpload(filePath, objectKey) {
+    var data = getCsvData();
+    var output = stringify(data);
+
+    fs.writeFileSync(filePath, output);
+    // we will add the uploadFile method later
+    uploadFile(filePath, objectKey);
+}
+
+function getCsvData() {
+    // return some CSV data
+    return [
+      ['1', '2', '3', '4'],
+      ['a', 'b', 'c', 'd']
+    ];
+}
+</code></pre>
+
+<p>接下来，在<code>index.js</code>文件中定义另一个函数，它采用本地文件路径和S3对象路径，并将文件上传到AWS S3。</p>
+
+<pre><code class="language-js">// add imports at the top of the file
+const AWS = require('aws-sdk');
+AWS.config.update({ region: 'us-west-2' });
+
+const s3 = new AWS.S3();
+const BUCKET_NAME = process.env.BUCKET_NAME
+
+const uploadFile = (fileName, objectKey) =&gt; {
+    // Read content from the file
+    const fileContent = fs.readFileSync(fileName);
+
+    // Setting up S3 upload parameters
+    const params = {
+        Bucket: BUCKET_NAME,
+        Key: objectKey,
+        Body: fileContent
+    };
+
+    // Uploading files to the bucket
+    s3.upload(params, function (err, data) {
+        if (err) {
+            throw err;
+        }
+        console.log(`File uploaded successfully. ${data.Location}`);
+    });
+    return objectKey;
+};
+</code></pre>
+
+<p>该函数读取本地文件的内容，并使用<code>AWS.S3</code> SDK的<code>upload</code>函数上传文件。</p>
+
+<p>最后，添加您在<code>index.js</code>文件中创建的空AWS Lambda处理程序的实现。Lambda处理程序在其事件参数中接收<code>jobId</code>。处理程序首先将CSV文件上传到AWS S3，然后用<code>jobId</code>和上传对象的S3路径更新DynamoDB表。</p>
+
+<pre><code class="language-js">//add import at the top of the file
+const { v4: uuidv4 } = require('uuid');
+
+var ddb = new AWS.DynamoDB();
+const TABLE_NAME = process.env.TABLE_NAME
+
+exports.handler = async function (event) {
+    try {
+        const uploadedObjectKey = generateDataAndUploadToS3()
+        const jobId = event['jobId']
+        var params = {
+            TableName: TABLE_NAME,
+            Item: {
+                'jobId': { S: jobId },
+                'reportFileName': { S: uploadedObjectKey }
+            }
+        };
+
+        // Call DynamoDB to add the item to the table
+        await ddb.putItem(params).promise();;
+        return {
+            "status": "success",
+            "jobId": jobId,
+            "objectKey": uploadedObjectKey
+        }
+    } catch (error) {
+        throw Error(`Error in backend: ${error}`)
+    }
+}
+
+const generateDataAndUploadToS3 = () =&gt; {
+    var filePath = '/tmp/test_user_data.csv'
+    const objectKey = `${uuidv4()}.csv`;
+    writeCsvToFileAndUpload(filePath, objectKey)
+    return objectKey
+}
+</code></pre>
+
+<p>处理程序使用<code>AWS.DynamoDB</code> SDK的<code>putItem</code>方法在DynamoDB表中插入一个新项目。</p>
+
+<h2>为应用程序定义CDK结构</h2>
+
+<p>现在您已经定义了AWS Lambda处理程序，您可以定义将在您的应用程序中使用的所有CDK构造。AWS CDK构造是云组件，封装了配置细节和使用一个或多个AWS服务的粘合逻辑。CDK为最常用的AWS服务提供了一个构造库。</p>
+
+<p>使用<code>app</code>模板生成CDK项目会创建<code>lib/aws-cdk-lambda-circle-ci-stack.ts</code>文件。这个文件包含了<code>AwsCdkLambdaCircleCiStack</code>类。使用此文件定义CDK构件。</p>
+
+<pre><code class="language-typescript">//  The snippet shows the original contents for reference. You do not need to replace the file contents.
+import { Stack, StackProps } from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+
+export class AwsCdkLambdaCircleCiStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
+    super(scope, id, props);
+
+    // we will add all the constructs here
+  }
+}
+</code></pre>
+
+<p>接下来，检查您的应用程序需要什么。这些任务将在本教程的下一节中描述。</p>
+
+<ul>
+  <li>创建一个AWS S3存储桶来保存由AWS Lambda函数上传的CSV文件。</li>
+  <li>创建一个DynamoDB表，其中的<code>jobId</code>和对象键将由AWS Lambda函数更新。</li>
+  <li>定义一个将使用S3和DymamoDB表的AWS Lambda函数。确保AWS Lambda函数将<code>BUCKET_NAME</code>和<code>TABLE_NAME</code>作为参数。</li>
+  <li>确保AWS Lambda函数有足够的权限对S3存储桶和DymamoDB表执行操作。</li>
+</ul>
+
+<h3>定义AWS S3时段</h3>
+
+<p>要定义一个AWS S3桶，需要添加一个CDK构造，在<code>lib/aws-cdk-lambda-circle-ci-stack.ts</code>文件中定义的<code>constructor</code>内创建一个AWS S3桶。AWS S3时段名称在所有AWS帐户中都是唯一的，因此您需要为您的时段提供一个唯一的名称。</p>
+
+<pre><code class="language-typescript">import { Stack, 
+  StackProps,
+  //update the existing import to add aws_s3
+  aws_s3 as s3
+ } from 'aws-cdk-lib';
+
+constructor(scope: Construct, id: string, props?: StackProps) {
+  super(scope, id, props);
+
+  // we will add all the constructs here
+  // provide a unique name for your S3 bucket
+  const circleCiGwpBucket = new s3.Bucket(this, "circle-ci-gwp-bucket", {
+    bucketName: "&lt;YOUR_BUCKET_NAME&gt;",
+  });
+}
+</code></pre>
+
+<p>此时，如果您尝试部署堆栈，它将简单地部署一个CloudFormation应用程序，并为您创建一个AWS S3存储桶。</p>
+
+<h3>定义一个DynamoDB表</h3>
+
+<p>要定义DynamoDB表，添加一个CDK构造，在<code>lib/aws-cdk-lambda-circle-ci-stack.ts</code>文件中定义的<code>constructor</code>内创建一个DynamoDB表。</p>
+
+<pre><code class="language-typescript">import {
+  Stack,
+  StackProps,
+  aws_s3 as s3,
+  //update the existing import to add aws_dynamodb
+  aws_dynamodb as dynamodb
+} from 'aws-cdk-lib';
+
+constructor(scope: Construct, id: string, props?: StackProps) {
+  // other code //
+  //add the following construct after the existing code in the constructor
+  const circleCiGwpTable = new dynamodb.Table(this, "CircleCIGwpTable", {
+    tableName: "CircleCIGwpTable",
+    partitionKey: { name: "jobId", type: dynamodb.AttributeType.STRING },
+  });
+}
+</code></pre>
+<p>表名在您的AWS帐户中必须是唯一的。如果您的AWS帐户中已经有一个名为<code>CircleCIGwpTable</code>的表，那么在定义DynamoDB构造时更新<code>tableName</code>。</p>
+
+<p>注意，您已经将<code>jobId</code>定义为表的<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html#HowItWorks.CoreComponents.PrimaryKey" target="_blank" rel="noreferrer noopener">主分区键</a>。这将确保<code>jobId</code>值在表中是唯一的。</p>
+
+<h3>定义AWS Lambda函数</h3>
+
+<p>要定义一个AWS Lambda函数，添加一个CDK构造，在<code>lib/aws-cdk-lambda-circle-ci-stack.ts</code>文件中定义的<code>constructor</code>内创建一个AWS Lambda函数。AWS Lambda函数将使用NodeJS运行时，并将使用我们在<code>lambda</code>目录中定义的代码。此外，S3桶名称和DynamoDB表名称将作为环境变量传递给该函数。</p>
+
+<pre><code class="language-typescript">import {
+  Stack,
+  StackProps,
+  aws_s3 as s3,
+  aws_dynamodb as dynamodb,
+  //update the existing import to add aws_lambda and Duration
+  aws_lambda as lambda,
+  Duration
+} from 'aws-cdk-lib';
+
+constructor(scope: Construct, id: string, props?: StackProps) {
+  // other code //
+  //add the following construct after the existing code in the constructor
+  const circleCiGwpLambda = new lambda.Function(
+    this,
+    "CircleCiGwpLambda",
+    {
+      runtime: lambda.Runtime.NODEJS_14_X,
+      handler: "index.handler",
+      timeout: Duration.seconds(30),
+      code: lambda.Code.fromAsset("lambda/"),
+      environment: {
+        TABLE_NAME: circleCiGwpTable.tableName,
+        BUCKET_NAME: circleCiGwpBucket.bucketName
+      },
+    }
+  );
+}
+</code></pre>
+<p>这个代码片段指定AWS Lambda函数的超时是30秒。Lambda函数的最长执行时间可达15分钟。</p>
+
+<h3>授予AWS Lambda函数权限</h3>
+
+<p>最后，授予AWS Lambda函数足够的权限。Lambda函数需要对S3对象的<code>putObject</code>权限。通过在<code>lib/aws-cdk-lambda-circle-ci-stack.ts</code>的构造函数中的现有代码后添加以下构造来授予这些权限:</p>
+
+<pre><code class="language-typescript">circleCiGwpBucket.grantPut(circleCiGwpLambda);
+</code></pre>
+
+<p>Lambda函数还需要对DynamoDB表的读/写权限。在<code>lib/aws-cdk-lambda-circle-ci-stack.ts</code>的构造函数中的现有代码后添加以下构造:</p>
+
+<pre><code class="language-typescript">circleCiGwpTable.grantReadWriteData(circleCiGwpLambda);
+</code></pre>
+
+<p>您可以使用<a href="https://docs.aws.amazon.com/cdk/api/v1/docs/aws-iam-readme.html" target="_blank" rel="noreferrer noopener"> AWS CDK IAM模块</a>定义更复杂的IAM策略。</p>
+
+<h2>部署CDK堆栈</h2>
+
+<p>现在，您已经在堆栈中定义了CDK构造，您可以将应用程序部署到AWS帐户。首先手动部署项目，确保一切正常。然后，一旦您验证了它的功能，您就可以使用CircleCI自动化部署。</p>
+
+<p>在第一次部署项目之前，您需要使用<code>cdk</code> CLI引导项目。应用程序的引导提供了AWS CDK部署应用程序可能需要的资源。这些资源可能包括用于存储部署相关文件的S3存储桶和用于授予部署权限的IAM角色。从项目的根目录发出以下命令:</p>
+
+<pre><code class="language-bash">cdk bootstrap
+</code></pre>
+
+<p>确保您在系统上配置了AWS凭据。如果配置了凭据，CDK将自动使用它。</p>
+
+<p>接下来，将应用程序部署到AWS帐户。</p>
+
+<pre><code class="language-bash">cdk deploy
+</code></pre>
+
+<p>执行该命令后，可能会提示您确认将应用于您的帐户的IAM角色/策略更改。如果您的应用程序设置正确，并且您的系统具备所有的先决条件，那么部署应该会成功。</p>
+
+<h2>使用CircleCI自动部署应用程序</h2>
+
+<p>现在您已经使用命令行手动部署了CDK应用程序，您可以自动化工作流了。自动化工作流意味着，每当您将代码推送到主分支时，基础结构的变更可以被自动打包和部署。您需要完成以下任务:</p>
+
+<ul>
+  <li>更新<code>.gitignore</code></li>
+  <li>更新NPM脚本</li>
+  <li>添加配置脚本</li>
+  <li>创建CircleCI项目</li>
+  <li>设置环境变量</li>
+</ul>
+
+<h3>更新。gitignore</h3>
+
+<p>由<code>cdk init</code>命令生成的代码包含一个默认忽略所有<code>.js</code>文件的<code>.gitignore</code>文件。用以下代码片段替换<code>.gitignore</code>的内容:</p>
+
+<pre><code class="language-bash">!jest.config.js
+*.d.ts
+node_modules
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+</code></pre>
+
+<h3>更新NPM脚本</h3>
+
+<p>CircleCI部署配置使用NPM脚本来执行<code>deploy</code>和<code>diff</code>命令。将这些脚本添加到根级<code>package.json</code>文件中:</p>
+
+<pre><code class="language-json">// update the aws-cdk-lambda-circle-ci/package.json file with the following scripts
+{
+  ... 
+  "scripts": {
+    ...
+    // add the ci_diff and ci_deploy scripts
+    "ci_diff": "cdk diff -c env=${ENV:-stg} 2&gt;&amp;1 | sed -r 's/\\x1B\\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g' || true",
+    "ci_deploy": "cdk deploy -c env=${ENV:-stg} --require-approval never"
+  },
+  ...
+}
+</code></pre>
+
+<h3>添加配置脚本</h3>
+
+<p>首先，在包含CI管道配置文件的项目根目录中添加一个<code>.circleci/config.yml</code>脚本。将以下代码片段添加到其中:</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@2.0.6
+executors:
+  default:
+    docker:
+      - image: 'cimg/node:14.18.2'
+    environment:
+      AWS_REGION: 'us-west-2'
+jobs:
+  build:
+    executor: 'default'
+    steps:
+      - aws-cli/setup:
+          aws-access-key-id: AWS_ACCESS_KEY
+          aws-secret-access-key: AWS_ACCESS_SECRET
+          aws-region: AWS_REGION_NAME
+      - checkout
+      - run:
+          name: 'install_lambda_packages'
+          command: |
+            cd lambda/authorizer &amp;&amp; npm install
+            cd ../../
+            cd lambda/processJob &amp;&amp; npm install
+            cd ../../
+      - run:
+          name: 'build'
+          command: |
+            npm install
+            npm run build
+      - run:
+          name: 'cdk_diff'
+          command: |
+            if [ -n "$CIRCLE_PULL_REQUEST" ]; then
+              export ENV=stg
+              if [ "${CIRCLE_BRANCH}" == "develop" ]; then
+                export ENV=prd
+              fi 
+              pr_number=${CIRCLE_PULL_REQUEST##*/}
+              block='```'
+              diff=$(echo -e "cdk diff (env=${ENV})\n${block}\n$(npm run --silent ci_diff)\n${block}")
+              data=$(jq -n --arg body "$diff" '{ body: $body }') # escape
+              curl -X POST -H 'Content-Type:application/json' \
+                -H 'Accept: application/vnd.github.v3+json' \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -d "$data" \
+                "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/issues/${pr_number}/comments"
+            fi
+      - run:
+          name: 'cdk_deploy'
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "main" ]; then
+              ENV=prd npm run ci_deploy
+            elif [ "${CIRCLE_BRANCH}" == "develop" ]; then
+              ENV=stg npm run ci_deploy
+            fi 
+</code></pre>
+
+<p>CI脚本使用<a href="https://circleci.com/developer/orbs/orb/circleci/aws-cli"> CircleCI的aws-cli orb </a>来设置aws配置——访问密钥和密码。<code>build</code>作业有几个不同的步骤，安装软件包，计算<code>diff</code>，并部署变更。<code>cdk_diff</code>步骤只在拉请求时执行，并在PR上添加一个总结基础设施变更的注释。</p>
+
+<p><code>cdk_deploy</code>命令检查分支并仅在<code>prd</code>或<code>stg</code>环境中部署。<code>cdk_deploy</code>命令执行<code>package.json</code>文件中定义的<code>ci_deploy</code>脚本。</p>
+
+<p>管道配置将负责构建、打包和部署CDK堆栈到指定的AWS帐户。提交更改并<a href="https://circleci.com/blog/pushing-a-project-to-github/">将它们推送到Github </a>存储库。</p>
+
+<p><strong>注意:</strong> <i>一定要把<code>AWS_REGION</code>换成自己的地区，如果不一样的话。</i></p>
+
+<h3>为应用程序创建一个CircleCI项目</h3>
+
+<p>接下来，使用<a href="https://app.circleci.com/"> CircleCI控制台</a>将存储库设置为CircleCI项目。在控制台的<strong>项目</strong>选项卡上，搜索GitHub repo名称。点击<strong>为您的项目设置项目</strong>。</p>
+
+<p><img src="../Images/cfd339859b580b41eba5e5da57892524.png" alt="Circle CI set up project" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-setup-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-04-circle-ci-setup-project.png"/></p>
+
+<p>系统将提示您手动添加新的配置文件或使用现有的配置文件。您已经将所需的配置文件推送到代码库，所以选择<strong>最快</strong>选项，并输入托管您的配置文件的分支的名称。点击<strong>设置项目</strong>继续。</p>
+
+<p><img src="../Images/293785f963c1d5f516d829a0f2794170.png" alt="Circle CI project configuration" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-project-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-04-circle-ci-project-configuration.png"/></p>
+
+<p>完成设置将自动触发管道。管道将在第一次运行时失败，因为我们还没有定义环境变量。</p>
+
+<h3>设置环境变量</h3>
+
+<p>从项目仪表盘中点击<strong>项目设置</strong>，然后点击<strong>环境变量</strong>选项卡。点击<strong>添加环境变量</strong>。您应该已经创建了AWS访问密钥和密码，如本教程的先决条件中所述。将这些值分别作为<code>AWS_ACCESS_KEY</code>和<code>AWS_ACCESS_SECRET</code>相加。另外，将<code>AWS_REGION_NAME</code>的环境变量设置为您希望部署应用程序的地区。</p>
+
+<p><img src="../Images/7c5f56b4f1eabff015fc419f1ee29f6f.png" alt="Circle CI set up environment variables" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-environment-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-04-circle-ci-environment-variables.png"/></p>
+
+<p>配置好环境变量后，再次运行管道。这一次它应该会成功构建。</p>
+
+<p><img src="../Images/913b86d1f2ba2f49d8c3dcfdae344ee3.png" alt="Circle CI pipeline builds successfully" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-04-circle-ci-pipeline-builds.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-04-circle-ci-pipeline-builds.png"/></p>
+
+<h2>结论</h2>
+
+<p>本教程向您展示了AWS CDK如何简化基础设施相关代码的管理。借助AWS CDK，您可以使用自己熟悉的语言为应用程序提供资源。AWS CDK允许您在定义应用程序时使用逻辑语句和面向对象的技术。此外，AWS CDK使用行业标准协议使基础设施代码可测试。</p>
+
+<p>本教程向您展示了定义AWS Lambda函数的一个非常常见的用例，该函数具有与其他AWS服务交互的包依赖关系。我希望您同意用所有AWS服务定义堆栈并使用这里概述的步骤授予它细粒度的权限是多么简单。你可以在GitHub上查看本教程中使用的完整的<a href="https://github.com/CIRCLECI-GWP/aws-cdk-lambda-circle-ci" target="_blank" rel="noreferrer noopener">源代码</a>。如果你想定义一个类似的堆栈，GitHub项目也可以作为你的模板。</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Vivek Kumar Maskara是JP摩根的一名软件工程师。他喜欢写代码，开发应用程序，创建网站，并写关于他的经历的技术博客。他的简介和联系方式可以在<a href="https://www.maskaravivek.com/">maskaravivek.com</a>找到。</p>
+
+            <p><a href="/blog/author/vivek-maskara/" class="arrow-link">阅读更多Vivek Maskara的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

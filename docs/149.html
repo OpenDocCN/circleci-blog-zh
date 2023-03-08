@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>CircleCI Hacks: Validate CircleCI Config on Every Commit With a Git Hook - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CircleCI Hacks:在每次提交时用Git钩子验证CircleCI配置</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-hacks-validate-circleci-config-on-every-commit-with-a-git-hook/#2017-08-30T05:00:00-07:00">https://circleci.com/blog/circleci-hacks-validate-circleci-config-on-every-commit-with-a-git-hook/#2017-08-30T05:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>CircleCI 2.0开创了持续集成和交付的新时代。在2.0的新特性中(包括新的<a href="https://circleci.com/docs/sample-config/">配置文件格式</a>，对Docker映像和工作流的强调)有了通过CircleCI CLI 本地构建<a href="https://circleci.com/docs/local-jobs/">的能力。我们可以使用本地构建和Git在每次提交时轻松地验证我们的配置文件。</a></p>
+
+<p>CircleCI CLI非常适合通过本地构建来解决问题构建，并作为运行<a href="https://circleci.com/docs/ssh-access-jobs/">支持SSH的构建</a>的替代方法。</p>
+
+<p>这篇文章的重点是CLI的验证功能。</p>
+
+<h2>问题是</h2>
+
+<p>你有没有提交一些修改，把它们上传到GitHub，然后在失败前运行CircleCI构建3秒钟？这可能是由于一些简单的原因，比如在第7行隐藏了一个分散的制表符，而不是正常的2个空格的缩进。</p>
+
+<p>当你的配置文件中有几个这样的小错误时，可能会有一个持续几分钟的“修复、提交、推送、失败、重新开始”的循环。当处理代码中的重要特性时，这可能是可以接受的，但对于配置语法来说就不是了。</p>
+
+<p>本地构建可以用一行代码来验证您的配置:<code>circleci config validate -c .circleci/config.yml</code>。有了快速Git挂钩，我们甚至可以实现自动化。</p>
+
+<h2>解决方案</h2>
+
+<p>我们将在git <code>pre-commit</code>钩子中运行<code>validate</code>命令，以确保我们的配置文件按预期工作(通常是<code>.circleci/config.yml</code>)。</p>
+
+<ol>
+  <li>首先，确保在本地机器上安装了构建工具。在<a href="https://circleci.com/docs/local-jobs/#installing-the-cli-locally"> CircleCI文档</a>中有相关说明。</li>
+  <li>接下来，您需要在repo的<code>.git</code>目录中创建以下文件来创建Git挂钩。这可以用:<code>vim .git/hooks/pre-commit</code>来完成。如果你没有使用<code>vim</code>，用<code>nano</code>或者任何你喜欢使用的编辑器替换。</li>
+  <li>对自动化系统的自动化部分自我感觉良好。</li>
+</ol>
+
+<p>Git挂钩:</p>
+
+<pre><code>#!/usr/bin/env bash
+
+# The following line is needed by the CircleCI Local Build Tool (due to Docker interactivity)
+exec &lt; /dev/tty
+
+# If validation fails, tell Git to stop and provide error message. Otherwise, continue.
+if ! eMSG=$(circleci config validate -c .circleci/config.yml); then
+	echo "CircleCI Configuration Failed Validation."
+	echo $eMSG
+	exit 1
+fi
+</code></pre>
+
+<p>仅此而已。一旦git hook Bash脚本被正确地放置在存储库中，CLI中的构建工具将在每次提交之前验证您的配置。如果有效，您的提交将照常进行。否则，您将看到错误消息，提交将被取消。</p>
+
+<h2>更多信息</h2>
+
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,90 @@
+<html>
+<head>
+<title>Web application testing with Cypress | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Cypress | CircleCI测试Web应用程序</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/streamlined-web-application-testing-with-the-cypress-circleci-orb/#2018-11-16T04:14:00-08:00">https://circleci.com/blog/streamlined-web-application-testing-with-the-cypress-circleci-orb/#2018-11-16T04:14:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>我们公司Cypress.io开发了一个开源的、麻省理工学院许可的、免费的端到端测试运行程序，可以测试任何在浏览器中运行的东西。test runner使有效地测试复杂的现代web应用程序变得容易，而且它安装简单，易于学习，并且运行良好。</p>
+
+<h2>问题是</h2>
+<p>Cypress测试运行器可以用于在开发人员的机器上本地运行测试，或者在持续集成服务器上运行测试。我们坚信每一个提交都应该被测试，因此我们记录了<a href="https://on.cypress.io/circleci-orb">如何设置CI测试</a>，甚至在大量CI提供者上运行我们自己的示例项目。但是设置CI套件从来没有想象中那么容易。当然，开发人员可以从我们的示例中复制代码并粘贴到他们的配置中，但是他们通常必须运行项目并调整设置，直到项目的构建和测试通过。我们的团队意识到，整个过程比想象的要困难得多，而且常常令人沮丧。我们，这个工具的作者，没有办法帮助开发人员配置他们的CI套件。</p>
+
+<h2>球体</h2>
+<p>也就是说，直到我们看到CircleCI Orb提案和示例。哇——现在Cypress团队可以制作小的可重用CI配置，并与我们的用户共享它们！下面是我们在CircleCI上运行端到端测试的用户可以使用的最简单的例子:</p>
+
+<pre><code class="language-yaml">version: 2.1
+orbs:
+  cypress: cypress-io/cypress@1.0.0
+workflows:
+  build:
+    jobs:
+      - cypress/run
+</code></pre>
+
+<p>七行，十个单词:它正确地检查代码，安装npm依赖项以及Cypress应用程序，缓存需要缓存的所有内容，并运行所有端到端测试。美丽而优雅。</p>
+
+<p>对于想要构建应用程序并在Cypress仪表板上记录测试结果和工件的用户来说，这里有一个更复杂的例子。不需要编写任何定制代码——因为<code>cypress/run</code>作业接受这些常见用例的参数:</p>
+
+<pre><code class="language-yaml">version: 2.1
+orbs:
+  cypress: cypress-io/cypress@1.0.0
+workflows:
+  build:
+    jobs:
+      - cypress/run:
+           build: "npm run build"
+           record: true
+</code></pre>
+
+<p>参数被静态检查，并且至少防止一些配置错误。即使是我们的用户通常需要的复杂工作流，如“在一台机器上安装和构建应用，然后在10台机器上运行负载平衡的所有测试”,也可以通过<code>cypress/run</code>作业的参数轻松完成:</p>
+
+<pre><code class="language-yaml">version: 2.1
+orbs:
+  cypress: cypress-io/cypress@1.0.0
+workflows:
+  build:
+    jobs:
+      - cypress/install:
+           build: "npm run build"
+      - cypress/run:
+           record: true
+           parallel: true
+           parallelism: 10
+</code></pre>
+
+<p>最少的配置，但最高的效率。</p>
+
+<h2>自定义配置</h2>
+
+<p>Cypress Orb提供的工作足够全面，可以覆盖大多数典型用例。最终，您的项目可能会达到真正需要自定义设置的程度。当您达到这一点时，您可以“弹出”并使用完全解析的版本替换本地<code>circle.yml</code>配置文件，该版本公开了所有Cypress Orb命令及其完整的YAML文本。为此，您需要安装CircleCI CLI工具并运行:</p>
+
+<pre><code class="language-bash">$ circleci config process config.yml &gt; config.yml
+</code></pre>
+
+<p>通过运行这个命令，项目的config.yml文件将被完全解析的配置所替换，而不使用Cypress Orb。现在，您可以根据项目需求调整配置。⚠️警告:没有自动的方法从“被驱逐”的配置回到使用orb。</p>
+
+<h2>最后的想法</h2>
+<p>自从Docker出现并使建立可重复构建变得超级简单以来，我从未对持续集成服务如此兴奋过。orb给了我们，测试工具的作者，创建可重用的、版本化的CI配置的能力，这立即使我们用户的生活变得更加简单。</p>
+
+<p>如果您想了解更多信息，请务必注册参加12月5日的特别<a href="https://www2.circleci.com/circleci-cypress-webinar.html?utm_campaign=Cypress%20CircleCI%20Webinar&amp;utm_medium=blog%20post&amp;utm_source=CircleCI&amp;utm_content=text%20link"> Cypress + CircleCI网络研讨会</a>。</p>
+
+<p>请务必在<a href="https://on.cypress.io/circleci-orb">on.cypress.io/circleci-orb</a>查看我们的orb文档，并查看repo<a href="https://github.com/cypress-io/circleci-orb">cypress-io/circle ci-orb</a>。</p>
+
+<hr/>
+
+<p><i> Gleb Bahmutov是JavaScript忍者，图像处理专家，软件质量狂热分子。白天，作为Cypress.io的工程副总裁，格莱布让网络变得更好。晚上，他在https://glebbahmutov.com/blog/的<a href="https://glebbahmutov.com/blog/">与软件错误作斗争，并写博客。微软开源软件MVP。你可以跟踪他和他的作品</a><a href="https://twitter.com/bahmutov?ref_src=twsrc%5Egoogle%7Ctwcamp%5Eserp%7Ctwgr%5Eauthor"> @bahmutov </a>并找到他在<a href="https://slides.com/bahmutov">https://slides.com/bahmutov</a>会议上的演讲幻灯片。</i></p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,302 @@
+<html>
+<head>
+<title>Continuous package publishing, part II: automated npm publishing with CircleCI and packagecloud - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>连续包发布，第二部分:使用CircleCI和packagecloud - CircleCI的自动npm发布</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuous-package-publishing-part-ii-automated-npm-publishing-with-circleci-and-packagecloud/#2018-07-02T05:18:00-07:00">https://circleci.com/blog/continuous-package-publishing-part-ii-automated-npm-publishing-with-circleci-and-packagecloud/#2018-07-02T05:18:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <h3>概观</h3>
+
+<p>在本帖中，我们将回顾构建基本软件交付管道的每个步骤。为了做到这一点，我们将提供一些例子来演示使用CircleCI作为<a href="https://circleci.com/continuous-integration/" target="_blank" rel="noreferrer noopener">持续集成</a>服务器和packagecloud上的包存储库进行持续交付的自动化软件交付过程。</p>
+
+<p>要了解更多关于软件包和包管理的基本概念，以及如何将它们与CI/CD结合起来构建软件交付管道，请阅读上一篇文章<a href="https://circleci.com/blog/continuous-package-publishing/">连续包发布，第一部分:CI/CD中的包管理简介</a>。</p>
+<h3>构建软件交付管道</h3>
+
+<p>作为一个例子，我们将构建一个NodeJS包，它提供一个打印“Hello World”和相应测试的函数。我们将把代码签入到一个<code>git</code>存储库中，使用CircleCI作为一个持续集成服务器，并将包发布到packagecloud.io上的一个存储库中。</p>
+
+<p><strong>开始前</strong></p>
+
+<p>如果你想按照这篇文章中的例子来创建一个软件交付管道的例子，请阅读下面的内容:</p>
+
+<ol>
+  <li>用示例代码克隆GitHub  repo</li>
+  <li>在<a href="https://circleci.com"> CircleCI </a>上创建或登录帐户。</li>
+  <li>在<a href="https://packagecloud.io"> packagecloud </a>上创建或登录一个帐户，并按照说明创建一个存储库。示例中将使用packagecloud凭据。</li>
+  <li>在CircleCI中设置一个名为<code>NPM_TOKEN</code>的环境变量，其值为packagecloud用户API令牌。</li>
+</ol>
+
+<p>首先，让我们用我们正在构建的包的元数据创建<code>package.json</code>文件。</p>
+
+<pre><code>
+package.json
+{
+  "name": "hello-world",
+  "version": "0.1.0",
+  "description": "Print 'Hello world!'",
+  "main": "hello.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^22.2.1"
+  },
+  "author": "Armando Canals",
+  "license": "MIT"
+}
+</code></pre>
+
+<p><i><code>main</code>字段指向NodeJS程序的主入口点。这种情况下，<code>hello.js</code>。</i>以及我们的软件包将包含的相应程序:</p>
+
+<pre><code>hello.js
+function hi() {
+  return "Hello world!";
+}
+
+module.exports = hi;
+</code></pre>
+
+<p>如您所见，该程序定义了一个命名函数，该函数返回一个字符串，然后将该函数导出为NodeJS应用程序中的一个模块。</p>
+
+<p><code>module.exports</code>代码是需要这个包所必需的，这将在后面演示。让我们添加一个测试来涵盖这个功能。我们将使用<a href="https://facebook.github.io/jest/"> Jest </a>测试库(在<code>package.json</code>的<code>devDependencies</code>中列出)，因为它很简单，不需要配置。</p>
+
+<pre><code>hello.test.js
+const hi = require('./hello.js');
+
+describe('hi', () =&gt; {
+  it('should return Hello world!', () =&gt; {
+    expect(hi()).toBe("Hello world!");
+  });
+});
+</code></pre>
+
+<p>有了测试，我们就可以确保我们的代码准备好被打包分发了。</p>
+
+<h3>配置CircleCI以运行测试</h3>
+
+<p>在下一步中，我们将使用CircleCI 2.0配置在CircleCI中配置运行测试和分发npm包的工作流。</p>
+
+<p>首先，在CircleCI UI中，找到并点击<code>Add Projects</code>按钮，从可用项目列表中选择一个项目，然后点击<code>Start building</code>按钮。</p>
+
+<p><img src="../Images/23e685d4f064b4141d6ec36baca4323c.png" alt="continuouspackage1.png" srcset="https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/continuouspackage1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/continuouspackage1.png"/></p>
+
+<p>接下来，在项目根目录中，创建一个名为<code>.circleci,</code>的文件夹，并在该文件夹中创建一个名为<code>config.yml</code>的文件。</p>
+
+<pre><code>
+.circleci/.config.yml
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check {{ '/language-javascript' | docs_url }} for more details
+#
+version: 2
+
+defaults: &amp;defaults
+  working_directory: ~/repo
+  docker:
+    - image: circleci/node:8.9.1
+
+jobs:
+  test:
+    &lt;&lt;: *defaults  
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "package.json" }}
+          - v1-dependencies-
+
+      - run: npm install
+      - run:
+          name: Run tests
+          command: npm test
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+
+workflows:
+  version: 2
+  only_test:
+    jobs:
+      - test
+
+</code></pre>
+
+<p>该工作流配置将在每次提交时运行<code>jobs</code>下的<code>test</code>作业。</p>
+
+<p>要查看关于此配置的更多细节，请查看使用CircleCI 2.0 发布npm包的<a href="https://circleci.com/blog/publishing-npm-packages-using-circleci-2-0/">。</a></p>
+
+<p>此时，我们可以使用<code>git</code>签入我们的源代码。</p>
+
+<pre><code>$ git add .
+$ git commit -m 'Update circle config'
+$ git push origin feature_branch
+</code></pre>
+
+<p><img src="../Images/7714269e9ce3f32c27bf33a4aecaf826.png" alt="continuouspackage2.png" srcset="https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/continuouspackage2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/continuouspackage2.png"/></p>
+
+<p><img src="../Images/48c77a1dc6aa5b2199607f202063bd65.png" alt="continuouspackage3.png" srcset="https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/continuouspackage3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/continuouspackage3.png"/></p>
+
+<p>我们软件交付管道的测试部分已经完成！现在，每次提交源代码库时，都会运行测试套件，以确保最近的更改没有破坏任何东西。</p>
+
+<h3>使用CircleCI 2.0发布NodeJS应用程序</h3>
+<p>既然我们已经有了一个为NodeJS包运行测试的自动化方法，我们需要在发布版本准备好发布时将包部署到npm注册中心。</p>
+
+<p>首先，让我们在packagecloud 上创建一个<a href="https://packagecloud.io/l/npm-registry"> npm注册表:</a></p>
+
+<p><i>登录packagecloud后，点击“创建存储库”按钮创建一个npm注册表。下面的CircleCI配置中将使用该存储库的名称以及帐户的用户名。</i></p>
+
+<p>接下来，我们来修改一下前面的。circleci/config.yml文件，以在配置中的作业下包含部署作业:</p>
+
+<pre><code>
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check {{ '/language-javascript' | docs_url }} for more details
+#
+version: 2
+
+defaults: &amp;defaults
+  working_directory: ~/repo
+  docker:
+    - image: circleci/node:8.9.1
+
+jobs:
+  test:
+    &lt;&lt;: *defaults  
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "package.json" }}
+          - v1-dependencies-
+
+      - run: npm install
+      - run:
+          name: Run tests
+          command: npm test
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+      - persist_to_workspace:
+          root: ~/repo
+          paths: .
+
+  deploy:
+    &lt;&lt;: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Set registry URL
+          command: npm set registry https://packagecloud.io/armando/node-test-package/npm/
+      - run:
+          name: Authenticate with registry
+          command: echo "//packagecloud.io/armando/node-test-package/npm/:_authToken=$NPM_TOKEN" &gt; ~/repo/.npmrc
+      - run:
+          name: Publish package
+          command: npm publish
+
+workflows:
+  version: 2
+  test-deploy:
+    jobs:
+      - test
+      - deploy:
+          requires:
+            - test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+
+</code></pre>
+
+<p>此工作流配置将运行我们的测试，并将我们的包部署到已配置的npm注册表。将packagecloud用户和repo替换为您在packagecloud上的用户/repo。</p>
+
+<ul>
+  <li>每次提交分支时，<code>test</code>作业将运行<code>npm test</code></li>
+  <li>当包含<code>v</code>前缀的标记提交被推送到<code>git</code>(即<code>v0.1.0</code>)时，<code>deploy</code>作业将向已配置的npm注册表发布一个版本。</li>
+</ul>
+
+<p>在我们继续之前，让我们从packagecloud获取配置中使用的<code>NPM_TOKEN</code>。所需的令牌是packagecloud API令牌，可以通过以下方式找到:</p>
+
+<ol>
+  <li>
+    <p>登录packagecloud并点击侧边栏上的“API Token”按钮。</p>
+  </li>
+  <li>
+    <p>或者，通过在运行<code>npm login</code>命令的机器上配置packagecloud npm注册表之后使用<code>npm login</code>，这可能是用于获取凭证的本地开发机器。在<a href="https://packagecloud.io/docs#npm_login">包云文档</a>中阅读更多关于<code>npm login</code>的信息。</p>
+  </li>
+</ol>
+
+<p>接下来，使用packagecloud中的令牌，让我们在CircleCI中设置一个名为<code>NPM_TOKEN</code>的环境变量。发布包时，此令牌将用于在<a href="https://packagecloud.io/l/npm-registry"> packagecloud npm注册表</a>中进行身份验证。</p>
+
+<p><img src="../Images/81f4a6201067ada47f449843142e322b.png" alt="continuouspackage4.png" srcset="https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/continuouspackage4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/continuouspackage4.png"/></p>
+
+<p>或者，如果您喜欢将您的敏感环境变量签入git，但是加密，您可以遵循在<a href="https://github.com/circleci/encrypted-files"> circleci/encrypted-files </a>中概述的过程。触发包发布</p>
+
+<p>使用上面的CircleCI配置，当包含<code>v</code>前缀(即<code>v0.1.0</code>)的标记提交被推送到<code>git</code>库时，可以触发发布。</p>
+
+<pre><code>$ git tag v0.1.0
+$ git push origin v0.1.0
+</code></pre>
+
+<p><img src="../Images/c3963d33673d265006e1781e487a19b3.png" alt="continuouspackage5.png" srcset="https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/continuouspackage5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/continuouspackage5.png"/></p>
+
+<p>现在，我们在每次提交时都运行测试套件，并且在将标签推送到git时部署软件版本。</p>
+
+<p><img src="../Images/f7f5f1e0d17c123c30c7e8616b149f1c.png" alt="continuouspackage6.png" srcset="https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/continuouspackage6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/continuouspackage6.png"/></p>
+
+<h3>使用部署的NodeJS包</h3>
+
+<p>现在我们已经在一个存储库中有了我们的包，用户将需要安装包所在的存储库。让我们安装我们在CircleCI工作流中部署<code>v0.1.0</code>包的包存储库。</p>
+
+<p>我们可以通过在主目录或项目根目录中创建一个<code>.npmrc</code>文件来实现这一点，这取决于您是需要<code>npm</code>在系统范围内使用这个存储库，还是特定于一个项目。</p>
+
+<pre><code>~/.npmrc
+registry=https://packagecloud.io/armando/node-test-package/npm/
+</code></pre>
+
+<p>这个存储库包含我们之前创建的hello-world应用程序。因此，在其系统上将此配置为npm注册表的用户现在可以运行以下命令:</p>
+
+<pre><code>$ npm install hello-world
+</code></pre>
+
+<p>这个命令将安装我们在上一节中创建并发布的hello-world包。</p>
+
+<pre><code>$ node
+&gt; hello = require('hello-world');
+[Function: hi]
+&gt; hello()
+'Hello world!'
+</code></pre>
+
+<h3>结论</h3>
+
+<p>手工软件交付过程的自动化可以显著减少软件开发周期时间。通过创建部署管道，团队可以以快速、可重复和可靠的方式发布软件。</p>
+
+<p><this is="" a="" guest="" post="" written="" by="" armando="" canals="" co-founder="" at="" href="https://packagecloud.io"> packagecloud </this></p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

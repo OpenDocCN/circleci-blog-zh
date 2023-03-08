@@ -1,0 +1,53 @@
+<html>
+<head>
+<title>Tame your test environment with Docker Compose - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Docker Compose - CircleCI驯服您的测试环境</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/tame-your-test-environment-with-docker-compose/#2015-12-10T09:46:38-08:00">https://circleci.com/blog/tame-your-test-environment-with-docker-compose/#2015-12-10T09:46:38-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p><img src="../Images/d690dcc4ef7da3a52b36d665ed50257f.png" alt="Kevin_Docker_Meetup" data-original-src="https://d3r49iyjzglexf.cloudfront.net/blog/content/Kevin_Docker_Meetup-7a51904baa21d6cf5ca08904618257ea2d938f7512ab118d131ba06924666702.jpg"/></p>
+
+<p>我昨晚在Heavybit俱乐部会所的Docker meetup上做了一个有趣的小演讲。演讲的视频应该很快就会在网上发布，但在此之前，我们先来回顾一下内容。</p>
+
+
+
+<h2>复合坞站</h2>
+
+<p>即使您还没有在生产中使用Docker，Docker Compose在您的开发和测试环境中也会非常有用。Docker Compose基本上是一个工具，可以一次运行任意数量的Docker容器，这些容器相互链接，或者以简单的YAML文件中指定的任何方式进行配置。</p>
+
+<h2>服务依赖关系</h2>
+
+<p><img src="../Images/90ba24b617606a7e91f4778c72d0210f.png" alt="service dependencies" data-original-src="https://d3r49iyjzglexf.cloudfront.net/blog/content/Screen-Shot-2015-12-09-at-10.07.23-PM-ff6cc117613d69877c6c578242015095058d717d1efc51f0f2ca57eac79d3d45.png"/></p>
+
+<p>Docker Compose在您的开发/测试环境中的一个用例是管理服务依赖。例如，如果您需要一个LESS编译器、一个linter、一个DB和一个应用服务器都在您的开发环境中运行，您可以简单地使用一个docker-compose.yml来管理它们。如果您熟悉Foreman之类的工具来管理您的开发环境中的多个进程，docker Compose可以做非常类似的工作，但远不止启动每个进程，它在自己的Docker容器中运行每个服务，这意味着所有依赖项都是非常独立的。这里有一个视频示例，是我在昨晚的演讲中提到的一个用例(视频中没有声音):</p>
+
+<h2>复杂的测试服务</h2>
+
+<p><img src="../Images/64bc1fd790868d570b769f3383622a49.png" alt="test services" data-original-src="https://d3r49iyjzglexf.cloudfront.net/blog/content/Screen-Shot-2015-12-09-at-10.07.33-PM-ff7be1d518c19ad8aa1b148dc9fab53613dc9c803b89c8304b5479fc2ab8e6e7.png"/></p>
+
+<p>除了管理应用程序复杂的服务依赖关系，Docker Compose还可以帮助运行复杂的测试过程。分布式压力测试或复杂的安全扫描浮现在脑海中，但即使是普通的浏览器测试也涉及一组相当复杂的交互过程，设置和考虑起来都很复杂。Docker Compose有助于为这种设置提供一些清晰的结构，以及开发和测试/CI环境之间的对等性。这是另一个快速的视频演示(同样，没有声音):</p>
+
+<p>这就是在您的开发和测试环境(包括CircleCI)中使用Docker Compose的基本情况。以上视频中使用的所有代码都可以在GitHub上找到:</p>
+
+
+
+<p>昨晚演示的幻灯片也可以在SlideShare 上获得<a href="http://www.slideshare.net/KevinBell20/tame-your-test-environment-with-docker-compose">。</a></p>
+
+<p>感谢阅读！别忘了查看Docker 上的<a href="https://circleci.com/docs/1.0/docker/"> CircleCI文档，了解如何使用CircleCI满足您的所有Docker需求！</a></p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

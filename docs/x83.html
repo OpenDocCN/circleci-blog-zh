@@ -1,0 +1,76 @@
+<html>
+<head>
+<title>Workflows - job orchestration | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>工作流程-作业编排| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/wide-world-of-workflows-job-orchestration/#2018-07-23T05:41:00-07:00">https://circleci.com/blog/wide-world-of-workflows-job-orchestration/#2018-07-23T05:41:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>我们构建了工作流，让团队可以自由地以他们选择的任何方式运行他们的构建。工作流支持大量的定制，但是也需要做出许多决定:您应该选择顺序作业还是并行作业？你应该如何处理跨多种语言的测试？如果测试失败，您应该设置任何自动操作吗？</p>
+
+<p>我们希望展示工作流可以为您做的许多事情中的一些。但是，我们并不只是告诉您如何设置配置，而是想向您展示真正的开发团队现在是如何使用工作流来发布应用程序的。因此，我们梳理了许多使用CircleCI 2.0的开源项目，以便让您访问这些团队正在使用的真实配置文件。如果你看到对你的团队有用的东西，你会知道它是如何建立的。</p>
+
+<p>我们将这些例子分成三种类型的任务，其中有一个额外的帖子:</p>
+<ol>
+  <li>工作协调(此职位)</li>
+  <li><a href="https://circleci.com/blog/wide-world-of-workflows-multi-executor-support/">多执行者</a></li>
+  <li><a href="https://circleci.com/blog/wide-world-of-workflows-control/">控制</a></li>
+  <li><a href="https://circleci.com/blog/wide-world-of-workflows-how-we-build-our-docker-convenience-images/">我们如何在CircleCI使用工作流程</a></li>
+</ol>
+
+<p>在接下来的四篇博文中，我们将带您了解工作流的各种配置以及团队使用它们的原因。</p>
+
+<h2>工作流基础</h2>
+<p>对于不熟悉工作流的人，我们来定义一些关键术语:</p>
+
+<ul>
+  <li>工作流定义工作(如构建、测试、部署)如何运行的一组规则，给予团队对软件开发过程的细粒度控制</li>
+  <li>作业是步骤的集合和运行它们的执行环境</li>
+  <li>单步执行可执行命令</li>
+</ul>
+
+<p>好了，让我们来看看一些工作流程！</p>
+
+<h2>开源示例</h2>
+
+<p>我们要探索的第一个概念是作业编排，或者说，设置您的作业是顺序运行还是并行运行。这两者都有很好的理由，所以让我们探讨一些例子。</p>
+
+<h3>例1: <a href="https://github.com/artsy/force/blob/master/.circleci/config.yml"> Artsy </a></h3>
+
+<p><img src="../Images/447b22ae5b89f83caf71ddb839fdb7e8.png" alt="workflow_artsy.png" srcset="https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/workflow_artsy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/workflow_artsy.png"/> <em>见Artsy的config.yml <a href="https://github.com/artsy/force/blob/master/.circleci/config.yml">这里</a>。</em></p>
+
+<p>这是顺序工作流的一个例子(尽管不完全是顺序的——它们并行运行它们的<code>deploy_heroku</code>和<code>build</code>任务)。他们的工作流包含一个简单的构建-测试-部署序列，在此序列中，他们在部署到生产环境之前先部署到试运行环境。如果您有兴趣在构建和部署之前运行您的测试，或者从部署到试运行和生产，这是一个很好的例子。顺序运行的一个好处是，如果您在部署到登台时发现了问题，您可以在进一步操作之前解决该问题。使用顺序作业，您可以获得增量反馈，并可以在任何阶段进行更改。</p>
+
+
+
+<p><img src="../Images/2c60c7a04b8dd98c33d1dded20cd4558.png" alt="workflows_mapbox.png" srcset="https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/workflows_mapbox.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/workflows_mapbox.png"/> <em>见Mapbox的config.yml <a href="https://github.com/mapbox/mapbox-gl-js/blob/master/circle.yml">这里</a>。</em></p>
+
+<p>在这个例子中，Mapbox跨多个作业运行测试，以获得更快的反馈。他们同时运行集成测试、单元测试和代码lint测试，以便在合并到主测试和部署之前获得不同测试套件的反馈。这将推荐给那些希望通过一次推送运行所有测试来优化测试套件总运行时间的团队。对于大多数团队来说，这是一个很好的选择。</p>
+
+<p>一些附加说明:</p>
+
+<p>如果您听说过术语扇入和扇出，我们已经讨论过它们的作用了！在Mapbox的例子中，他们从<code>prepare</code>作业开始工作流，然后分散到并行运行的测试套件中，然后再回到<code>deploy</code>作业中。</p>
+
+<p>如果我的测试失败了怎么办？</p>
+
+<p>无论您选择并行运行还是顺序运行，如果您遇到一个或多个作业失败的问题，您会怎么做？</p>
+
+<p>有几个选项:</p>
+<ul>
+  <li><em>从头重新运行:</em>您可以使用相同的提交来触发新的工作流，从而从头重新运行您的工作流。</li>
+  <li><em>从失败重新运行:</em>如果您认为您有一个不可靠的测试，或者您有一个没有正确部署的作业，您不必重新运行整个工作流。相反，只要从失败的工作开始。</li>
+</ul>
+
+<p>使用作业协调选项可以更快地获得关于哪些工作正常、哪些工作失败的反馈，以便您可以快速做出更改并继续发货。在我们博客系列的下一篇文章中，我们将会看到使用<a href="https://circleci.com/blog/wide-world-of-workflows-multi-executor-support/">多执行者工作流</a>的开源项目。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

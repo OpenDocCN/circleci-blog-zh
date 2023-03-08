@@ -1,0 +1,110 @@
+<html>
+<head>
+<title>Deploying Clojure applications to Google Cloud - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将Clojure应用程序部署到Google Cloud - CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/deploying-clojure-applications-to-google-cloud/#2017-08-01T09:50:00-07:00">https://circleci.com/blog/deploying-clojure-applications-to-google-cloud/#2017-08-01T09:50:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <h2>不断将Clojure应用部署到Google应用引擎</h2>
+
+<p>在CircleCI我们写了很多Clojure。主要后端app是&gt; 10万行Clojure代码，前端是&gt; 3万行ClojureScript。</p>
+
+<p>我喜欢Clojure这种语言，以至于我决定也用Clojure做我的兼职项目。</p>
+
+<p>当我意识到部署到AWS需要一系列精心设计的技巧来实现连续交付(在GH -&gt; production上推送至master)时，我感到非常惊讶。虽然我每天都在工作中使用AWS，但我无法证明为我的副业项目构建自己的实现是正确的，比如秘密和蓝/绿部署。有Kubernetes，但是目前只为我的副业项目运行k8s集群既不可行也不划算(开销太大)。当我在写一个MVP而没有时间做基础设施的时候，作为一个开发者，我需要的是在自制CD过程和Kubernetes的糟糕黑客之间找到一个很好的中间点。</p>
+
+<p>我开始寻找能够让我开箱即用、配置尽可能少的CD的替代品。虽然Heroku是一个很好的选择，但我一直在寻找一种更灵活的，理想情况下负担得起的东西。</p>
+
+<p>谷歌应用引擎，作为一个完全托管的应用运行时，目前符合我的标准。GAE处理蓝/绿部署，允许比Heroku更多的定制。谷歌目前为每个决定创建新GAE账户的人提供300美元的信用点数，此外他们还提供免费等级。所有这些结合起来是一个很好的解决MVP的方法。</p>
+
+<h2>更改默认模板以支持应用引擎部署</h2>
+
+<p>我花了相当多的时间将我的第一个Clojure应用程序部署到GAE，所以我想我应该创建一个框架项目，人们可以用它来将他们的第一个项目推出到App Engine。我从一个全新的模板Compojure项目开始，只添加了一些东西。</p>
+
+<ul>
+  <li>
+    <p>Dockerfile。我们将使用App Engine灵活的环境，主要是因为更新总是意味着更好，Dockerfile对于开始使用它是必不可少的。这个<a href="https://github.com/circleci/compojure-appengine-sample/blob/master/Dockerfile"> Dockerfile本身</a>非常简单。它所做的只是从小型Clojure基础映像开始，将项目代码添加到<code>/code</code>并执行entrypoint脚本。理想情况下，我们会构建一个独立的uberjar，只将放入容器中，但同样，这种设置的目的是为了方便实验。</p>
+  </li>
+  <li>
+    <p>拥有<a href="https://github.com/circleci/compojure-appengine-sample/blob/master/docker-entrypoint.sh">入口点脚本</a>允许我们轻松定制启动我们正在构建的服务所需的命令。Compojure lein模板提供了一种通过<code>lein ring server-headless</code>用应用程序启动无头服务器的便捷方式。其他框架或应用类型可能需要一个简单的<code>lein run</code>来代替。</p>
+  </li>
+  <li>
+    <p>docker-compose . yml .<a href="https://github.com/circleci/compojure-appengine-sample/blob/master/docker-compose.yml">docker-compose文件</a>纯粹是为了更好的开发体验。<code>docker-compose up -d</code>将为您启动并运行示例应用程序。</p>
+  </li>
+  <li>
+    <p>。circle ci/config . yml . circle ci工作流的<a href="https://github.com/circleci/compojure-appengine-sample/blob/master/.circleci/config.yml">配置允许我们将测试步骤与部署分开。我们还使用两种不同的基本映像进行测试和部署——现在部署到App Engine只意味着推出代码，让Google Cloud为您完成其余工作，我们在部署时不需要Clojure映像。我们使用提供Google Cloud SDK的图片。</a></p>
+  </li>
+</ul>
+
+<p>让我们来看一下将Clojure项目部署到Google App Engine所需的步骤。</p>
+
+<h2>将Clojure项目持续部署到Google App Engine</h2>
+
+<p>我们假设你已经注册了一个谷歌云账户，并且收到了谷歌提供的免费积分。</p>
+
+<h3>1.建立一个谷歌云项目，并启用谷歌应用引擎灵活的环境</h3>
+
+<p>我们将导航到console.cloud.google.com，登录或注册，然后创建一个新的谷歌云项目。</p>
+
+<h3>2.创建服务帐户并启用GAE API访问</h3>
+
+<p>为了给CircleCI deploy build权限来推出我们应用程序的新版本，我们需要在我们的项目中创建一个服务帐户。服务帐户将需要应用引擎管理和应用引擎灵活环境服务代理权限。创建服务帐户时，将生成的JSON保存到磁盘。</p>
+
+<p><img src="../Images/813339eff045bac0db704d770dabefe9.png" alt="Adding necessary permissions to the service account" srcset="https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/ClojureSampleProject.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/ClojureSampleProject.jpeg"/> <em>给服务账号添加必要的权限</em></p>
+
+<p>一旦完成，我们将需要为我们的项目启用两个缺省禁用的API集。</p>
+
+<p>在Google Cloud的项目控制面板中，我们可以导航到侧边栏中的API管理器项目，然后单击库，搜索这些项目并单击启用:</p>
+
+<ul>
+  <li>Google应用引擎管理API</li>
+  <li>谷歌应用引擎灵活的环境</li>
+</ul>
+
+<p><img src="../Images/567805eca106fcde9dc50a85880b02b8.png" alt="Enabling Google App Engine Admin API" srcset="https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/ClojureSampleProject2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/ClojureSampleProject2.jpeg"/> <em>启用谷歌应用引擎管理API </em></p>
+
+<h3>3.创建CircleCI项目并添加服务帐户凭据</h3>
+
+<p>我们已经将代码推送到我们的VCS提供商，所以现在我们导航到CircleCI项目页面，并从那里添加我们的GitHub或Bitbucket repo作为新的CircleCI 2.0项目。CircleCI将运行一次<code>build</code>任务，我们将看到我们的测试通过了。不会触发部署步骤。</p>
+
+<p>现在，我们将下载的带有服务帐户的JSON添加到CircleCI项目的加密环境变量中。我们称这个变量为<code>GCLOUD_KEY_JSON</code>。repo中的配置会将该变量的内容输出到一个文件中，然后我们会将该文件传递给<code>gcloud</code>实用程序进行身份验证。</p>
+
+<p><img src="../Images/ab73e9cfd914d433ea4756706d671c29.png" alt="Adding the service account credentials to the encrypted env vars on CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/Compojure.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/Compojure.jpeg"/> <em>将服务帐户凭证添加到CircleCI </em>上的加密环境变量中</p>
+
+<h2>4.在CircleCI配置中编辑项目名称，然后推送</h2>
+
+<p>我们现在需要编辑CircleCI配置中的<code>gcloud</code>调用中的项目名称，以匹配我们在Google Cloud上的项目名称。一旦我们提交并推动我们的更改，CircleCI将运行完整的构建和部署工作流，并将部署我们的应用程序。</p>
+
+<p><img src="../Images/b8f37bcf92b1bb140f993b6546211152.png" alt="A successful deploy job on CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/Compojure2.jpeg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/Compojure2.jpeg"/><em>circle ci</em>上的一次成功部署作业</p>
+
+<p>从现在开始，在GitHub或Bitbucket上合并pull请求将同时触发构建和部署作业，并持续将我们的Clojure应用部署到Google App Engine。</p>
+
+<h2>逮到你了</h2>
+
+<p>谷歌应用引擎中的一些东西可能会惹恼你，或者让你的谷歌云账单比你想象的要大得多。</p>
+
+<p>首先，自动缩放在默认情况下是启用的。这就是为什么在app.yaml中我们选择手动缩放并指定实例类型。</p>
+
+<p>其次，JVM无法正确解释Docker守护进程设置的内存限制，无论您是在本地运行应用程序，还是在基于Docker的环境中运行应用程序，如Google App Engine(或CircleCI 2.0)。Java 8不支持基于组的内存限制。当您在运行Java 8应用程序的Docker容器上设置内存限制时，您基本上是在告诉Docker守护进程，如果内存使用超过了限制，就终止容器，但是JVM并不知道这个限制。因此，它在运行它的机器上分配尽可能多的空闲内存(而不是容器)。这会导致一致的内存不足错误。解决方案是通过设置$JAVA_OPTS环境变量来显式地限制JVM的内存使用，例如，如果您希望JVM只使用300M的内存，那么可以设置为包含<code>-Xmx300m</code>。我们的app.yaml中指定的实例大小是最小的实例(也是最便宜的实例)，并且只有128MB的可用内存。在模板项目中，我们将最大Java堆设置为100MB。</p>
+
+<h2>结论</h2>
+
+<p>为Clojure项目设置从CircleCI到Google App Engine的连续部署需要几个步骤，但是过程本身非常简单。</p>
+
+<p>对于我个人的使用案例——快速部署辅助项目——这种设置的最大优势是App Engine自动处理蓝/绿部署，因此对于较小的项目，不需要在部署前关闭应用程序，并在部署完成后再次启动它(当我部署到AWS EC2机器时，我必须在CD脚本中这样做)。不再需要手动部署，不再需要在EC2机器上不断打开tmux会话(真实的故事)，也不再需要未部署的更改。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

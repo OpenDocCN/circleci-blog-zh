@@ -1,0 +1,143 @@
+<html>
+<head>
+<title>Clojure microservices for JavaScript developers</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>面向JavaScript开发者的Clojure微服务</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/clojure-microservices-for-js-devs-pt-1/#2021-07-23T04:20:00-07:00">https://circleci.com/blog/clojure-microservices-for-js-devs-pt-1/#2021-07-23T04:20:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>这个系列由泰勒·苏伯格和穆萨·巴里格扎伊共同撰写。</p>
+
+<p>CircleCI在成长，这太棒了。然而，我们面临的一个增长挑战是，我们的后端主要是用Clojure编写的，很少有开发人员知道Clojure。包括我自己在内的许多CircleCI工程师都在工作中学习了Clojure。</p>
+
+<p>在加入CircleCI之前，我是一名JavaScript开发人员。作为软件工程师的通用语言，JavaScript是一种相对简单易学的语言。当然，它有(许多)怪癖，但这些都被出色的文档、无数的教程帖子和高度审查的堆栈溢出答案所掩盖。</p>
+
+<p>相比之下，Clojure的环境就不那么友好了。一旦学会了如何在括号的密集森林中导航，就很容易学会编写Clojure函数的基础知识。然而，构建可用的微服务有一个陡峭的学习曲线。在Clojure之旅的这个阶段，开发人员几乎没有什么资源。</p>
+
+<p>这是展示如何设置Clojure微服务的系列文章的第一部分:</p>
+
+
+
+<p>在这些帖子中，我们将使用JavaScript作为一个比较点来理解Clojure的新特性和有趣之处。我们不会讨论ClojureScript ，一个面向JavaScript的Clojure编译器(应该有自己的博文)。我的假设是您已经知道编写Clojure函数的基础，所以我们可以直接开始设置一个简单的Clojure微服务。</p>
+
+<p>到本系列结束时，我们希望您会发现编写Clojure微服务可以变得简单而愉快。</p>
+
+<h2>Clojure vs JavaScript</h2>
+
+<p>在我们开始创建您的第一个Clojure微服务之前，我们应该探索一下Clojure和JavaScript之间的主要区别和相似之处。这将帮助我们在心理上准备好用Clojure而不是JavaScript思考意味着什么。</p>
+
+<h3>函数式编程</h3>
+
+<p>Clojure设计的基本前提是，开发人员在面向对象程序中创造复杂性的能力远远超过他们理解这种复杂性的能力。Clojure的要点是尽可能简单地获取、转换和移动数据。</p>
+
+<p>这在Clojure中的主要表现方式是通过函数式编程风格。幸运的是，如果您来自JavaScript，这种函数式风格会有些熟悉。毕竟函数在JavaScript中是一流的，现代web开发(如<a href="https://reactjs.org/"> React </a>)往往是用函数风格编写的。事实上，Clojure据称是<a href="https://youtu.be/VSdnJDO-xdg?t=571"> React的设计</a>的灵感来源。</p>
+
+<p>有<i>种在JavaScript中使用的</i>种常见模式，但您不会在Clojure中看到:</p>
+
+<ul>
+  <li>创建大量对象来管理复杂的过程，如维护数据库连接</li>
+  <li>在对象中定义函数作为命名函数的一种方式</li>
+  <li>维护对象中的状态</li>
+</ul>
+
+<p>这实际上意味着，至少根据Peter Norvig的估计，经典的<a href="https://www.amazon.com/Design-Patterns-Object-Oriented-Addison-Wesley-Professional-ebook/dp/B000SEIBB8">“四人帮”的23种设计模式中的16种在功能范例中已经过时了。在本系列的</a><a href="https://circleci.com/blog/clojure-microservices-for-js-devs-pt-2/">下一篇文章</a>中，我们将探索我们的微服务如何在没有传统对象的情况下管理复杂的进程，如数据库或RabbitMQ连接。</p>
+
+<h4>不变</h4>
+
+<p>在面向对象的语言中，对象是通过引用传递的。对象的可变性会使您的JavaScript应用程序更难预测，更难调试。</p>
+
+<pre><code>const cheese = { foodGroup: "dairy" };
+const limburger = cheese;
+limburger.smellsBad = true;
+console.log(cheese);
+// {foodGroup: "dairy", smellsBad: true}
+</code></pre>
+
+<p>在JavaScript中，可以用不变性库来解决这个问题；比如<a href="https://immutable-js.github.io/immutable-js/"> Immutable.js </a>、<a href="https://lodash.com/"> Lodash </a>，或者<a href="https://ramdajs.com/"> Ramda </a>。在Clojure中，默认情况下数据是不可变的。</p>
+
+<pre><code>(def cheese {:food-group "dairy"})
+(def limburger (assoc cheese :smells-bad true))
+(println cheese)
+; {food-group "dairy"}
+</code></pre>
+
+<p>不可变的数据结构使我们更容易编写纯粹的、易于测试的函数。这一事实将决定我们如何在微服务中处理组合功能。与JavaScript相比，Clojure倾向于用更小的纯函数编写，这些函数被重用并重新组合成更大的函数。</p>
+
+<h4>动态类型</h4>
+
+<p>当然了。JavaScript也是动态类型化的，所以我们可能期望Clojure有一个等价的TypeScript。事实并非如此。</p>
+
+<p>有一个名为<a href="https://clojure.org/guides/spec"> Clojure.spec </a>的Clojure核心库，乍一看像是Clojure的TypeScript。但是，Clojure.spec不是类型系统，与TypeScript有重要的区别:</p>
+
+<ul>
+  <li>Clojure.spec是为灵活性和动态组合数据而设计的。它不像TypeScript那样严格，但是让您能够以几乎任何您可以想象的方式定义数据应该是什么样子。例如，假设一个函数的返回类型应该是一个质数。</li>
+  <li>Clojure.spec在运行时而不是编译时运行。这意味着您不会在IDE中得到参数与所需类型不匹配的提示，但这确实意味着您可以使用Clojure.spec来检查生产中的类型(例如，实时验证来自API的数据)</li>
+  <li>Clojure.spec允许您自动生成测试，而不是编写单独的单元测试。</li>
+</ul>
+
+<p>简而言之，Clojure中的动态类型是该语言的一个显式设计决定(尽管是一个<a href="https://news.ycombinator.com/item?id=15567164">有争议的决定</a>), clo jure . spec围绕动态编程进行了优化。Clojure没有类似的TypeScript，这是故意的。</p>
+
+<h4>一切都是数据</h4>
+
+<p>来自JavaScript世界，Clojure(和Lisps)的另一个奇怪的属性是代码是数据(自命不凡的人用<a href="https://en.wikipedia.org/wiki/Homoiconicity">同形异义</a>)。</p>
+
+<p>您可以用<code>’</code>告诉Clojure将函数调用视为列表数据结构，而不是对其求值。在这个例子中，我们创建了一个定义，它等于一个未赋值的函数调用。这个未赋值的函数调用只是一个列表。然后我们取列表中的第一个成员，加法运算符。</p>
+
+<pre><code>clj꞉dev꞉&gt;  (def code-is-data '(+ 1 3))
+clj꞉dev꞉&gt; (first code-is-data)
+; +
+</code></pre>
+
+<p>理解Clojure的这一方面对于理解<a href="https://clojure.org/reference/macros">宏</a>很重要。宏看起来与函数非常相似；他们接受论点并有一个身体。然而，它们在一个关键方面不同于函数。函数评估它们的参数并返回数据，而宏返回一个数据结构，然后被评估。为了演示，我们可以创建一个使用中缀而不是<a href="https://en.wikipedia.org/wiki/Polish_notation">前缀</a>符号的宏。</p>
+
+<pre><code>clj꞉dev꞉&gt;  (defmacro infix
+            [[num-1 operator num-2]]
+            (list operator num-1 num-2))
+clj꞉dev꞉&gt;  (infix (2 * 3))
+; 6
+</code></pre>
+
+<p>当您构建Clojure微服务时，您会经常遇到外部库中的宏。这些宏最初可能会令人困惑，因为它们看起来好像违反了Clojure语法规则。实际上，它们是_扩展_Clojure的语法。</p>
+
+<h4>虚拟机（Java Virtual Machine的缩写）</h4>
+
+<p>前面我说过，在Clojure中，您编写功能性代码，而不是创建有状态对象。这并不完全正确。</p>
+
+<p>Clojure运行在JVM平台上(虽然Clojure也可以<a href="https://clojurescript.org/">编译成JavaScript </a>)。这意味着在Clojure中，您可以访问Java世界提供的一切。你可以<a href="https://clojure.org/reference/java_interop#new">导入Java库并创建类</a>。</p>
+
+<p>这是一种“鱼与熊掌不可兼得”的情况，将功能性动态语言的表达能力与JVM的能力和信任结合在一起。</p>
+
+<p>例如，我们可以使用Clojure的“<a href="https://clojuredocs.org/clojure.core/new"> new </a>”表单来创建Java的<a href="https://docs.oracle.com/javase/8/docs/api/java/sql/Date.html"> Date类</a>的实例。</p>
+
+<pre><code>(defn now [] (new java.util.Date))
+(now)
+; #inst "2021-04-22T15:06:19.329-00:00"
+</code></pre>
+
+<h4>取代</h4>
+
+<p>Clojure和JavaScript都允许您在REPL(读取-评估-打印循环)中编写代码。然而，在JavaScript中，我们倾向于依赖测试驱动的开发，并在本地运行我们的web应用来驱动我们的开发工作流。</p>
+
+<p>在Clojure(和许多其他Lisps)中，REPL是开发工作流的核心。事实上，Clojure是专门为REPL驱动的工作流设计的。Clojure的REPL允许您进行交互式的灵活开发体验，最终收紧您的迭代/反馈循环。</p>
+
+<p>如果您喜欢冒险，您甚至可以使用Clojure的REPL来修改生产中的代码，而无需提交。众所周知，<a href="http://www.flownet.com/gat/jpl-lisp.html">深空1号探测器在1亿英里之外使用普通的LISP REPL </a>修复了一个错误。</p>
+
+<h2>包扎</h2>
+
+<p>作为一名JavaScript开发人员，使用Clojure进行思考可能会很自然。您可能已经使用函数式风格编写代码，使用动态类型，并使用REPL编写代码。</p>
+
+<p>尽管如此，Clojure在几个关键方面与JavaScript有本质的不同:不可变数据、多态而不是在对象内定义方法，以及同象性(代码就是数据)。这些方面中的任何一个都可能是JavaScript开发人员的挑战。</p>
+
+<p>理解Clojure和JavaScript之间的异同将在我们的下一篇文章中对你大有裨益，在下一篇文章中，我们将<a href="https://circleci.com/blog/clojure-microservices-for-js-devs-pt-2/">构建你的第一个Clojure微服务</a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

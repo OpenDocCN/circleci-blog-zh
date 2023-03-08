@@ -1,0 +1,446 @@
+<html>
+<head>
+<title>Continuous deployment of an Express GraphQL server to Heroku | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将Express GraphQL服务器持续部署到Heroku | CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuous-deployment-of-an-express-graphql-server-to-heroku/#2020-04-28T09:00:00-07:00">https://circleci.com/blog/continuous-deployment-of-an-express-graphql-server-to-heroku/#2020-04-28T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>自从2015年由脸书在<a href="https://engineering.fb.com/core-data/graphql-a-data-query-language/">公开发布以来，GraphQL </a>的受欢迎程度与日俱增。该技术使前端客户能够从后端查询他们到底需要什么，并获得了Pinterest、Coursera、Airbnb和脸书等知名公司的广泛认可和采用。</p>
+
+<p>在这篇文章中，我们将学习如何使用CircleCI通过<a href="https://circleci.com/continuous-integration/">持续集成</a> (CI)管道将Node.js编写的简单GraphQL服务器部署到Heroku。</p>
+
+<h2>先决条件</h2>
+<p>要跟进这篇文章，您需要设置以下内容:</p>
+<ul>
+  <li>安装在您的系统上的<a href="https://nodejs.org/"> Node.js </a>(您可以通过在您的终端上运行命令<code>node -v</code>来打印您安装的Node.js版本来确认这一点)</li>
+  <li>安装在您的系统上的<a href="https://git-scm.com/"> Git </a>(您可以通过在您的终端上运行命令<code>git</code>来确认这一点；这应该会打印出可用的git命令)</li>
+  <li>英雄的叙述</li>
+  <li>GitHub的一个账户</li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+</ul>
+
+<p># #搭建GraphQL服务器项目要开始设置GraphQL服务器，请通过运行以下命令为项目创建一个新文件夹:</p>
+
+<pre><code>mkdir graphql-test-server
+</code></pre>
+<p>现在进入文件夹的根目录，运行以下命令来构建一个新的Node.js项目:</p>
+
+<pre><code>npm init -y
+</code></pre>
+<p><code>-y</code>可选标志允许您跳过确认创建<code>package.json</code>文件问题的默认答案，直接接受它们。</p>
+
+<p>我们将创建一个<a href="https://expressjs.com/"> ExpressJS </a> Node.js应用程序，并构建GraphQL服务器。为此，我们需要安装以下软件包:</p>
+
+<ul>
+  <li><code>express</code>:创建我们的ExpressJS Node.js应用程序</li>
+  <li><code>graphql</code>:node . js的GraphQL npm包</li>
+  <li><code>express-graphql</code>:graph QL的ExpressJS中间件</li>
+</ul>
+
+<p>通过运行以下命令安装这些软件包:</p>
+
+<pre><code>npm install --save express graphql express-graphql
+</code></pre>
+
+<p>太好了！</p>
+
+<p>我们现在有了开始组装GraphQL服务器所需的包。</p>
+
+<h2>定义GraphQL模式</h2>
+<p>通过运行以下命令，在项目的根目录下创建一个名为<code>src</code>的文件夹:</p>
+
+<pre><code>mkdir src
+</code></pre>
+
+<p>在这个文件夹中，创建一个名为<code>schema.js</code>的新文件，并粘贴下面的代码。</p>
+
+<pre><code>
+const { buildSchema } = require("graphql");
+
+const schema = buildSchema(`
+    type Query {
+        users: [User!]!,
+        user(id: Int!): User!
+    }
+
+    type Mutation {
+        editUser(id: Int!, name: String!, email: String!): User!
+    }
+
+    type User {
+        id: ID!
+        name: String!
+        email: String
+        posts: [Post!]
+    }
+
+    type Post {
+        id: ID!
+        title: String!
+        published: Boolean!
+        link: String
+    }
+`);
+
+module.exports = schema;
+
+
+</code></pre>
+
+<p>在上面的代码中，我们创建了四个类型，包括两个内置类型(<code>Query</code>和<code>Mutation</code>)和两个自定义类型(<code>User</code>和<code>Post</code>)。</p>
+
+<p>从自定义类型开始，我们定义了以下内容:</p>
+
+<ul>
+  <li><code>User</code>:一种类型，表示应用程序中的用户及其相应的字段和一个相关的<code>posts</code>字段，该字段返回用户创建的帖子数组</li>
+  <li><code>Post</code>:表示由用户在应用程序中创建的出版物的类型及其相应的字段</li>
+  <li><code>Query</code>:在<code>Query</code>类型中，我们定义了两条可以从GraphQL服务器查询的信息，如下所示:<ul>
+      <li><code>users</code>:一个<code>Users</code>的数组</li>
+      <li><code>user</code>:参数列表中带有指定<code>id</code>的单个<code>User</code></li>
+    </ul>
+  </li>
+  <li><code>Mutation</code>:在<code>Mutation</code>类型中，我们定义了<code>editUser</code>变异，给定用户的<code>id</code>，可以调用它来编辑用户，然后更新信息(<code>name</code>和<code>email</code>)</li>
+</ul>
+
+<p>模式是使用<code>graphql</code>包的<code>buildSchema</code>创建的，并在文件末尾导出。</p>
+
+<h2>模拟数据</h2>
+<p>为了获得查询结果，我们需要数据。在这个练习中，我们将使用MongoDB。</p>
+
+<p>然而，由于这篇文章的目标是演示如何部署一个简单的GraphQL服务器，所以我们不会费心设置一个MongoDB服务器。相反，我们将使用一个使用<code>mongodb-memory-server</code>的模拟版本。这个包允许我们创建和使用内存中的MongoDB数据库服务器。</p>
+
+<p>要进行设置，请在项目的根目录下运行以下命令来安装所需的软件包:</p>
+
+<pre><code>npm install --save mongodb mongodb-memory-server
+</code></pre>
+<p>根据您的下载速度，此安装可能需要一段时间。在撰写本文时，MongoDB的大小至少为66兆字节。</p>
+
+<p>安装完成后，在<code>src</code>文件夹中创建一个名为<code>data.js</code>的新文件。该文件将导出一组硬编码的用户数据。将以下代码粘贴到文件中。</p>
+
+<pre><code>const Users = [
+  {
+    id: 1,
+    name: "Fikayo Adepoju",
+    email: "fik4christ@yahoo.com",
+    posts: [
+      {
+        id: 1,
+        title: "Creating an Emoji Game with Vue, Auth0, and Google Vision API",
+        published: true,
+        link:
+          "https://auth0.com/blog/creating-an-emoji-game-with-vue-auth0-and-google-vision-api/",
+        author: 1
+      },
+      {
+        id: 2,
+        title: "Electron Tutorial: Building Modern Desktop Apps with Vue.js",
+        published: true,
+        link:
+          "https://auth0.com/blog/electron-tutorial-building-modern-desktop-apps-with-vue-js/",
+        author: 1
+      },
+      {
+        id: 3,
+        title: "State Management with Vuex: a Practical Tutorial",
+        published: true,
+        link:
+          "https://auth0.com/blog/state-management-with-vuex-a-practical-tutorial/",
+        author: 1
+      }
+    ]
+  },
+  {
+    id: 2,
+    name: "John Doe",
+    email: "john@company.com",
+    posts: [
+      {
+        id: 4,
+        title: "Build a CI powered RESTful API with Laravel",
+        published: true,
+        link:
+          "https://circleci.com/blog/build-a-ci-powered-restful-api-with-laravel/",
+        author: 2
+      },
+      {
+        id: 5,
+        title: "Automate your Nuxt.js app deployment",
+        published: true,
+        link: "https://circleci.com/blog/automate-your-nuxt-js-app-deployment/",
+        author: 2
+      }
+    ]
+  },
+  {
+    id: 3,
+    name: "Jane Paul",
+    email: "jane@company.com",
+    posts: []
+  }
+];
+
+module.exports = {
+  Users
+};
+
+</code></pre>
+
+<p>在上面的代码中，我们有一个用户对象及其相应的帖子的数组。一旦我们的内存数据库被实例化，这些信息将被用来播种它。</p>
+
+<p>下一个任务是设置我们的模拟MongoDB数据库服务器。在<code>src</code>文件夹中，创建一个名为<code>database.js</code>的新文件，并将以下代码插入该文件。</p>
+
+<pre><code>const { MongoMemoryServer } = require("mongodb-memory-server");
+const { MongoClient } = require("mongodb");
+const data = require("./data");
+
+let database = null;
+
+async function startDatabase() {
+  const mongo = new MongoMemoryServer();
+  const mongoDBURL = await mongo.getConnectionString();
+  const connection = await MongoClient.connect(mongoDBURL, {
+    useNewUrlParser: true
+  });
+
+  //Seed Database
+  if (!database) {
+    database = connection.db();
+    await database.collection("users").insertMany(data.Users);
+  }
+
+  return database;
+}
+
+module.exports = startDatabase;
+</code></pre>
+
+<p>在上面的代码中，我们导出了一个<code>startDatabase</code>函数。这个函数只是启动一个新的(模拟的)MongoDB服务器实例，并获取数据库实例的连接字符串。然后，它使用连接字符串创建一个新的MongoDB客户端连接。</p>
+
+<p>连接到数据库后，我们用从我们的<code>data.js</code>文件导出的用户数据作为种子。在用数据播种数据库之前，检查数据库引用是否为<code>null</code>,以防止应用程序每次启动时都将数据输入数据库。</p>
+
+<p>最后，该函数返回数据库引用。</p>
+
+<h2>定义我们的解决方案</h2>
+<p>接下来，我们需要为GraphQL查询定义解析器，以便为每个查询操作返回适当的数据。我们将为<code>users</code>和<code>user</code>查询以及<code>editUser</code>变异定义解析器。</p>
+
+<p>在<code>src</code>文件夹中创建一个名为<code>resolvers.js</code>的新文件，并粘贴以下代码。</p>
+
+<pre><code>const resolvers = {
+  users: async (_, context) =&gt; {
+    const { db } = await context();
+    return db
+      .collection("users")
+      .find()
+      .toArray();
+  },
+  user: async ({ id }, context) =&gt; {
+    const { db } = await context();
+    return db.collection("users").findOne({ id });
+  },
+  //Mutation resolvers
+  editUser: async ({ id, name, email }, context) =&gt; {
+    const { db } = await context();
+
+    return db
+      .collection("users")
+      .findOneAndUpdate(
+        { id },
+        { $set: { name, email } },
+        { returnOriginal: false }
+      )
+      .then(resp =&gt; resp.value);
+  } 
+};
+
+module.exports = resolvers;
+
+</code></pre>
+
+<p>如上所述，现在我们的服务器上有了三个GraphQL请求的解析器。这些解析器使用我们之前通过从GraphQL服务器的<code>context</code>对象引用而创建的数据库引用来获取和更新数据。</p>
+
+<p>在下一节中，当我们把所有东西放在一起时，这个引用将被添加到GraphQL服务器设置的<code>context</code>对象中。</p>
+
+<h2>设置GraphQL服务器</h2>
+<p>是时候将我们构建的每个组件放在一起，以设置我们的GraphQL服务器了。</p>
+
+<p>在我们开始之前，我们需要再安装一个包。<code>graphql</code>包附带了<code>GraphiQL</code>应用程序，它允许您查询GraphQL端点，但是让我们添加一个更健壮的工具。我们将安装<code>graphql-playground-middleware-express</code>包，为我们查询GraphQL端点提供一个更好的界面。</p>
+
+<p>运行以下代码来安装该软件包:</p>
+
+<pre><code>npm install --save graphql-playground-middleware-express
+</code></pre>
+
+<p>我们将使用这个中间件来建立查询我们的服务器的GraphQL平台。</p>
+
+<p>让我们通过在项目的根目录下创建一个名为<code>index.js</code>的文件并在其中放置以下代码来设置我们的服务器。</p>
+
+<pre><code>const express = require("express");
+const graphqlHTTP = require("express-graphql");
+const schema = require("./src/schema");
+const resolvers = require("./src/resolvers");
+const startDatabase = require("./src/database");
+const expressPlayground = require("graphql-playground-middleware-express").default;
+
+// Create a context for holding contextual data 
+const context = async () =&gt; {
+  const db = await startDatabase();
+
+  return { db };
+};
+
+const app = express();
+
+app.use(
+  "/graphql",
+  graphqlHTTP({
+    schema,
+    rootValue: resolvers,
+    context
+  })
+);
+
+//Graphql Playground route
+app.get("/playground", expressPlayground({ endpoint: "/graphql" }));
+
+const port = process.env.PORT || "4000";
+
+app.listen(port);
+
+console.log(`🚀 Server ready at http://localhost:4000/graphql`);
+
+</code></pre>
+
+<p>在上面的文件中，我们从导入所有必需的模块开始。然后，我们创建GraphQL上下文，并从中返回一个包含对MongoDB实例的引用的对象。接下来，我们创建ExpressJS应用程序，并用GraphQL <code>schema</code>、<code>resolvers</code>和<code>context</code>设置<code>express-graphql</code>中间件。然后，我们在路线<code>/playground</code>处设置GraphQL操场来加载我们的GraphQL端点。最后，我们启动ExpressJS服务器监听端口4000，并向控制台打印一条消息。</p>
+
+<h2>查询GraphQL服务器</h2>
+<p>现在我们已经设置好了服务器，让我们试一试。首先，让我们在<code>package.json</code>中创建一个<code>start</code>脚本来启动我们的服务器。</p>
+
+<p>将以下脚本添加到<code>package.json</code>文件的<code>scripts</code>部分。</p>
+
+<pre><code>...
+
+“scripts” : {
+	...,
+	“start” : “node index.js”
+}
+</code></pre>
+
+<p>运行<code>npm start</code>启动服务器。</p>
+
+<p>一旦服务器启动并运行，打开你的浏览器并访问<code>http://localhost:4000/playground</code>打开游戏场。您将看到一个类似于下图的屏幕。</p>
+
+<p><img src="../Images/88f9ffc4fb35158f5a6d2e7638fb4002.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql1.png"/></p>
+
+<p>操场自动指向我们的GraphQL端点。从这里，我们可以针对我们的端点编写查询并获得结果。将下面的查询粘贴到操场的查询部分，然后点击播放来运行它:</p>
+
+<pre><code>{
+  users {
+    name
+    email
+    posts {
+      title
+      published
+    }
+  }
+}
+
+</code></pre>
+
+<p>运行上面的查询将产生下面屏幕上显示的结果。</p>
+
+<p><img src="../Images/a2fd6dc1b9335c7fb50056de0005bafc.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql2.png"/></p>
+
+<p>如上所示，我们的GraphQL服务器工作正常，并返回预期的数据。</p>
+
+<h2>和CircleCI一起部署到Heroku</h2>
+<p>我们最后的任务是在Heroku主机平台上通过CI管道和CircleCI部署我们的GraphQL服务器。</p>
+
+<p>我们将采取以下步骤来部署我们的GraphQL服务器:</p>
+
+<ul>
+  <li>将项目推送到GitHub存储库</li>
+  <li>创建一个新的Heroku应用程序并获取Heroku API密钥</li>
+  <li>向我们的CircleCI帐户添加一个新项目，并将其连接到GitHub repo</li>
+  <li>将我们的Heroku应用程序名称和API键作为环境变量添加到我们的新项目中</li>
+  <li>编写部署到Heroku的CircleCI配置文件</li>
+  <li>将配置推送到我们的GitHub repo以部署到Heroku</li>
+</ul>
+
+<p>我们开始吧。首先，把项目推给一个GitHub回购。</p>
+
+<p>接下来，创建一个Heroku应用程序，如下所示。您输入的名称是您将在CircleCI上保存为Heroku应用程序名称的名称。</p>
+
+<p><img src="../Images/1a877a42b229bf7669d9c3450898d8be.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql3.png"/></p>
+
+<p>你可以通过进入<strong>账户设置</strong>并向下滚动到<strong> API密钥</strong>部分来获得你的Heroku API密钥。</p>
+
+<p>将我们的应用程序部署到Heroku的下一步是将GitHub存储库中的应用程序连接到CircleCI。</p>
+
+<p>转到您的<a href="https://app.circleci.com/dashboard"> CircleCI仪表板</a>，在<strong>添加项目</strong>部分添加项目。</p>
+
+<p><img src="../Images/61cc900bfb6f70c14e289d05cbf8a60c.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql4.png"/></p>
+
+<p>接下来设置你的项目(在这里是<code>simple-graphql-node-server</code>，点击<strong>设置项目</strong>。这将把你带到一个类似下面的页面。</p>
+
+<p><img src="../Images/afd28ab254d1e773f9fdfbdd2dbc16d1.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql5.png"/></p>
+
+<p>点击<strong>开始构建</strong>开始设置项目。这将立即给出一个错误，表明在项目中找不到CircleCI配置文件。这是可以理解的，因为我们还没有包括我们的管道配置文件。我们稍后将会这样做。</p>
+
+<p>下一步是将我们的Heroku细节作为环境变量添加到新建立的项目中。为了将我们的项目从CircleCI推送到Heroku，我们需要在CircleCI和Heroku之间配置一个经过认证的握手。这是通过在CircleCI项目的设置中创建两个环境变量来实现的。这两个环境变量是:</p>
+<ul>
+  <li><code>HEROKU_APP_NAME</code>:这是您的Heroku应用程序的名称(在本例中为<code>simple-graphql-node-server</code>)</li>
+  <li>您的Heroku帐户API密钥。这可以在<strong>账号设置</strong>下你的Heroku账号的<strong>账号</strong>标签中找到。</li>
+</ul>
+
+<p>要添加这些细节，请前往您的CircleCI仪表板，并为您的项目单击<strong>设置</strong>。在设置页面的工具条菜单上，点击<strong>构建设置</strong>下的<strong>环境变量</strong>。</p>
+
+<p><img src="../Images/a8d5cacdb4ff0a3743d62520973763cf.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql6.png"/></p>
+
+<p>在环境变量页面上，创建两个名为<code>HEROKU_APP_NAME</code>和<code>HEROKU_API_KEY</code>的变量，并添加各自的值。</p>
+
+<p>有了这些，我们的CircleCI配置可以使用它们对Heroku平台进行认证部署。现在，让我们编写CircleCI配置，将GraphQL服务器部署到Heroku。</p>
+
+<p>在项目的根目录下创建一个名为<code>.circleci</code>的文件夹，并在其中创建一个<code>config.yml</code>文件。添加以下配置。</p>
+<pre><code>version: 2.1
+orbs:
+  heroku: circleci/heroku@0.0.10
+workflows:
+  heroku_deploy:
+    jobs:
+      - heroku/deploy-via-git
+</code></pre>
+<p>上面的代码使用CircleCI的<a href="https://circleci.com/developer/orbs/orb/circleci/heroku"> Heroku orb </a>来执行到Heroku的无缝部署。一个<a href="https://circleci.com/orbs/"> orb </a>是一个可重用的YAML配置包，它将重复的配置压缩成一行代码。这使得部署到Heroku变得非常容易，而不需要自己编写复杂的配置。</p>
+
+<p>保存这个文件，并将您的更改推送到GitHub存储库。然后观察您的CircleCI仪表板在成功推送后触发部署。您将在仪表板上看到一个成功的部署，类似于下面的屏幕。</p>
+
+<p><img src="../Images/f261cf7ffb3dc653a518ba3f06767b59.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql7.png"/></p>
+
+<p>厉害！</p>
+
+<p>现在让我们在live应用程序上访问我们的操场，以确认我们的部署是好的。访问链接<code>https://YOUR_HEROKU_APP_NAME.herokuapp.com/playground</code>。在我们的练习中，这将是如下所示的<code>https://simple-graphql-node-server.herokuapp.com/playground</code>。</p>
+
+<p><img src="../Images/0b82f119e1962ac5a7fa3834198c3c8b.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-27-graphql8.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-27-graphql8.png"/></p>
+
+<h2>结论</h2>
+<p>在本文中，我们已经成功地组装了一个简单的GraphQL服务器，并使用CircleCI自动化了它的部署。GraphQL将继续存在，并有望获得更多的采用，因为它的许多优点使它值得更多的使用。</p>
+
+<p>编码快乐！</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

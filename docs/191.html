@@ -1,0 +1,187 @@
+<html>
+<head>
+<title>Continuous Integration at Segment - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>线段-圆上的连续积分</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuous-integration-at-segment/#2016-06-27T09:44:00-07:00">https://circleci.com/blog/continuous-integration-at-segment/#2016-06-27T09:44:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p><em>这是联合创始人Calvin French-Owen撰写的Segment博客的转贴。Calvin和Segment的团队将于本周四(6月30日)在T2 circle ci的办公时间发表演讲。请加入我们关于<a href="https://www.ampproject.org/">谷歌的AMP项目</a>的特别报告！</em></p>
+
+<p>作为我们推动公开细分市场内部进展的一部分，我们希望分享我们如何运行我们的<a href="https://circleci.com/continuous-integration/" target="_blank" rel="noreferrer noopener">持续集成</a> (CI)构建。我们的大多数方法遵循标准实践，但是我们想要分享一些我们用来加速我们的构建管道的技巧和诀窍。</p>
+
+<p>驱动我们所有构建的是<a href="https://circleci.com/"> CircleCI </a>、<a href="https://github.com/"> Github </a>和<a href="https://hub.docker.com/"> Docker Hub </a>。每当有推送到Github时，存储库就会触发CircleCI上的构建。如果这个构建是一个带标签的发布，并且通过了测试，我们为这个容器构建一个映像。</p>
+
+<p>然后，该映像被推送到Docker Hub，并准备好部署到我们的生产基础架构中。</p>
+
+<p><img src="../Images/c72fa24b83631bc72c86fdd4c6596198.png" alt="2016-06-27-ci-at-segment-flow.png" srcset="https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-flow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2016-06-27-ci-at-segment-flow.png"/></p>
+
+
+
+<h2>CircleCI和Travis CI</h2>
+
+<p>在继续讲下去之前，我想先谈谈房间里的大象:特拉维斯·CI。几乎所有关于CI工具的讨论都围绕着使用Travis CI还是CircleCI展开。两者都是圆滑的，托管的，和响应的。两者都非常容易使用。</p>
+
+<p>老实说，我们喜欢这两种工具。我们将Travis CI用于我们的许多开源库，而CircleCI则用于我们的许多私有回购。这两种产品都非常好用，非常好地满足了我们的需求。</p>
+
+<p>然而，CircleCI有一个我们非常喜欢的特性:SSH访问。</p>
+
+<p>大多数时候，我们在配置测试环境时没有任何问题。但是当我们这样做时，SSH到运行代码的容器的能力是非常宝贵的。</p>
+
+<p>客观地说，<a href="https://segment.com/blog/why-microservices/"> Segment通过数百种不同的微服务运行我们的整个基础设施</a>。每一个都来自不同的repo，并通过<a href="https://docs.docker.com/compose/"> docker-compose </a>以一些不同的依赖关系运行。</p>
+
+<p>我们的CI大部分都是相对标准的，但是偶尔设置一个新环境的服务需要一些定制工作。它在一个新的回购中，将需要它自己的依赖集和构建步骤。这就是能够在测试环境中运行命令<em>的地方——你可以在机器上调整配置。不再有数百个“修复配置项”提交！</em></p>
+
+<h2>Dotfiles</h2>
+
+<p>为了处理所有这些不同的回购，我们想让设置回购变得非常简单，以便它支持CI。我们有三个经常使用的不同的圆形命令，它们在我们的公共点文件中共享。首先，circle()设置了所有正确的环境变量，并自动启用了我们的slack通知。</p>
+
+<pre><code>org=$(basename $(dirname $(pwd)))
+repo=$(basename $(pwd))
+
+echo enabling project
+curl "https://circleci.com/api/v1/project/${org}/${repo}/follow?circle-token=${circletoken}" \
+  -X POST \
+  -H "Accept: application/json" \
+  --silent &gt; /dev/null
+
+echo enabling notifications
+curl "https://circleci.com/api/v1/project/${org}/${repo}/settings?circle-token=${circletoken}" \
+  -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"slack_webhook_url": "xxxxxxxxx"}' \
+  --silent &gt; /dev/null
+</code></pre>
+
+<p>此外，我们有一个circle.open()命令，可以直接从您的浏览器中的CLI自动打开测试结果。</p>
+
+<pre><code>repo=$(git remote -v)
+re="github.com/([^/]+/[^[:space:]]+)(.git)"
+if [[ $repo =~ $re ]]; then open "https://circleci.com/gh/${BASH_REMATCH[1]}"; fi
+</code></pre>
+
+<p>最后是circle.badge()命令，用于自动将标记添加到repo中</p>
+
+<pre><code>org=$(basename $(dirname $(pwd)))
+repo=`basename $(pwd)`
+
+echo creating status token
+response=`curl "https://circleci.com/api/v1/project/$org/$repo/token?circle-token=$circletoken" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"label":"badge","scope":"status"}' \
+  --silent`
+statustoken=`node -pe 'JSON.parse(process.argv[1]).token' "$response"`
+
+badge="[![Circle CI](https://circleci.com/gh/segmentio/$repo.svg?style=svg&amp;circle-token=$statustoken)](https://circleci.com/gh/segmentio/$repo)"
+
+echo adding badge to Readme.md
+echo $badge &gt; temp-readme.md
+cat Readme.md &gt;&gt; temp-readme.md
+cp temp-readme.md Readme.md
+rm temp-readme.md
+</code></pre>
+
+<h2>共享脚本</h2>
+
+<p>现在，考虑到我们有数百个repos，当我们对circle.yml文件进行更改时，我们的任务是保持所有测试脚本和存储库同步。在几百个回购中保持相同的行为是很烦人的，但是我们决定宁愿用抽象问题(很难解决)来换取在工具上更大的投资(通常更容易)。为此，我们在一个共享的git repo中使用一组通用的脚本。每次测试运行时，脚本都会被拉下来，并处理共享的打包和部署。每个服务的circle.yml文件如下所示:</p>
+
+<pre><code>machine:
+  node:
+    version: 4
+  services:
+    - docker
+
+deployment:
+  deploy:
+    tag: /[0-9]+(\.[0-9]+)*/
+    commands:
+      - git clone github.com/segmentio/circle-scripts.git
+      - sh ./circle-scripts/node-deploy.js
+</code></pre>
+
+<p>这意味着如果我们改变我们的部署方案，我们只需更新一个位置中的代码，而不是更新每个单独的repo的circle.yml。然后，我们可以根据我们在单独的服务repo中需要的构建类型引用不同的脚本。</p>
+
+<h2>码头集装箱</h2>
+
+<p>最后，没有Docker容器，整个构建过程是不可能的。容器极大地简化了我们将代码推向生产、根据我们的内部服务进行测试以及本地开发的方式。</p>
+
+<p>在测试我们的服务时，我们利用docker-compose.yml文件来运行我们的测试。这样，一个给定的服务实际上可以针对CI中运行的<em>完全相同的映像</em>进行测试。它减少了对模拟或存根的需求。</p>
+
+<p><img src="../Images/90ea1317aa8be101a323c8f4a79f2a9d.png" alt="2016-06-27-ci-at-segment-docker.png" srcset="https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2016-06-27-ci-at-segment-docker.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2016-06-27-ci-at-segment-docker.png"/></p>
+
+<p>此外，当映像由CI构建时，我们可以将这些相同的映像下载下来，并在本地运行它们。</p>
+
+<p>为了实际构建代码并将其推向生产，CircleCI将首先运行测试，然后检查该构建是否是一个带标签的发布。对于任何带标签的版本，我们都让CircleCI通过Docker文件构建容器，然后对其进行标记并将其部署到Docker Hub。</p>
+
+<p>我们没有使用latest everywhere，而是将标记的映像与主版本(1.x)和次版本(1.2.x)一起显式部署到Docker Hub。</p>
+
+<p>这样，我们能够在需要时指定回滚到特定版本——或者在不需要特定版本时部署某个发布分支的最新版本(对于本地开发和docker-compose文件非常有用)。</p>
+
+<p>这样做的代码相对简单，首先我们检测版本:</p>
+
+<pre><code>tag="$(git describe --tags --always)"
+
+# Find our individual versions from the tags
+if [ -n "$(echo $tag | grep -E '.*\..*\..*')" ]
+then
+    major=$(echo $tag | cut -d. -f1)
+    minor=$(echo $tag | cut -d. -f2)
+    patch=$(echo $tag | cut -d. -f3)
+
+    major_version_tag=$major.x
+    minor_version_tag=$major.$minor.x
+    patch_version_tag=$major.$minor.$patch
+
+    tag_list="$major_version_tag $minor_version_tag $patch_version_tag"
+else
+    tag_list=$tag
+    fi
+</code></pre>
+
+<p>然后，我们构建、标记并推送我们的docker图像:</p>
+
+<pre><code>docker build -t segment/$CIRCLE_PROJECT_REPONAME .
+
+# Tag the new image with major, minor and patch version tags.
+for version in $tag_list
+do
+    echo "==&gt; tagging $version"
+    docker tag segment/$CIRCLE_PROJECT_REPONAME:latest segment/$CIRCLE_PROJECT_REPONAME:$version
+done
+
+# Push each of the tags to docker hub, including latest
+for version in $tag_list latest
+do
+    echo "==&gt; pushing $version"
+    docker push segment/$CIRCLE_PROJECT_REPONAME:$version
+done
+</code></pre>
+
+<p>一旦我们的映像被推送到Docker Hub，我们就能保证构建出正确版本的代码，这样我们就可以将其部署到生产环境中，并在ECS 中运行。</p>
+
+<p>多亏了容器，我们的CI渠道让我们在将微服务部署到生产中时更有信心。</p>
+
+<h2>兜了一圈</h2>
+
+<p>这就是我们的CI构建管道，主要由Github、CircleCI和Docker提供支持。</p>
+
+<p>虽然我们一直在努力寻找使整个管道更加无缝的方法，但我们对使用第三方工具提供的低维护、并行化和隔离感到满意。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

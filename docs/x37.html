@@ -1,0 +1,405 @@
+<html>
+<head>
+<title>Using CircleCI workflows to replicate Docker Hub automated builds | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用CircleCI工作流复制Docker Hub自动构建| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/using-circleci-workflows-to-replicate-docker-hub-automated-builds/#2020-10-09T09:00:00-07:00">https://circleci.com/blog/using-circleci-workflows-to-replicate-docker-hub-automated-builds/#2020-10-09T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p><strong>发布者声明</strong> : <i>支持工程师Nick Bialostosky于2020年10月9日更新了此内容，以反映Docker Hub对访问令牌支持的变化。</i></p>
+
+<hr/>
+
+<p><a href="https://circleci.com/docs/workflows/"> CircleCI workflows </a>是一项强大的功能，可用于使您的部署过程简单直观。在本文中，我们将学习如何使用它们将图像自动推送到Docker registry，就像Docker Hub自己的自动构建过程一样，但是具有您自己的构建过程提供的所有定制功能。</p>
+
+<h2>CircleCI工作流程</h2>
+<blockquote>
+  <p>一个<strong>工作流</strong>是一组规则，用于定义一组作业及其运行顺序。工作流使用一组简单的配置密钥支持复杂的作业编排，帮助您更快地解决故障。- <a href="https://circleci.com/docs/workflows/"> CircleCI工作流程文件</a></p>
+</blockquote>
+
+<p>在我们的工作流中，将提交推送到<code>master</code>分支将运行一个特定的作业，该作业在Docker Hub上发布带有<code>latest</code>标签的图像。每次提交还会向图像添加一个Git标记作为图像标记，并发布带有该标记的图像。最后，我们将研究如何使用CircleCI的<a href="https://circleci.com/docs/env-vars/">环境变量</a>来自动发布图像的增量版本，而不是使用Git标签。</p>
+
+<h2>建立我们的码头工人形象</h2>
+
+<p>让我们从一个基本的Docker映像开始，它只打印运行时传递的参数。docker文件看起来就像这样简单:</p>
+
+<pre><code>FROM alpine:3.8
+    
+ENTRYPOINT [ "echo" ]
+</code></pre>
+
+<p>在本地构建和运行映像应该向我们显示它工作正常:</p>
+
+<pre><code>$ docker build -t building-on-ci .
+Sending build context to Docker daemon  4.608kB
+Step 1/2 : FROM alpine:3.8
+ ---&gt; 196d12cf6ab1
+Step 2/2 : ENTRYPOINT [ "echo" ]
+ ---&gt; Running in fe2151b22bc1
+Removing intermediate container fe2151b22bc1
+ ---&gt; edc0ca6e654a
+Successfully built edc0ca6e654a
+Successfully tagged ci-workflows:latest
+
+$ docker run building-on-ci "Hello!"
+Hello!
+</code></pre>
+
+<p>现在我们有了我们的图像，我们需要把它推送到我们的GitHub库。</p>
+
+<p>为了开始在每次提交时构建我们的映像，我们将用下面的配置文件引导我们的项目。在项目的根目录中，创建一个<code>.circle</code>目录，并将下面几行保存为<code>config.yml</code>:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    environment:
+      IMAGE_NAME: jonathancardoso/building-on-ci
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Docker image
+          command: docker build -t $IMAGE_NAME:latest .
+workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: master
+</code></pre>
+
+<p>我们使用CircleCI提供的名为<code>circleci/buildpack-deps</code>的预构建Docker映像来运行我们的构建。CircleCI在Docker Hub上有许多自定义映像，它们通过在CI/CD环境中有用的额外工具扩展了官方映像。查看<a href="https://circleci.com/docs/circleci-images/"> CircleCI图像</a>文档了解更多信息。</p>
+
+<p>还有一个名为<code>IMAGE_NAME</code>的环境变量，我们将使用它来设置Docker图像的名称。您必须将其更改为您的用户名/组织名，而不是使用我的(<code>jonathancardoso</code>)。否则，当您试图将该图像发布到Docker Hub时，将会出现一个错误。</p>
+
+<p>目前，我们的配置只有一个名为<code>build-master</code>的工作流，当我们向<code>master</code>分支提交时，它运行一个<code>build</code>任务。这份工作只是建立我们的码头工人形象，仅此而已。</p>
+
+<p>我们的一个步骤叫做<code>setup_remote_docker</code>，是在CircleCI上构建Docker图像时最重要的步骤之一。因为我们的作业步骤是在Docker映像中运行的，所以它们不能构建其他Docker映像。<code>setup_remote_docker</code>命令告诉CircleCI分配一个新的Docker引擎，与运行我们作业的环境分开，专门执行Docker命令。查看<a href="https://circleci.com/docs/building-docker-images/">建筑Docker图像</a>文档了解更多信息。</p>
+
+<p>执行示例:<a href="https://circleci.com/gh/JCMais/docker-building-on-ci/1">https://circleci.com/gh/JCMais/docker-building-on-ci/1</a></p>
+
+<h2>将映像发布到Docker Hub，并在每次提交到主机时使用:latest标记</h2>
+
+<p>既然我们在每个对<code>master</code>的提交上构建了我们的映像，我们需要创建一个新的作业来将该映像发布到Docker Hub。</p>
+
+<p>Docker Hub没有可用于访问您的帐户的访问令牌，因此我们需要使用自己的用户名/密码登录Docker Hub注册表。这通常通过运行以下命令来完成:</p>
+
+<pre><code>docker login -u "username" -p "password"
+</code></pre>
+<p><strong>注意</strong> : <i> Docker Hub现在支持<a href="https://docs.docker.com/docker-hub/access-tokens/">访问令牌</a>，因此如果您愿意，您可以使用令牌代替密码来执行以下指令。</i></p>
+
+<p>然而，像这样以明文形式保存您的凭证是一种不好的做法，因为它会暴露您的密码。我们需要用我们的用户名和密码创建新的<a href="https://circleci.com/docs/env-vars/"> CircleCI环境变量</a>。在CircleCI中有多种方法可以做到这一点，但是如果多个项目要将图像推送到Docker Hub，推荐的方法是使用<a href="https://circleci.com/docs/contexts/">上下文</a>。否则，我们可以直接在项目设置中设置它们。对于本文，我们将采用后一种方法。</p>
+
+<p>在设置了环境变量<code>DOCKERHUB_USERNAME</code>和<code>DOCKERHUB_PASS</code>之后，让我们创建我们的作业:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    environment:
+      IMAGE_NAME: jonathancardoso/building-on-ci
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Docker image
+          command: docker build -t $IMAGE_NAME:latest .
+  publish-latest:
+    environment:
+      IMAGE_NAME: building-on-ci
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - setup_remote_docker
+      - run:
+          name: Publish Docker Image to Docker Hub
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            docker push $IMAGE_NAME:latest
+workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: master
+      - publish-latest:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+</code></pre>
+
+<p>我们向<code>build-master</code>工作流添加了一个新的<code>publish-latest</code>任务。这项工作试图推动我们刚刚建立的形象到Docker枢纽。然而，如果我们提交变更并检查构建日志，我们会看到它失败了，因为Docker找不到映像<code>jonathancardoso/building-on-ci</code>。</p>
+
+<p><img src="../Images/75ad9e4f6d1798a94ef0ea31cd35b81c.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-09-hub1.png"/></p>
+
+
+<p>这是因为工作流中的作业相互隔离，我们在<code>build</code>作业上构建的映像对<code>publish-latest</code>不可用。</p>
+
+<p>请注意我们在配置文件中的重复。我们用环境变量<code>IMAGE_NAME</code>的定义和将用于运行我们的作业的Docker映像重复了两次。</p>
+
+<p>解决重复问题的一个方法是使用YAML锚。然而，CircleCI已经发展了，在版本<code>2.1</code>中，我们现在可以通过指定一个<a href="https://circleci.com/docs/reusing-config/#authoring-reusable-executors">可重用执行器</a>来直接重用一些配置。在文件的顶部，我们将把版本从<code>2</code>更改为<code>2.1</code>，并添加一个新的<code>executors</code>密钥:</p>
+
+<pre><code>version: 2.1
+executors:
+  docker-publisher:
+    environment:
+      IMAGE_NAME: building-on-ci
+    docker:
+      - image: circleci/buildpack-deps:stretch
+</code></pre>
+
+<p>现在，对于每个作业，我们将指定一个<code>executor</code>键，而不是声明<code>docker</code>和<code>environment</code>键:</p>
+
+<pre><code># ...
+jobs:
+  build:
+    executor: docker-publisher
+    # ...
+  publish-latest:
+    executor: docker-publisher
+    # ...
+</code></pre>
+
+<p>重复已解决。是时候解决我们的Docker图像在<code>publish-latest</code>作业中不可用的问题了。我们将使用<a href="https://circleci.com/docs/workflows/#using-workspaces-to-share-data-among-jobs">工作流的工作区</a>在两个作业之间共享图像。</p>
+
+<p>让我们在<code>build</code>任务的末尾添加一个新的运行步骤。该运行步骤将图像保存为tar归档文件:</p>
+
+<pre><code>      # ...
+      - run:
+          name: Archive Docker image
+          command: docker save -o image.tar $IMAGE_NAME
+      # ...
+</code></pre>
+
+<p>现在，我们可以通过添加另一个名为<code>persist_to_workspace</code>的步骤将该文件持久化到工作流工作区中:</p>
+
+<pre><code>      # ...
+      - run:
+          name: Archive Docker image
+          command: docker save -o image.tar $IMAGE_NAME
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./image.tar
+      # ...
+</code></pre>
+
+<p>为了检索<code>publish-latest</code>作业中的<code>image.tar</code>文件，我们将在其他步骤之前添加一个新步骤<code>attach_workspace</code>:</p>
+
+<pre><code>   # ...
+   steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      # ...
+</code></pre>
+
+<p>在我们试图将存档的图像推送到Docker Hub注册表之前，用<code>docker load</code>加载它:</p>
+
+<pre><code>      # ...
+      - run:
+          name: Load archived Docker image
+          command: docker load -i /tmp/workspace/image.tar
+      # ...
+</code></pre>
+
+<p>我们的完整配置文件如下所示:</p>
+
+<pre><code>version: 2.1
+executors:
+  docker-publisher:
+    environment:
+      IMAGE_NAME: jonathancardoso/building-on-ci
+    docker:
+      - image: circleci/buildpack-deps:stretch
+jobs:
+  build:
+    executor: docker-publisher
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t $IMAGE_NAME:latest .
+      - run:
+          name: Archive Docker image
+          command: docker save -o image.tar $IMAGE_NAME
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./image.tar
+  publish-latest:
+    executor: docker-publisher
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - setup_remote_docker
+      - run:
+          name: Load archived Docker image
+          command: docker load -i /tmp/workspace/image.tar
+      - run:
+          name: Publish Docker Image to Docker Hub
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            docker push $IMAGE_NAME:latest
+workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: master
+      - publish-latest:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+</code></pre>
+
+<p>现在一切都应该是绿色的！</p>
+
+<p><img src="../Images/835d3e3ccc535cd81c11b7d326372b0e.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-09-hub2.png"/></p>
+
+<p>现在，我们可以从Docker Hub注册表中检索并运行我们的映像:</p>
+
+<pre><code>$ docker run jonathancardoso/building-on-ci "Workflows are awesome!"
+Unable to find image 'jonathancardoso/building-on-ci:latest' locally
+latest: Pulling from jonathancardoso/building-on-ci
+4fe2ade4980c: Already exists
+Digest: sha256:f719ca403b0fc6a5214823c61c750a5e48ce5809a24b882b3a45d6d119870366
+Status: Downloaded newer image for jonathancardoso/building-on-ci:latest
+Workflows are awesome!
+</code></pre>
+
+<h2>发布Git标签作为坞站中心上的坞站图像标签</h2>
+
+<p>依赖带有标签的图像很容易引起混乱，因为我们无法控制运行的图像版本。推荐的方法是使用特定的标签。</p>
+
+<p>假设我们将使用Git标签来发布Docker图像的新版本，并且我们希望CircleCI在Docker Hub上发布带有每个Git标签的图像作为图像标签。以下是我们的做法。</p>
+
+<p>首先，我们将添加一个新的工作流，<code>build-tags</code>:</p>
+
+<pre><code># ...
+  build-tags:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - publish-tag:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+</code></pre>
+
+<p>这两个作业共享相同的过滤器，基本上就是说它们必须为每个以<code>v</code>开头的标签运行，而不应该为分支执行。</p>
+
+<p><code>build</code>作业是相同的(我们可以在工作流之间重用作业)，但是<code>publish-tag</code>作业将如下所示:</p>
+
+<pre><code># ...
+  publish-tag:
+    executor: docker-publisher
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - setup_remote_docker
+      - run:
+          name: Load archived Docker image
+          command: docker load -i /tmp/workspace/image.tar
+      - run:
+          name: Publish Docker Image to Docker Hub
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            IMAGE_TAG=${CIRCLE_TAG/v/''}
+            docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
+            docker push $IMAGE_NAME:latest
+            docker push $IMAGE_NAME:$IMAGE_TAG
+# ...
+</code></pre>
+
+<p>这个作业和<code>publish-latest</code>的区别在于，这个作业使用了CircleCI自动设置的环境变量<code>CIRCLE_TAG</code>。我们检索该值并删除<code>v</code>前缀，例如<code>v0.0.1</code>变成了<code>0.0.1</code>。然后，我们继续用该版本标记我们的映像，并将其推送到Docker Hub注册中心。我们还要确保按下<code>latest</code>标签，这样两者就能保持同步。如果我们提交一个标签，我们可以看到它的工作:</p>
+
+<p><img src="../Images/731f98872e9efb988c3da894e5029dba.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-09-hub3.png"/></p>
+
+
+<p>如果我们访问图像的Docker Hub页面，我们可以看到标签:</p>
+
+<p><img src="../Images/beffbdf0bbd41e0149c06ff8d047a2df.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub4.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-09-hub4.png"/></p>
+
+
+<p>现在，我们可以使用我们的标签运行我们的图像:</p>
+
+<pre><code>docker run jonathancardoso/building-on-ci:0.0.1 "Tags are working!"
+Unable to find image 'jonathancardoso/building-on-ci:0.0.1' locally
+0.0.1: Pulling from jonathancardoso/building-on-ci
+4fe2ade4980c: Already exists
+Digest: sha256:1a3a6c74860832704df55acdcbd875f662957d757d69fa340a48b41b890469bc
+Status: Downloaded newer image for jonathancardoso/building-on-ci:0.0.1
+Tags are working!
+</code></pre>
+
+<h2>每个构件的自动图像标签</h2>
+
+<p>如果我们有一个不经常使用的图像或者一个我们不想使用git标签的图像怎么办？一个我们想要严格控制使用哪个版本的图像，所以我们不能依赖于<code>latest</code>标签？</p>
+
+<p>CircleCI允许我们这样做:它公开了一个名为<code>CIRCLE_BUILD_NUM</code>的环境变量，这个变量的数量一直在增加。使用它，我们可以让CircleCI为每个构建发布一个新版本的映像。让我们修改一下我们的<code>publish-latest</code>作业来做到这一点:</p>
+
+<pre><code>      # ...
+      - run:
+          name: Publish Docker Image to Docker Hub
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            IMAGE_TAG="0.0.${CIRCLE_BUILD_NUM}"
+            docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
+            docker push $IMAGE_NAME:latest
+            docker push $IMAGE_NAME:$IMAGE_TAG
+      # ...
+</code></pre>
+
+<p>我们使用<code>CIRCLE_BUILD_NUM</code>创建图像标签，并将其与<code>latest</code>标签一起发布到Docker Hub注册中心。如果我们将它提交给master并等待工作流完成，我们可以看到它已发布:</p>
+
+<p><img src="../Images/b181ed59ed8815db9a93bff282b64712.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub5.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-09-hub5.png"/></p>
+
+
+<p><img src="../Images/35b3d15f0f20ebf512c8a65be9a2c4f8.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-09-hub6.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-09-hub6.png"/></p>
+
+
+<h2>摘要</h2>
+
+<p>这些版本控制技术只是构建模块。您可以根据需要将图像版本的标记变得复杂或简单。对于特定的标签，您甚至可以使用这些知识将图像上传到您自己的私有注册表，而不是Docker Hub。</p>
+
+<p>撰写本文时使用的资源库可以在GitHub上找到:<a href="https://github.com/JCMais/docker-building-on-ci">https://github.com/JCMais/docker-building-on-ci</a>。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Jonathan Cardoso热衷于DevOps、开源和游戏。他有六年的经验，帮助世界各地的公司通过技术解决方案推进他们的目标。他目前在巴西远程工作，是HelloMD的全栈开发人员和DevOps专家。</p>
+
+            <p><a href="/blog/author/jonathan-cardoso/" class="arrow-link">阅读乔纳森·卡多佐的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

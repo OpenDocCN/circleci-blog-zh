@@ -1,0 +1,392 @@
+<html>
+<head>
+<title>Continuous Drupal: Maintaining a Drupal Website With Docker, Git &amp; Composer - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>持续的Drupal:用Docker、Git和Composer - CircleCI维护一个Drupal网站</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuous-drupal-p1-maintaining-with-docker-git-composer/#2017-11-03T06:00:00-07:00">https://circleci.com/blog/continuous-drupal-p1-maintaining-with-docker-git-composer/#2017-11-03T06:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>很久以前，我曾经在GoDaddy共享主机上托管过一个Drupal网站，用FTP管理文件，每隔一段时间复制一次MySQL数据库作为“备份”。你能在那句话里找到多少错误？在2017年，有许多工具和最佳实践允许我们高效地维护Drupal站点，并跨团队成员以及基础设施进行扩展。现在使用这些工具和实践创建一个Drupal网站，可以加快使用Drupal进行开发的速度。此外，如果您决定以后在Drupal站点中实现CI，那么用这个堆栈来设置您的站点将使这成为可能。</p>
+
+<p>在这个由三部分组成的系列的第一篇文章中，我们将介绍如何使用Docker、Git、Composer和Drush来智能高效地维护Drupal 8网站。</p>
+
+
+
+<h2>使用的软件</h2>
+
+<p>需要以下软件和工具:</p>
+
+<ul>
+  <li>Apache(有图片)</li>
+  <li>作曲者(图像中可用)</li>
+  <li>docker(1 . 13 . 0版或更新版本)</li>
+  <li>Docker编写(1.10.0版或更高版本)</li>
+  <li>Drupal 8(通过Composer安装)</li>
+  <li>Drush(通过Composer安装)</li>
+  <li>Git (v2.10或更新版本)</li>
+  <li>MariaDB(或MySQL，Drupal 8通过Docker支持的版本)</li>
+  <li>PHP7(在图像中可用，技术上可以使用PHP5，但是为什么PHP7要好得多)</li>
+</ul>
+
+<h3>在Ubuntu和其他基于Debian的发行版上安装</h3>
+
+<p>如果你用的是Ubuntu，我建议Ubuntu 16.04或更新版本。</p>
+
+<pre><code>sudo apt-get update
+sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+sudo apt-get update
+sudo apt-get install docker-ce git
+sudo curl -L https://github.com/docker/compose/releases/download/1.16.1/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+</code></pre>
+
+<h3>在macOS上安装</h3>
+
+<p>我们假设您已经安装了<a href="https://brew.sh/"> Brew </a>。Docker建议在macOS上使用他们的安装程序。这里是<a href="https://download.docker.com/mac/stable/Docker.dmg">稳定版</a>的下载链接。这个安装程序还包括Docker Compose。</p>
+
+<pre><code>brew install bash-completion git
+</code></pre>
+
+<h3>预构建的虚拟机</h3>
+
+<p>DrupalVM 是一个预构建的虚拟机，包括我们想要使用的一切以及更多。本指南中的许多步骤可以跳过，因为DrupalVM会为您完成这些步骤。如果你仍然想了解工具选择背后的原因或者内部工作原理，通读这篇文章仍然是有用的。</p>
+
+<h2>设置项目目录</h2>
+
+<p>出于本文的目的，我们将创建一个虚构的基于Drupal的博客，名为“持续博客”。首先，我们需要创建一个根目录来保存我们的整个项目。这个目录将使用Git进行版本控制。我更喜欢把我所有基于GitHub的回购放在一个<code>Repos</code>目录下，然后放在GitHub用户名下。</p>
+
+<pre><code class="language-Bash">mkdir -p ~/Repos/circleci/continuous-blog
+cd ~/Repos/circleci/continuous-blog
+</code></pre>
+
+<h3>创建Dockerfile文件</h3>
+
+<p>现在，在开始安装Drupal之前，我们需要创建一些东西。第一个是docker文件，它将包含我们实际的Drupal网站。您可以将下面的<code>Dockerfile</code>复制粘贴到<code>./Dockerfile</code>中，这是我们项目的根。</p>
+
+<pre><code class="language-Dockerfile">FROM drupal:8.4-apache
+
+RUN apt-get update &amp;&amp; apt-get install -y \
+	curl \
+	git \
+	mysql-client \
+	vim \
+	wget
+
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" &amp;&amp; \
+	php composer-setup.php &amp;&amp; \
+	mv composer.phar /usr/local/bin/composer &amp;&amp; \
+	php -r "unlink('composer-setup.php');"
+
+RUN wget -O drush.phar https://github.com/drush-ops/drush-launcher/releases/download/0.4.2/drush.phar &amp;&amp; \
+	chmod +x drush.phar &amp;&amp; \
+	mv drush.phar /usr/local/bin/drush
+
+RUN rm -rf /var/www/html/*
+
+COPY apache-drupal.conf /etc/apache2/sites-enabled/000-default.conf
+
+WORKDIR /app
+</code></pre>
+
+<h4>走过码头文件</h4>
+
+<pre><code class="language-Dockerfile">FROM drupal:8.4-apache
+</code></pre>
+
+<p>我们从官方的Docker库Drupal图像开始。这意味着我们不需要自己设置Apache和PHP。更具体地说，我们不必去寻找和安装Drupal需要的特定PHP插件。为Drupal的最新版本使用一个标签很重要，但是它不需要特别是您想要运行的Drupal版本。这是因为我们不打算使用图像中提供的Drupal文件，而是来自Composer(在本文后面)。</p>
+
+<pre><code class="language-Dockerfile">RUN apt-get update &amp;&amp; apt-get install -y \
+	curl \
+	git \
+	mysql-client \
+	vim \
+	wget
+</code></pre>
+
+<p>我们正在映像中安装一些我们需要的工具，以进行后续步骤。看起来是一个奇怪的选择，但是如果没有它，Drush将无法正确连接到我们网站的数据库。提示，我们用多行、单个<code>RUN</code>步骤创建这样的命令，因为它改进了Docker层缓存。</p>
+
+<pre><code class="language-Dockerfile">RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" &amp;&amp; \
+	php composer-setup.php &amp;&amp; \
+	mv composer.phar /usr/local/bin/composer &amp;&amp; \
+	php -r "unlink('composer-setup.php');"
+</code></pre>
+
+<p>在这里我们安装Composer，<em/>PHP依赖管理器。您或Docker映像尚未安装的所有内容都将由Composer处理。为用户<code>root</code>安装了Composer。您会看到一个又一个警告，提示您不应该在Composer中使用root用户。我们在Docker映像中工作，其中唯一的常规用户是<code>root</code>用户。因此，尽管有警告，在这种情况下这是没问题的。在你自己的电脑上，不要使用<code>root</code>用户。</p>
+
+<pre><code class="language-Dockerfile">RUN wget -O drush.phar https://github.com/drush-ops/drush-launcher/releases/download/0.4.2/drush.phar &amp;&amp; \
+	chmod +x drush.phar &amp;&amp; \
+	mv drush.phar /usr/local/bin/drush
+</code></pre>
+
+<p>我们正在安装<a href="https://github.com/drush-ops/drush-launcher"> Drush发射器</a>。使在命令行上使用Drush变得更加容易，因为不再建议全局安装Drush。</p>
+
+<pre><code class="language-Dockerfile">RUN rm -rf /var/www/html/*
+</code></pre>
+
+<p>这将删除Docker映像附带的Drupal副本。如果你愿意，你可以使用它，但是在这篇文章中，我们在Git的帮助下用Composer安装和跟踪Drupal。</p>
+
+<pre><code class="language-Dockerfile">COPY apache-drupal.conf /etc/apache2/sites-enabled/000-default.conf
+</code></pre>
+
+<p>复制定制的Apache VirtualHost配置文件，告诉Apache我们希望在文件系统中的什么位置托管我们的网站。</p>
+
+<h3>创建Apache VHost配置</h3>
+
+<p>我们刚刚提到的Apache VirtualHost配置文件，让我们创建它。这个文件应该位于<code>./apache-drupal.conf</code>。</p>
+
+<pre><code>&lt;VirtualHost *:80&gt;
+	ServerAdmin webmaster@localhost
+	DocumentRoot /app/web
+
+	&lt;Directory /app/web&gt;
+		AllowOverride All
+		Require all granted
+	&lt;/Directory&gt;
+
+	ErrorLog ${APACHE_LOG_DIR}/error.log
+	CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+&lt;/VirtualHost&gt;
+# vim: syntax=apache ts=4 sw=4 sts=4 sr noet
+</code></pre>
+
+<h3>创建Docker合成文件</h3>
+
+<p>我们的Drupal站点将由两个Docker图像组成。包含Drupal特定内容的主映像，我们用自己制作的<code>Dockerfile</code>来指定，还有一个数据库映像。Docker Compose将允许使用这两个图像创建容器，并将它们相互连接，以便它们“正常工作”。</p>
+
+<p>Docker Compose文件也应该创建在我们的项目的根目录下，<code>./docker-compose.yml</code>。</p>
+
+<pre><code>version: '3'
+services:
+  db:
+    image: mariadb:10.2
+    environment:
+      MYSQL_DATABASE: drupal
+      MYSQL_ROOT_PASSWORD: AppleSucks
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+  drupal:
+    depends_on:
+      - db
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./app:/app
+    restart: always
+volumes:
+  db_data:
+</code></pre>
+
+<h4>浏览Docker撰写文件</h4>
+
+<pre><code>version: '3'
+</code></pre>
+
+<p>互联网上许多带有示例撰写文件的博客帖子将使用版本2。我们正在使用Docker Compose的新功能，因此需要版本<code>3</code>或更高。</p>
+
+<pre><code>services:
+  db:
+    image: mariadb:10.2
+    environment:
+      MYSQL_DATABASE: drupal
+      MYSQL_ROOT_PASSWORD: WaterfallSucks
+</code></pre>
+
+<p>我们在这里创建一个名为“db”的容器，它是由MariaDB v10.2 Docker映像制成的。可以使用MySQL和Postgress，只要是Drupal支持的。我们还告诉MariaDB在启动时创建一个名为“drupal”的新数据库，并将MariaDB <code>root</code>用户的密码设置为“WaterfallSucks”。随意使用您喜欢的任何数据库名称和密码。MariaDB 的<a href="https://hub.docker.com/_/mariadb/"> Docker Hub页面提供了关于可用环境变量的更多信息。</a></p>
+
+<pre><code>    volumes:
+      - db_data:/var/lib/mysql
+</code></pre>
+
+<p>我们指定想要使用一个名为<code>db_data</code>的Docker卷来存储<code>/var/lib/mysql</code>的内容。这个目录是MariaDB存储它所包含的数据库信息的地方。它允许我们关闭容器并在以后再次启动它们，而不会丢失保存在数据库中的任何数据。</p>
+
+<pre><code>  drupal:
+    depends_on:
+      - db
+</code></pre>
+
+<p>我们指定了第二个名为Drupal的容器。<code>depends_on</code>键告诉Docker Compose在<code>db</code>容器启动之前不要启动这个容器。最好不要启动Drupal，因为数据库是存在的。</p>
+
+<pre><code>    build: .
+</code></pre>
+
+<p>这告诉Docker Compose使用本地Docker文件作为我们图像的基础，而不是像我们对DB那样使用<code>image</code>然后指定Docker图像。这意味着我们可以在不运行单独命令的情况下进行动态构建，或者更糟的是，推到公共Docker存储库中进行快速开发更改。</p>
+
+<pre><code>    ports:
+      - "8080:80"
+</code></pre>
+
+<p>我们将本地机器上的端口8080映射到Docker容器中的端口80。这允许我们在浏览器中访问<code>http://localhost:8080</code>,并在容器中查看我们正在运行的站点。端口8080可以是本地的任何可用端口。</p>
+
+<pre><code>    volumes:
+      - ./app:/app
+</code></pre>
+
+<p>我们在这里创建绑定装载，而不是传统的卷。这将获取本地机器上存储库中的<code>./app</code>目录，并通过Docker容器使其作为<code>/app</code>可用。这就是我们如何将Drupal站点以及任何主题和模块提供到容器中。</p>
+
+<pre><code>volumes:
+  db_data:
+</code></pre>
+
+<p>这告诉Docker Compose创建我们前面在配置中指定的卷。</p>
+
+<h3>创建应用程序目录</h3>
+
+<p>这是最难的一步，在我们项目的根目录下创建一个<code>app</code>目录。</p>
+
+<pre><code>mkdir app
+</code></pre>
+
+<p>哇哇。</p>
+
+<h3>用Git保存我们的进度</h3>
+
+<p>这时，我们可以创建我们的Git repo并保存我们的进度。现在这样做是不必要的，但是它允许我们在接下来的几个步骤中可视化文件系统如何变化。</p>
+
+<pre><code>git init .
+git add .
+git commit -m "Initial commit."
+</code></pre>
+
+<h2>构建Drupal 8网站</h2>
+
+<p>随着最初的脚手架的方式，我们可以继续让我们的实际网站建设。我们首先用Docker Compose打开我们的容器。</p>
+
+<pre><code>docker-compose up -d --build
+</code></pre>
+
+<p><code>--build</code>告诉Docker Compose在我们运行这个命令时构建我们的<code>Dockerfile</code>。我们需要登录到我们的主容器来运行Composer，但是我们需要容器名来这样做。我们可以通过运行<code>docker-compose ps</code>找到它。连接到端口80的容器是正确的。下面是一个输出示例:</p>
+
+<pre><code>$ docker-compose ps
+
+ Name                        Command               State          Ports        
+ ---------------------------------------------------------------------------------------
+ continuousblog_db_1       docker-entrypoint.sh mysqld      Up      3306/tcp            
+ continuousblog_drupal_1   docker-php-entrypoint apac ...   Up      0.0.0.0:8080-&gt;80/tcp
+</code></pre>
+
+<p>这里正确的容器名是<code>continuousblog_drupal_1</code>。我们使用<code>docker exec</code>命令登录它。</p>
+
+<pre><code>docker exec -it continuousblog_drupal_1 bash
+</code></pre>
+
+<p>这将把您放入位于<code>/app</code>目录的容器中。现在我们可以使用<code>composer</code>来安装Drupal。</p>
+
+<pre><code>/app #  composer create-project drupal-composer/drupal-project:8.x-dev /app --stability dev --no-interaction
+/app #  mkdir -p /app/config/sync
+/app #  chown -R www-data:www-data /app/web
+</code></pre>
+
+<p>现在在您的浏览器中访问http://localhost:8080 并浏览Drupal安装程序。</p>
+
+<p>一旦所有的东西都安装好了，你的站点就可以运行了，我们将使用Drush来导出你的Drupal配置。然后，退出容器。</p>
+
+<pre><code>/app #  drush config-export
+/app #  exit
+</code></pre>
+
+<p>我们将编辑现有的<code>.gitignore</code>文件，删除第11行和第15行。这些行忽略了<code>settings.php</code>文件和<code>*/files/*</code>目录。有些人会说不要这样做，在某些情况下他们是对的。为了简单起见，我们将在这里对<code>files</code>目录进行版本化，我们正在对<code>settings.php</code>进行版本化。如果您的回购将要公开，请不要对此文件进行版本控制，因为每个人都将拥有您的数据库凭据。</p>
+
+<p>运行<code>git status</code>将显示Composer安装的所有内容。我们可以用Git提交所有东西，这样就完成了。我们现在已经保存了Drupal网站的初始状态。</p>
+
+<h2>从这里去哪里？</h2>
+
+<p>我们现在有了一个用Git和Composer跟踪的基本Drupal 8网站。我们甚至可以使用Docker Compose在任何位置启动和运行站点(如果我们还导出和导入数据库)。</p>
+
+<p>我们本系列的下一篇博文将会介绍如何让我们的Drupal网站在CircleCI上的持续集成工作流中，在我们将网站发布到生产环境之前做一些基本的测试。</p>
+
+<p>与此同时，您还可以使用我们的设置做其他事情。</p>
+
+<h3>更新Drupal 8核心</h3>
+
+<p>我建议在更新Core之前创建一个新的Git分支。Drupal 8核心可以更新如下:</p>
+
+<pre><code>git checkout -b update-drupal
+docker exec -it continuousblog_drupal_1 bash
+/app #  composer update drupal/core --with-dependencies
+/app #  drush updb  # updates the DB with any schema changes
+/app #  git diff    # to check for changes
+/app #  git status  # also to help review changes
+</code></pre>
+
+<p>在浏览器中测试我们的站点(在我们的下一篇文章中，使用CI ),以确保一切按预期运行。</p>
+
+<pre><code>/app #  exit
+git add .
+git commit -m "Updated Drupal Core."
+git push
+</code></pre>
+
+<h3>安装“Contrib”模块或主题</h3>
+
+<p>“Contrib”模块是由某人发布或“贡献”到Drupal.org上的Drupal官方注册中心的公共模块。这些模块也可以用Git和Composer安装和跟踪。在这里，我们将安装Pathauto Drupal模块。</p>
+
+<pre><code>git checkout -b install-pathauto
+docker exec -it continuousblog_drupal_1 bash
+/app #  composer require drupal/pathauto
+/app #  drush en pathauto -y  # enables the module with Drush rather than visiting the Drupal Admin page
+</code></pre>
+
+<p>在浏览器中测试我们的站点(在我们的下一篇文章中，使用CI ),以确保一切按预期运行。如果您为新模块做了任何配置，不要忘记用Drush导出您的配置。</p>
+
+<pre><code>/app #  drush config-export  # if you made config changes
+/app #  exit
+git add .
+git commit -m "Installed Pathauto."
+git push
+</code></pre>
+
+<h3>更新Drupal“Contrib”模块和主题</h3>
+
+<p>Contrib模块可以像Core一样更新。在任何时候，您都可以运行<code>composer outdated</code>来查看您的Drupal站点中有可用更新的每一部分。</p>
+
+<pre><code>git checkout -b update-pathauto
+docker exec -it continuousblog_drupal_1 bash
+/app #  composer update drupal/pathauto --with-dependencies
+/app #  drush updb  # updates the DB with any schema changes
+</code></pre>
+
+<p>在浏览器中测试我们的站点(在我们的下一篇文章中，使用CI ),以确保一切按预期运行。</p>
+
+<pre><code>/app #  exit
+git add .
+git commit -m "Updated Pathauto."
+git push
+</code></pre>
+
+<h3>维护定制的Drupal模块和主题</h3>
+
+<p>有两种方法可以做到。如果您有一个特定于该站点的模块，那么您可以将所有代码保存在同一个Git repo中，并在这里进行维护。但是考虑一下这一点，因为很多时候模块可以服务于同一公司内的多个站点，或者最终获得开源，这总是一件很棒的事情。主题更可能是特定于站点的，但同样的警告也适用。</p>
+
+<p>对于不特定于站点的模块和主题，您可能会将它们保存在自己的存储库中，并作为子模块添加到您的Drupal站点，而不是在这个repo中维护代码。</p>
+
+<p>如果您这样做了，那么每当您签出Drupal 8站点的存储库时，您将希望运行以下命令来确保您的定制模块也得到签出:</p>
+
+<pre><code>git submodule sync
+git submodule update --init
+</code></pre>
+
+<p>要更新它们，你需要<code>cd</code>进入它们的目录，然后运行普通的<code>git pull</code>或<code>git checkout &lt;tagname&gt;</code>。然后，备份到这个存储库的根目录，并提交您的更改。</p>
+
+<h2>问题&amp;保持这篇文章的更新</h2>
+
+<p>如果你有问题，或者对这篇文章有什么补充，请通过<a href="https://discuss.circleci.com"> CircleCI讨论</a>让我们知道。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

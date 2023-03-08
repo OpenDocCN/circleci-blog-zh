@@ -1,0 +1,290 @@
+<html>
+<head>
+<title>Getting started with Kubernetes: how to set up your first cluster | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Kubernetes入门:如何设置您的第一个集群</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/getting-started-with-kubernetes-how-to-set-up-your-first-cluster/#2020-09-28T09:00:00-07:00">https://circleci.com/blog/getting-started-with-kubernetes-how-to-set-up-your-first-cluster/#2020-09-28T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>Kubernetes是部署和扩展复杂分布式系统的优秀工具，但众所周知，开始使用Kubernetes是一个挑战。大多数Kubernetes教程使用类似于<a href="https://kubernetes.io/docs/setup/learning-environment/minikube/"> Minikube </a>这样的工具来帮助您入门，但它并没有教您多少关于配置生产就绪集群的知识。</p>
+
+<p>在本文中，我们将采用一种不同的方法，并向您展示如何使用亚马逊弹性Kubernetes服务(亚马逊EKS)和Terraform建立一个真实的、生产就绪的Kubernetes集群。</p>
+
+<h2>介绍Terraform</h2>
+
+<p><a href="https://www.terraform.io/"> Hashicorp的Terraform </a>是一个基础设施即代码(IaC)解决方案，允许您以声明方式<a href="https://www.terraform.io/docs/configuration/index.html"/>定义您的云基础设施的所需配置。使用Terraform CLI，您可以在本地或作为自动化CI/CD管道的一部分提供此配置。</p>
+
+<p>Terraform类似于云平台提供的配置工具，如<a href="https://aws.amazon.com/cloudformation/"> AWS CloudFormation </a>或<a href="https://docs.microsoft.com/en-us/azure/azure-resource-manager/management/overview"> Azure Resource Manager </a>，但它的优势是与提供商无关。如果你不熟悉Terraform，我们建议你首先阅读他们的<a href="https://learn.hashicorp.com/collections/terraform/aws-get-started">AWS</a>入门指南，了解最重要的概念。</p>
+
+<h2>定义基础设施</h2>
+<p>让我们构建一个Terraform配置，逐步配置亚马逊EKS集群和AWS虚拟私有云(VPC)。</p>
+
+<p>创建包含以下内容的<code>main.tf</code>文件:</p>
+
+<pre><code>provider "aws" {
+  region = "eu-west-1"
+}
+
+data "aws_availability_zones" "azs" {
+  state = "available"
+}
+
+locals {
+  cluster_name = "eks-circleci-cluster"
+}
+</code></pre>
+
+<p>在这个文件中，我们首先设置AWS提供者，将区域设置为<code>eu-west-1</code>。请随意将其更改为任何其他AWS区域。</p>
+
+<p>AWS提供者将检查各个地方是否有有效的<a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication">凭证</a>可以使用，所以一定要设置这些凭证。</p>
+
+<p>然后，我们获取可以在该区域使用的可用性区域。这使得更改区域变得更加容易，而不需要任何其他更改。我们还将集群名称设置为一个变量，因为我们将多次使用它。您也可以更改该值。</p>
+
+<p>让我们来配置VPC。将以下内容添加到文件中:</p>
+
+<pre><code>module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~&gt; 2.48"
+
+  name = "eks-circleci-vpc"
+  cidr = "10.0.0.0/16"
+
+  azs                  = slice(data.aws_availability_zones.azs.names, 0, 2)
+  private_subnets      = ["10.0.1.0/24", "10.0.2.0/24"]
+  public_subnets       = ["10.0.3.0/24", "10.0.4.0/24"]
+  enable_nat_gateway   = true
+  single_nat_gateway   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+  }
+
+  public_subnet_tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                      = "1"
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"             = "1"
+  }
+}
+</code></pre>
+
+<p>通过使用<a href="https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws"> AWS VPC模块</a>，我们极大地简化了VPC的创建。我们将VPC配置为使用部署Terraform模板的区域中的前两个az。这是EKS要求的az的最小数量。</p>
+
+<p>为了节约成本，我们只配置一个NAT网关。AWS VPC模块将正确地设置路由表，以通过这个单一NAT网关路由所有内容。我们还为VPC启用了<a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-dns.html"> DNS主机名</a>，因为这是EKS 的<a href="https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html">要求。</a></p>
+
+<p>最后，我们设置EKS所需的标记，以便它可以发现其子网，并知道在哪里放置公共和私有负载平衡器。</p>
+
+<p>接下来，让我们使用<a href="https://registry.terraform.io/modules/terraform-aws-modules/eks/aws"> AWS EKS模块</a>来配置EKS集群。</p>
+
+<pre><code>module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~&gt; 12.2"
+
+  cluster_name    = local.cluster_name
+  cluster_version = "1.17"
+  subnets         = module.vpc.private_subnets
+  vpc_id          = module.vpc.vpc_id
+
+  worker_groups = [
+    {
+      instance_type = "t3.large"
+      asg_max_size  = 1
+    }
+  ]
+}
+</code></pre>
+
+<p>我们将集群配置为使用我们已经创建的VPC，并使用一个<code>t3.large</code>实例定义一个单独的worker组。这将足以在集群中创建一个简单的测试资源，同时最小化成本。</p>
+
+<p>最后，将以下配置添加到文件中:</p>
+
+<pre><code>data "aws_eks_cluster" "cluster" {
+  name = module.eks.cluster_id
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  name = module.eks.cluster_id
+}
+
+provider "kubernetes" {
+  version = "~&gt; 1.9"
+
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority.0.data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
+  load_config_file       = false
+}
+
+output "kubectl_config" {
+  description = "kubectl config that can be used to authenticate with the cluster"
+  value       = module.eks.kubeconfig
+}
+</code></pre>
+
+<p>我们从亚马逊EKS集群配置中获取一些数据，并将<a href="https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs"> Terraform Kubernetes提供者</a>配置为通过集群进行身份验证。当AWS EKS模块在集群中创建configmap时，该提供程序也在其中使用，这将授予当前通过身份验证的AWS用户对集群的管理权限。这是一个<a href="https://docs.aws.amazon.com/eks/latest/userguide/add-user-role.html"> EKS特有的</a>方法，用于授权AWS实体访问集群。</p>
+
+<p>最后,<code>output</code>块将显示向群集进行身份验证所需的信息——在我们调配完群集后会有更多相关信息。</p>
+
+<p>我们现在有了一个地形配置，完全可以启动EKS集群。让我们应用这个配置，并在集群中创建一个测试资源。</p>
+
+<h2>供应Kubernetes集群</h2>
+<p>配置您的shell以<a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication">认证</a>terra form AWS提供商。您的工作目录与我们刚刚创建Terraform文件的目录相同，初始化工作空间:</p>
+
+<pre><code>$ terraform init
+Initializing modules...
+Downloading terraform-aws-modules/eks/aws 12.2.0 for eks...
+- eks in .terraform/modules/eks/terraform-aws-eks-12.2.0
+- eks.node_groups in .terraform/modules/eks/terraform-aws-eks-12.2.0/modules/node_groups
+Downloading terraform-aws-modules/vpc/aws 2.48.0 for vpc...
+- vpc in .terraform/modules/vpc/terraform-aws-vpc-2.48.0
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Checking for available provider plugins...
+- Downloading plugin for provider "random" (hashicorp/random) 2.3.0...
+- Downloading plugin for provider "aws" (hashicorp/aws) 3.3.0...
+- Downloading plugin for provider "kubernetes" (hashicorp/kubernetes) 1.12.0...
+- Downloading plugin for provider "local" (hashicorp/local) 1.4.0...
+- Downloading plugin for provider "null" (hashicorp/null) 2.1.2...
+- Downloading plugin for provider "template" (hashicorp/template) 2.1.2...
+
+Terraform has been successfully initialized!
+
+[...]
+</code></pre>
+
+<p><code>terraform init</code>命令下载配置文件中包含的所有提供程序。我们现在可以应用和调配VPC和集群。</p>
+
+<p><strong>注意</strong> : <i>这将需要10到15分钟才能完成。</i></p>
+
+<pre><code>$ terraform apply
+
+[...]
+
+Plan: 40 to add, 0 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+[...]
+
+Apply complete! Resources: 40 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+[...]
+</code></pre>
+
+<p>就这样:我们现在有了一个完全启动并运行的亚马逊EKS集群。</p>
+
+<p>让我们部署一个pod，并通过负载平衡器公开它，以确保我们的集群按预期工作。</p>
+
+<p>要使用集群进行身份验证，您需要安装<a href="https://kubernetes.io/docs/tasks/tools/install-kubectl/"> kubectl </a>和<a href="https://docs.aws.amazon.com/eks/latest/userguide/install-aws-iam-authenticator.html"> aws-iam-authenticator </a>。在<code>terraform apply</code>末尾的<code>Outputs</code>部分包含了你可以添加到你的<a href="https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/"> kubeconfig </a>文件(或者一个临时的新文件)中的细节。完成后，让我们创建一个新的部署并公开它:</p>
+
+<pre><code>$ kubectl create deployment nginx --image=nginx
+deployment.apps/nginx created
+
+
+$ kubectl expose deployment/nginx --port=80 --type=LoadBalancer
+service/nginx exposed
+
+$ kubectl get service nginx
+</code></pre>
+
+<p>从最终输出中获取<code>EXTERNAL-IP</code>值——这是AWS负载平衡器的DNS条目。DNS传播可能需要几分钟时间。当它打开时，你会看到“欢迎使用nginx！”页面。成功！</p>
+
+<h2>更简单的方法:CircleCI aws-eks orb</h2>
+<p>您已经学习了一种构建亚马逊EKS集群的方法。然而，组装配置并使其保持最新是——并将继续是——相当多的(手动)工作。</p>
+
+<p>幸运的是，CircleCI <a href="https://circleci.com/developer/orbs/orb/circleci/aws-eks"> aws-eks orb </a>可以帮上忙。CircleCI <a href="https://circleci.com/orbs/"> orbs </a>包含预打包的配置代码，使其更容易与其他开发工具集成。这只是<a href="https://circleci.com/developer/orbs">宝珠注册表</a>中众多可用宝珠中的一个。</p>
+
+<p>aws-eks orb可以自动启动、测试和拆除亚马逊eks集群。您可以使用它来创建强大的工作流，在干净、完全隔离的临时EKS集群中测试应用程序。让我们试一试。</p>
+
+<p>CircleCI帐户是开始使用orb的主要先决条件。注册CircleCI 并在CircleCI项目中将Git存储库连接到您的帐户。</p>
+
+<p>在这个项目中，转到<strong>设置</strong>下的<strong>环境变量</strong>选项卡，添加以下变量，以便项目可以通过AWS进行身份验证。确保AWS IAM用户拥有创建EKS集群及其依赖项所需的权限。将region变量的值设置为要预配集群的区域。</p>
+
+<p><img src="../Images/18c5840e1ad1cd65a4658059b6a84b1a.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-09-28-k8s1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-09-28-k8s1.png"/></p>
+
+<p>接下来，在Git存储库中创建<code>.circleci/config.yml</code>文件，并向其中添加以下内容:</p>
+
+<pre><code>version: 2.1
+
+orbs:
+  aws-eks: circleci/aws-eks@1.0.0
+  kubernetes: circleci/kubernetes@0.11.1
+  
+jobs:
+  test-cluster:
+    executor: aws-eks/python3
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+    steps:
+      - kubernetes/install
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: &lt;&lt; parameters.cluster-name &gt;&gt;
+      - run:
+          command: |
+            kubectl get services
+          name: Test cluster
+
+workflows:
+  deployment:
+    jobs:
+      - aws-eks/create-cluster:
+          cluster-name: my-first-cluster
+      - test-cluster:
+          cluster-name: my-first-cluster
+          requires:
+            - aws-eks/create-cluster
+      - aws-eks/delete-cluster:
+          cluster-name: my-first-cluster
+          requires:
+            - test-cluster
+</code></pre>
+
+<p>该文件配置了一个包含三个作业的工作流:</p>
+
+<ol>
+  <li>使用来自aws-eks orb的<code>create-cluster</code>命令，使用<a href="https://eksctl.io/"> eksctl </a>实用程序创建集群及其依赖项</li>
+  <li>运行一个简单的测试来验证集群是否按预期工作</li>
+  <li>破坏集群</li>
+</ol>
+
+<p>将这个文件提交到您的存储库中，CircleCI将自动启动工作流，这将需要15到20分钟。当然，您可以在集群创建之后添加所有需要的步骤，比如提供资源和运行测试。</p>
+
+<p>与我们前面讨论的创建亚马逊eks集群的Terraform方法相比，aws-eks orb大大简化并加快了管理EKS集群生命周期的过程。EKS集群本身的复杂性，以及它的依赖项(比如VPC)的配置，都被完全抽象掉了。这是一个低维护的解决方案，它允许您将精力集中在构建具有自动化测试的有价值的持续集成工作流上。</p>
+
+<h2>后续步骤</h2>
+<p>您已经了解到创建您的第一个Kubernetes集群并不困难或可怕。Terraform提供了一种定义集群基础设施的简单方法。通过简单的CLI命令，您可以轻松调配已定义的基础架构。</p>
+
+<p>CircleCI orb进一步简化了这一过程。无需编写自己的Terraform代码或运行任何命令，您也可以达到相同的最终结果。</p>
+
+<p>学习这个的最好方法就是自己动手。首先使用Terraform代码及其CLI手动创建集群。然后，尝试CircleCI，看看使用aws-eks orb创建一个集群是多么容易和快速。</p>
+
+<hr/>
+
+<p>Sander是一名对自动化充满热情的云工程师。他喜欢解决技术和组织方面的挑战，以帮助公司在云中用更少的资源做更多的事情。这包括支持开发人员自治、平台工程和云原生解决方案等主题。他主要通过整合概念和工具来实现这一点，如代码基础设施、监控和日志记录、安全性和CI/CD。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

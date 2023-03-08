@@ -1,0 +1,141 @@
+<html>
+<head>
+<title>CI/CD for Unity game development with GameCI's Unity orb | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用GameCI的Unity orb | CircleCI开发Unity游戏的CI/CD</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/cicd-for-unity-projects/#2022-10-04T11:00:00-07:00">https://circleci.com/blog/cicd-for-unity-projects/#2022-10-04T11:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>我们最近与GameCI合作，在CircleCI和游戏开发领域之间架起了一座桥梁。这种合作带来了<a href="https://circleci.com/developer/orbs/orb/game-ci/unity"> Unity orb </a>，一个可重用的配置组件，你可以插入到你的CircleCI配置文件中来构建和测试你的Unity项目。</p>
+
+<p>一段时间以来，<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/">持续集成和交付</a>已经成为一些软件公司和IT部门的软件开发食谱的一部分。然而在游戏开发中往往不是这样。虽然后者和软件开发在本质上是相同的，但由于游戏的大小和硬件要求，游戏在集成到管道中时会更复杂。</p>
+
+<p>Unity orb是我们为游戏开发者简化CI/CD的第一步。有了它，你可以用最少的配置为几个平台构建你的游戏，包括macOS、Windows、Linux、Android和iOS。如果你有用<a href="https://docs.unity3d.com/Packages/com.unity.test-framework@1.1/manual/index.html" target="_blank" rel="noreferrer noopener"> Unity测试框架</a>编写的测试，orb可以运行，解析结果到JUnit，并为你存储它们以<a href="https://circleci.com/docs/insights-tests/">在CircleCI web应用中可视化</a>。</p>
+
+<p>在接下来的部分，你将了解我们与GameCI的合作关系，并了解Unity orb能做些什么。如果你迫不及待地想在你的项目中设置orb，请前往<a href="https://game.ci/docs/circleci/getting-started" target="_blank" rel="noreferrer noopener">入门</a>页面。</p>
+
+<h2>gamecih</h2>
+
+<p>GameCI是一个开发者社区，由<a href="https://takken.io/?utm_source=game-ci" target="_blank" rel="noreferrer noopener"> Webber </a>和<a href="https://gableroux.com/?utm_source=game-ci" target="_blank" rel="noreferrer noopener"> GabLeRoux </a>于2019年创立，专注于创建开源工具，以自动化unity项目的测试、构建和部署。在<a href="https://davidmfinol.website/?utm_source=game-ci" target="_blank" rel="noreferrer noopener">大卫</a>、<a href="https://game.ci/@site/src/components/pages/about-us/section/our-story-section/our-story" target="_blank" rel="noreferrer noopener">费舍尔</a>和几个贡献者的帮助下，它成长到支持1000多个寻求改进他们开发过程的团队。</p>
+
+<p>最初，GameCI专注于提供包含构建Unity项目所需一切的Docker图像。他们发展来创建和维护全面的GitHub操作，帮助开发人员测试、构建和部署。现在，他们的<a href="https://github.com/orgs/game-ci/projects/4" target="_blank" rel="noreferrer noopener">路线图</a>包括与GitHub的大规模解耦，成为一个CI无关的CLI工具。</p>
+
+<p>像GameCI一样，我们相信开源，并希望帮助游戏开发者将CI/CD纳入他们的开发流程，而不会将其变成业务的焦点。因此，我们联系了他们，建议他们合作实现一个orb，遵循他们现有工具中包含的理念和功能。</p>
+
+<p>我们为我们共同取得的成就感到非常自豪，并强烈鼓励您在他们的<a href="https://game.ci/" target="_blank" rel="noreferrer noopener">网站</a>、<a href="https://github.com/game-ci" target="_blank" rel="noreferrer noopener"> GitHub </a>和<a href="https://game.ci/discord" target="_blank" rel="noreferrer noopener"> Discord </a>上了解更多关于他们的信息。</p>
+
+<h2>团结球</h2>
+
+<p>Unity orb包含了许多分布在<a href="https://game.ci/docs/circleci/build" target="_blank" rel="noreferrer noopener">构建</a>和<a href="https://game.ci/docs/circleci/test" target="_blank" rel="noreferrer noopener">测试</a>任务之间的很酷的特性，我们将在这里介绍它们。如果你想知道真相，请访问orb的<a href="https://circleci.com/developer/orbs/orb/game-ci/unity">注册表</a>和<a href="https://github.com/game-ci/unity-orb" target="_blank" rel="noreferrer noopener">源代码</a>，</p>
+
+<p>顾名思义，<code>build</code>获取Unity项目，构建它，并有选择地保存结果工件。我们通过<a href="https://circleci.com/blog/config-best-practices-dependency-caching/">基于对<code>packages-lock.json</code>的更改缓存项目的依赖关系</a>来优化流程，这意味着您可以获得开箱即用的缓存！另一个很酷的特性是能够为多个平台构建你的游戏。由于orb运行在多个执行器上，你可以在<a href="https://learn.unity.com/tutorial/memory-management-in-unity#5c7f8528edbc2a002053b59b" target="_blank" rel="noreferrer noopener"> Mono和IL2CPP </a>之间选择。在我们的测试中，我们成功构建了:</p>
+<ul>
+  <li>WebGL</li>
+  <li>tvOS</li>
+  <li>马科斯</li>
+  <li>Linux操作系统</li>
+  <li>Windows操作系统</li>
+  <li>ios</li>
+  <li>机器人</li>
+</ul>
+
+<p>你可以在的<code>test-build</code>工作流程<a href="https://app.circleci.com/pipelines/github/game-ci/unity-orb">中下载并运行它们。你甚至可以直接从CircleCI web应用程序运行</a><a href="https://docs.unity3d.com/Manual/webgl-deploying.html" target="_blank" rel="noreferrer noopener">解压缩的WebGL </a>构建，在你的浏览器中进行游戏！</p>
+
+<figure>
+  <video autoplay="" loop="" muted="" playsinline="">
+    <source src="/blog/media/2022-10-03-unity-build.mp4" type="video/mp4"/>
+  </video>
+</figure>
+
+<p>这份<code>test</code>工作帮助你运行Unity测试，并从中获得<a href="https://circleci.com/docs/insights-tests/">洞察力</a>。我们通过将Unity的XML解析为JUnit并存储结果来实现这一点。如果测试没有通过，你也可以使用<a href="https://circleci.com/docs/configuration-reference/#requires"> requires </a>键来阻止工作。</p>
+
+<p><img src="../Images/bbd72aeed2e6b359e3410ff300d0b7d0.png" alt="Unity CI/CD test job" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-03-unity-test.png"/></p>
+
+<p>如果您需要对缓存进行更多的控制或者想要为您的作业定义自定义行为，您可以利用orb的命令。一名GameCI社区成员探索了这一概念，并在<a href="https://gist.github.com/nanodeath/903f2a63cb020c36073daedd9977c24b" target="_blank" rel="noreferrer noopener"> this gist </a>中分享了他们的发现。他们使用<code>persist_to_workspace</code>功能在后期构建工作中将构建工件部署到itch.io。</p>
+
+<h2>执行环境及其对您的影响</h2>
+
+<p>Unity很酷的一点是，你可以编写一次游戏，然后在任何地方运行。然而，像<a href="https://docs.unity3d.com/Manual/scripting-backends.html" target="_blank" rel="noreferrer noopener">脚本后端</a>这样的细微差别需要你能够访问你游戏的目标平台来构建它。考虑到这一点，我们将Unity orb设计为灵活的执行环境。</p>
+
+<p>可以在<a href="https://game.ci/docs/circleci/executors#macos" target="_blank" rel="noreferrer noopener"> macOS </a>、<a href="https://game.ci/docs/circleci/executors#windows" target="_blank" rel="noreferrer noopener"> Windows </a>、<a href="https://game.ci/docs/circleci/executors#ubuntu" target="_blank" rel="noreferrer noopener"> Linux </a> executors上运行orb，执行环境不限于CircleCI cloud。您可以在<a href="https://circleci.com/docs/runner-overview/">自托管运行器</a>上构建项目，让您完全控制基础设施。在接下来的部分中，我们将讨论每个选项，并了解哪个选项最适合您。</p>
+
+<h2>在CircleCI Cloud上构建Unity项目</h2>
+
+<p>在我们的云上运行您的管道的最大优势是零基础设施开销和快速设置。你只需要担心<a href="https://game.ci/docs/circleci/activation#configuring-your-context" target="_blank" rel="noreferrer noopener">配置你的上下文</a>和<a href="https://game.ci/docs/circleci/getting-started#setting-up-a-workflow" target="_blank" rel="noreferrer noopener">工作流</a>。如果你有一个小项目，想要测试orb，或者一般不关心<a href="https://game.ci/docs/circleci/executors" target="_blank" rel="noreferrer noopener">更长的构建时间</a>，我们建议你遵循这条路线。做好一切准备后，您的配置将如下所示:</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  unity: game-ci/unity@1.2
+
+workflows:
+  build-unity-project:
+    jobs:
+      - unity/build:
+          name: 'build-Windows64-il2cpp'
+          step-name: 'Build project for Windows using Cloud'
+          unity-license-var-name: 'UNITY_ENCODED_LICENSE'
+          unity-username-var-name: 'UNITY_USERNAME'
+          unity-password-var-name: 'UNITY_PASSWORD'
+          executor:
+            name: 'unity/windows-2019'
+            size: 'large'
+            editor_version: '2021.3.2f1'
+            target_platform: 'windows-il2cpp'
+          project-path: 'Unity2D-Demo-Game-CI-CD/src'
+          build-target: StandaloneWindows64
+          context: unity
+</code></pre>
+
+<p>这个代码片段使用Windows executor为Windows构建一个IL2CPP项目。你可以在我们的<a href="https://github.com/CircleCI-Public/Unity2D-Demo-Game-CI-CD" target="_blank" rel="noreferrer noopener">演示项目</a>的<a href="https://github.com/CircleCI-Public/Unity2D-Demo-Game-CI-CD/blob/main/.circleci/config.yml" target="_blank" rel="noreferrer noopener">配置</a>文件和<a href="https://game.ci/docs/circleci/build#examples" target="_blank" rel="noreferrer noopener">文档</a>中找到更多针对不同平台的例子。</p>
+
+<h2>使用CircleCI自托管跑步者构建Unity项目</h2>
+
+<p>大型项目对带宽和硬件的要求可能会超出我们云产品的能力。在这些情况下，您需要将Unity orb用于自托管跑步者。由于它们的非短暂性，检出步骤不会在每次运行时都克隆您的整个存储库，您可以选择满足您需求的硬件。有了安装体验的最新更新，您可以<a href="https://circleci.com/blog/install-runner-in-five-minutes/">在5分钟或更短时间内让runner运行起来</a>。</p>
+
+<p>一旦你设置好了你的运行器，你所要做的就是改变你的配置文件来使用<a href="https://game.ci/docs/circleci/executors#macos-runner" target="_blank" rel="noreferrer noopener"> macOS </a>或<a href="https://game.ci/docs/circleci/executors#windows-runner" target="_blank" rel="noreferrer noopener"> Windows </a>运行器执行器，同时传递你的<a href="https://circleci.com/docs/runner-concepts/#namespaces-and-resource-classes">资源类标签</a>作为参数:</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  unity: game-ci/unity@1.2
+
+workflows:
+  build-unity-project:
+    jobs:
+      - unity/build:
+          name: 'build-Windows64-il2cpp'
+          step-name: 'Build project for Windows using Runner'
+          unity-license-var-name: 'UNITY_ENCODED_LICENSE'
+          unity-username-var-name: 'UNITY_USERNAME'
+          unity-password-var-name: 'UNITY_PASSWORD'
+          executor:
+            name: 'unity/windows-runner'
+            editor_version: '2021.3.2f1'
+            resource_class: 'ericribeiro/unity-runner'
+          project-path: 'Unity2D-Demo-Game-CI-CD/src'
+          build-target: StandaloneWindows64
+          context: unity
+</code></pre>
+
+<p>请注意，只有执行器的参数发生了变化。您的其余配置保持不变，允许您尝试CircleCI cloud，如果前者不适合您的需求，可以快速切换到runner。下图展示了<code>windows-runner</code>相对于<code>windows-2019</code>云执行器的表现。</p>
+
+<p><img src="../Images/63167e581a631ce644a49ccbfcf451ed.png" alt="Unity build time cloud vs runner" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-03-unity-cloud-runner.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-03-unity-cloud-runner.png"/></p>
+
+<p>他们正在为相同的目标平台构建相同的项目，但是runner提前20分钟完成。构建时间的差距在于运行程序以前运行过一次任务。因此，所有环境依赖项都被缓存或已经安装。我们对runner使用了一个<code>m5.2xlarge</code> EC2实例，对cloud使用了一个大的资源类。</p>
+
+<h2>最后的想法</h2>
+
+<p>我们很高兴能与游戏开发者和GameCI一起开始这一旅程。凭借从这项事业中获得的知识，我们希望开发更多适合游戏开发社区的工具，并改进Unity orb。如果您有任何建议或反馈，请在<a href="https://twitter.com/CircleCI" target="_blank" rel="noreferrer noopener"> Twitter </a>上与我们联系，在我们的<a href="https://discuss.circleci.com/" target="_blank" rel="noreferrer noopener">论坛</a>上问好，或者在<a href="https://discord.gg/B8YHESde" target="_blank" rel="noreferrer noopener"> Discord </a>上与我们聊天。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

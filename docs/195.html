@@ -1,0 +1,721 @@
+<html>
+<head>
+<title>Continuous integration for CodeIgniter APIs | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CodeIgniter APIs的持续集成| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuous-integration-for-codeigniter-apis/#2020-12-09T09:00:00-08:00">https://circleci.com/blog/continuous-integration-for-codeigniter-apis/#2020-12-09T09:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>管理代码库是软件开发团队的一个主要瓶颈。让团队按照他们自己的节奏工作必须与确保代码库在任何时候都是有效的相平衡。许多团队使用代码库中的分支来试图保持这种平衡。一些团队为每个新特性创建一个分支，而其他团队为每个环境使用不同的分支(例如，开发、试运行、生产)。无论您使用什么方法，您都需要在某个时候合并分支，通常是在变更被批准的时候。随着应用程序复杂性的增加或团队规模的扩大，瓶颈会变得更加严重。您的团队在合并到生产分支时遇到的问题可能会延迟新功能的部署或导致意外停机，这会对客户的士气产生负面影响，并对销售产生负面影响。</p>
+
+<p><a href="https://circleci.com/continuous-integration/">持续集成(CI) </a>旨在解决这些问题。使用CI，您可以通过简单地将新特性的相关代码推送到存储库的主分支来触发集成。CI渠道让您可以维护一个每个人都可以推进的主要分支。只有在成功构建的情况下，新添加的代码才被允许进入主分支。这不仅节省了时间，而且有助于减少人为错误带来的复杂性。CI确保软件更新能够以快速可靠的方式执行。</p>
+
+<p>在本教程中，我将向您展示如何使用CircleCI持续集成CodeIgniter API。</p>
+
+<h2>先决条件</h2>
+
+<p>对CodeIgniter的基本理解可能会有所帮助，但我将在整个教程中提供解释和官方文档的链接。如果您对任何概念不清楚，您可以在继续之前查看链接的材料。</p>
+
+<p>开始之前，请确保您的系统上安装了以下项目:</p>
+
+<ul>
+  <li>Composer  : Composer将用于您的CodeIgniter项目中的依赖管理。</li>
+  <li>本地数据库实例。虽然本教程将使用MySQL，但是您可以自由选择您喜欢的数据库服务。</li>
+</ul>
+
+<p>对于存储库管理和持续集成，您需要:</p>
+
+<ul>
+  <li>一个<a href="https://github.com"> GitHub </a>账户。你可以在这里创建一个<a href="https://github.com/join">。</a></li>
+  <li>一个<a href="https://circleci.com/"> CircleCI </a>账户。你可以在这里创建一个<a href="https://circleci.com/signup/">。要轻松连接您的GitHub项目，您可以注册您的GitHub帐户。</a></li>
+</ul>
+
+<h2>入门指南</h2>
+
+<p>首先，创建一个新的CodeIgniter项目:</p>
+
+<pre><code>$ composer create-project codeigniter4/appstarter ci-test-circleci
+</code></pre>
+
+<p>这将启动一个新的CodeIgniter项目及其所有依赖项，安装在一个名为<code>ci-test-circleci</code>的文件夹中。</p>
+
+<h2>运行应用程序</h2>
+
+<p>移动到项目文件夹并运行应用程序:</p>
+
+<pre><code>$ php spark serve
+</code></pre>
+
+<p>从浏览器导航到<a href="http://localhost:8080/"> http://localhost:8080/ </a>打开欢迎页面。</p>
+
+<p><img src="../Images/cea95d58afe15f3db78ab239ed29fa24.png" alt="CodeIgniter Homepage" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-homepage.png"/></p>
+
+<p>在您的终端中，按<code>CTRL + C</code>停止应用程序，同时我们继续其余的设置。</p>
+
+<p>对于本教程，我们将构建一个API来管理博客文章。该API将拥有创建、阅读、更新和删除博客文章的端点。为了简单起见，一篇博客文章将有三个字段:</p>
+
+
+
+<p>我们的API将添加一个主键(<code>id</code>)、一个<code>created_at</code>字段和一个<code>updated_at</code>字段。</p>
+
+<p>首先，设置您的本地env文件和数据库。</p>
+
+<h2>设置本地环境</h2>
+
+<p>使用以下命令将<code>env</code>文件复制到<code>.env</code>文件中:</p>
+
+<pre><code>$ cp env .env
+</code></pre>
+
+<p>默认情况下，CodeIgniter在生产模式下启动。在本教程中，我们将把它改为开发模式。在<code>.env</code>文件中，取消对<code>CI_ENVIRONMENT</code>变量的注释，并将其设置为development:</p>
+
+<pre><code>CI_ENVIRONMENT = development
+</code></pre>
+
+<p>接下来，在您的本地环境中创建一个数据库。取消对以下变量的注释，以更新每个值并建立到数据库的成功连接:</p>
+
+<pre><code>database.default.hostname = localhost
+database.default.database = YOUR_DATABASE_NAME
+database.default.username = YOUR_DATABASE_USERNAME
+database.default.password = YOUR_DATABASE_PASSWORD
+database.default.DBDriver = MySQLi # this is the driver for a mysql connection. There are also drivers available for postgres &amp; sqlite3.
+</code></pre>
+
+<p>用项目特定的值替换<code>YOUR_DATABASE</code>、<code>YOUR_DATABASE_USERNAME</code>和<code>YOUR_DATABASE_PASSWORD</code>占位符。</p>
+
+<p>接下来，我们需要创建一个迁移文件，并在数据库中植入一些帖子。</p>
+
+<h2>迁徙和播种</h2>
+
+<p>现在您已经创建了一个数据库并建立了到它的连接，为<code>post</code>表创建迁移。</p>
+
+<p>从终端，使用<a href="https://codeigniter.com/user_guide/cli/index.html"> CodeIgniter CLI </a>工具创建一个迁移文件:</p>
+
+<pre><code>$ php spark migrate:create
+</code></pre>
+
+<p>CLI将要求您命名迁移文件。然后，它将在<code>app/Database/Migrations</code>目录中创建迁移文件。我们正在创建的迁移的名称是<code>add_post</code>。</p>
+
+<p>迁移文件名将以数字序列为前缀，格式为<strong> YYYY-MM-DD-HHIISS </strong>。前往<a href="https://codeigniter.com/user_guide/dbmgmt/migration.html#id1"> CodeIgniter文档</a>获取更详细的解释。</p>
+
+<p>接下来，打开位于<code>app/Database/Migrations/YYYY-MM-DDHHIISS_add_post.php</code>的迁移文件并更新其内容:</p>
+
+<pre><code>&lt;?php
+
+namespace app\Database\Migrations;
+
+use CodeIgniter\Database\Migration;
+
+class AddPost extends Migration
+{
+    public function up()
+    {
+        $this-&gt;forge-&gt;addField([
+            'id' =&gt; [
+                'type' =&gt; 'INT',
+                'constraint' =&gt; 5,
+                'unsigned' =&gt; true,
+                'auto_increment' =&gt; true,
+            ],
+            'title' =&gt; [
+                'type' =&gt; 'VARCHAR',
+                'constraint' =&gt; '100',
+                'null' =&gt; false
+            ],
+            'author' =&gt; [
+                'type' =&gt; 'VARCHAR',
+                'constraint' =&gt; '100',
+                'null' =&gt; false,
+            ],
+            'content' =&gt; [
+                'type' =&gt; 'VARCHAR',
+                'constraint' =&gt; '1000',
+                'null' =&gt; false,
+            ],
+            'updated_at' =&gt; [
+                'type' =&gt; 'datetime',
+                'null' =&gt; true,
+            ],
+            'created_at datetime default current_timestamp',
+        ]);
+        $this-&gt;forge-&gt;addPrimaryKey('id');
+        $this-&gt;forge-&gt;createTable('post');
+    }
+
+    public function down()
+    {
+        $this-&gt;forge-&gt;dropTable('post');
+    }
+}
+</code></pre>
+
+<p>现在，运行您的迁移:</p>
+
+<pre><code> $ php spark migrate
+</code></pre>
+
+<p>该命令在数据库中创建一个<code>post</code>表，并添加迁移中列出的列。</p>
+
+<p>为了使开发更容易，在数据库中植入一些虚拟客户机数据。fzaninotto faker包是CodeIgniter框架中默认的<code>dev</code>依赖项。您可以使用它向数据库中添加随机帖子。正如您为迁移所做的那样，使用CodeIgniter CLI工具为posts创建一个种子。运行:</p>
+
+<pre><code>$ php spark make:seeder
+</code></pre>
+
+<p>当CLI提示您输入名称时，输入<code>PostSeeder</code>。在<code>app/Database/Seeds</code>目录下会创建一个<code>PostSeeder.php</code>文件。打开文件并将其内容替换为:</p>
+
+<pre><code>&lt;?php
+namespace app\Database\Seeds;
+
+use CodeIgniter\Database\Seeder;
+use Faker\Factory;
+
+class PostSeeder extends Seeder
+{
+    public function run()
+    {
+        for ($i = 0; $i &lt; 10; $i++) { //to add 10 posts. Change limit as desired
+            $this-&gt;db-&gt;table('post')-&gt;insert($this-&gt;generatePost());
+        }
+    }
+
+    private function generatePost(): array
+    {
+        $faker = Factory::create();
+        return [
+            'title' =&gt; $faker-&gt;sentence,
+            'author' =&gt; $faker-&gt;name,
+            'content' =&gt; $faker-&gt;paragraphs(4, true),
+        ];
+    }
+}
+
+</code></pre>
+
+<p>接下来，用虚拟客户机播种数据库。运行:</p>
+
+<pre><code>$ php spark db:seed PostSeeder
+</code></pre>
+
+<p><img src="../Images/23b1262bdaf4ba914c3cca05044e96a6.png" alt="Database View" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-db-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-db-view.png"/></p>
+
+<h2>实体模型</h2>
+
+<p>我们将使用<a href="https://codeigniter4.github.io/userguide/models/model.html#using-codeigniter-s-model"> CodeIgniter的模型</a>用于API与数据库的交互。首先，通过打开<code>app/Models</code>目录并创建一个名为<code>PostModel.php</code>的文件，为blog表创建一个模型。添加:</p>
+
+<pre><code>&lt;?php
+
+
+use CodeIgniter\Model;
+
+class PostModel extends Model
+{
+    protected $table = 'post';
+
+    protected $allowedFields = [
+        'title',
+        'author',
+        'content',
+    ];
+
+    protected $updatedField = 'updated_at';
+
+    public function getAllPosts(): array
+    {
+        return $this-&gt;findAll();
+    }
+
+    public function findPost($id): array
+    {
+        $post = $this
+            -&gt;asArray()
+            -&gt;where(['id' =&gt; $id])
+            -&gt;first();
+
+        if (!$post) throw new Exception('Could not find post for specified ID');
+
+        return $post;
+    }
+
+    public function savePost(array $postDetails): array
+    {
+        $postId = (int)$this-&gt;insert($postDetails);
+        $postDetails['id'] = $postId;
+        return $postDetails;
+    }
+
+    public function updatePost(int $postId, array $newPostDetails): array
+    {
+        $this-&gt;update($postId, $newPostDetails);
+        return $this-&gt;findPost($postId);
+    }
+
+    public function deletePost($id){
+        $post = $this-&gt;findPost($id);
+        $this-&gt;delete($post);
+    }
+}
+</code></pre>
+
+<p>在这个类中，我们定义了允许API与数据库交互的模型函数。首先指定表名和可以在数据库中更新的列。</p>
+
+<p>函数<code>getAllPosts</code>、<code>getPost</code>、<code>savePost</code>、<code>updatePost</code>和<code>deletePost</code>让API根据控制器的需要执行读或写操作。</p>
+
+<h2>创建控制器</h2>
+
+<p>接下来，在<code>app/Controllers</code>目录中创建一个文件名<code>Post.php</code>。添加:</p>
+
+<pre><code>&lt;?php
+
+namespace app\Controllers;
+
+use CodeIgniter\HTTP\ResponseInterface;
+use PostModel;
+
+class Post extends BaseController
+{
+    public function create()
+    {
+        $rules = [
+            'title' =&gt; 'required|min_length[6]|max_length[100]',
+            'author' =&gt; 'required|min_length[6]|max_length[100]',
+            'content' =&gt; 'required|min_length[6]|max_length[1000]',
+        ];
+
+        $input = $this-&gt;getRequestInput($this-&gt;request);
+
+        if (!$this-&gt;validateRequest($input, $rules)) {
+            return $this
+                -&gt;getResponse(
+                    $this-&gt;validator-&gt;getErrors(),
+                    ResponseInterface::HTTP_BAD_REQUEST
+                );
+        }
+
+        $model = new PostModel();
+        $savePostResponse = $model-&gt;savePost($input);
+        return $this-&gt;getResponse(
+            [
+                'message' =&gt; 'Post added successfully',
+                'post' =&gt; $savePostResponse
+            ],
+            ResponseInterface::HTTP_CREATED
+        );
+    }
+
+    public function index()
+    {
+        $model = new PostModel();
+        return $this-&gt;getResponse([
+            'message' =&gt; 'Posts retrieved successfully',
+            'posts' =&gt; $model-&gt;getAllPosts()
+        ]);
+    }
+
+    public function show($id)
+    {
+        $model = new PostModel();
+        return $this-&gt;getResponse([
+            'message' =&gt; 'Post retrieved successfully',
+            'post' =&gt; $model-&gt;findPost($id)
+        ]);
+    }
+
+    public function update($id)
+    {
+        $input = $this-&gt;getRequestInput($this-&gt;request);
+        $model = new PostModel();
+        $updatePostResponse = $model-&gt;updatePost($id, $input);
+
+        return $this-&gt;getResponse(
+            [
+                'message' =&gt; 'Post updated successfully',
+                'post' =&gt; $updatePostResponse
+            ]
+        );
+    }
+
+    public function delete($id){
+        $model = new PostModel();
+        $model-&gt;deletePost($id);
+
+        return $this-&gt;getResponse(
+            [
+                'message' =&gt; 'Post deleted successfully',
+            ]
+        );
+    }
+}
+</code></pre>
+
+<p>该控制器类包含五个功能，对应于用户的路线:</p>
+<ul>
+  <li>创建:<code>index</code>功能</li>
+  <li>读取:<code>index</code>和<code>show</code>功能</li>
+  <li>更新:<code>update</code>功能</li>
+  <li>删除:<code>delete</code>功能</li>
+</ul>
+
+<p>对于这些函数中的每一个，我们使用在<code>PostModel.php</code>中声明的相关函数与数据库进行交互。</p>
+
+<p>我们的控制器使用了一些需要在<code>BaseController</code>中声明的助手函数。打开<code>app/Controllers/BaseController.php</code>文件。在<code>BaseController</code>类内，添加:</p>
+
+<pre><code>public function getResponse(array $responseBody,
+                            int $code = ResponseInterface::HTTP_OK)
+{
+    return $this
+        -&gt;response
+        -&gt;setStatusCode($code)
+        -&gt;setJSON($responseBody);
+}
+
+public function getRequestInput(IncomingRequest $request)
+{
+    $input = $request-&gt;getPost();
+    if (empty($input)) {
+        $input = json_decode($request-&gt;getBody(), true);
+    }
+    return $input;
+}
+
+public function validateRequest($input, array $rules, array $messages = [])
+{
+    $this-&gt;validator = Services::Validation()-&gt;setRules($rules);
+    // If you replace the $rules array with the name of the group
+    if (is_string($rules)) {
+        $validation = config('Validation');
+
+        // If the rule wasn't found in the \Config\Validation, we
+        // should throw an exception so the developer can find it.
+        if (!isset($validation-&gt;$rules)) {
+            throw ValidationException::forRuleNotFound($rules);
+        }
+
+        // If no error message is defined, use the error message in the Config\Validation file
+        if (!$messages) {
+            $errorName = $rules . '_errors';
+            $messages = $validation-&gt;$errorName ?? [];
+        }
+
+        $rules = $validation-&gt;$rules;
+    }
+    return $this-&gt;validator-&gt;setRules($rules, $messages)-&gt;run($input);
+}
+</code></pre>
+
+<p><strong>注意</strong> : <i>不要忘记为CodeIgniter添加这些导入语句:</i></p>
+
+<pre><code>use CodeIgniter\HTTP\ResponseInterface;
+use CodeIgniter\HTTP\IncomingRequest;
+use CodeIgniter\Validation\Exceptions\ValidationException;
+use Config\Services;
+</code></pre>
+
+<h2>控制器路由</h2>
+
+<p>打开<code>app/Config/Routes.php</code>文件并添加:</p>
+
+<pre><code>$routes-&gt;get('posts', 'Post::index');
+$routes-&gt;post('post', 'Post::create');
+$routes-&gt;get('post/(:num)', 'Post::show/$1');
+$routes-&gt;post('post/(:num)', 'Post::update/$1');
+$routes-&gt;delete('post/(:num)', 'Post::delete/$1');
+</code></pre>
+
+<p>这些行将把在<code>Post</code>控制器中声明的每个函数分配给一个用户可以向其发送HTTP请求的端点。</p>
+
+<h2>运行应用程序并测试端点</h2>
+
+<p>运行应用程序:</p>
+
+<pre><code>$ php spark serve
+</code></pre>
+
+<p>使用Postman(或类似的应用程序)我们可以验证我们的应用程序工作正常。</p>
+
+<h3>获取博客文章列表</h3>
+
+<p><img src="../Images/48baf6cf496ffece10fceda4ca38bc6e.png" alt="Fetch Posts" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-fetch-post.png"/></p>
+
+<h3>检索博客文章的详细信息</h3>
+
+<p><img src="../Images/48baf6cf496ffece10fceda4ca38bc6e.png" alt="Fetch Post" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-fetch-post.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-fetch-post.png"/></p>
+
+<h3>写作测试</h3>
+
+<p>看起来我们的端点工作正常，但我们不能绝对肯定，直到我们测试了所有的可能性。为了确保我们的应用程序处理意外情况，我们应该编写模拟边缘场景的测试。</p>
+
+<p>在<code>tests</code>目录中，创建一个名为<code>Controllers</code>的文件夹。在<code>tests/Controllers</code>目录中，创建一个名为<code>PostTest.php</code>的类，并添加:</p>
+
+<pre><code>&lt;?php
+
+namespace Controllers;
+
+use CodeIgniter\HTTP\ResponseInterface;
+use CodeIgniter\Test\FeatureTestCase;
+
+class PostTest extends FeatureTestCase
+{
+    public function testCreateWithValidRequest()
+    {
+        $result = $this-&gt;post('post', [
+            'title' =&gt; 'THis is a dummy post',
+            'author' =&gt; 'Janet Doe',
+            'content' =&gt; 'This is a test to show that the create endpoint works'
+        ]);
+        $result-&gt;assertStatus(ResponseInterface::HTTP_CREATED);
+    }
+
+    public function testIndex()
+    {
+        $result = $this-&gt;get('posts');
+        $result-&gt;assertStatus(ResponseInterface::HTTP_OK);
+    }
+
+    public function testShowWithInvalidId()
+    {
+        $result = $this-&gt;get('post/0'); //no item in the database should have an id of -1
+        $result-&gt;assertStatus(ResponseInterface::HTTP_NOT_FOUND);
+    }
+}
+</code></pre>
+
+<p>为了节省时间，我们在本教程中只测试3个场景。首先，我们尝试创建一个post，并断言API成功地处理了它，并返回一个<code>201</code> HTTP响应代码。第二个测试检查当请求获取所有帖子时，API是否返回一个<code>200</code>响应代码。最后一个测试是边缘情况；这是对数据库中不存在的职位的请求。我们期望系统返回一个<code>404</code>响应，因为我们的数据库中没有这样的帖子。</p>
+
+<p>接下来，我们需要对<code>app/Config/Database.php</code>文件进行一些修改。修改<code>$tests</code>数组:</p>
+
+<pre><code>public $tests = [
+   'hostname' =&gt; '',
+   'username' =&gt; '',
+   'password' =&gt; '',
+   'database' =&gt; '',
+   'DBDriver' =&gt; '',
+];
+</code></pre>
+
+<p>有了您的测试用例，您可以添加CircleCI配置。</p>
+
+<h2>添加CircleCI配置</h2>
+
+<p>在您的项目根目录中，创建一个名为<code>.circleci</code>的文件夹。将名为<code>config.yml</code>的文件添加到该目录中。</p>
+
+<pre><code>$ mkdir .circleci
+
+$ touch .circleci/config.yml
+</code></pre>
+
+<p>在<code>.circleci/config.yml</code>中添加:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/php:7.4-node-browsers
+
+      - image: circleci/mysql:8.0.4
+
+        auth:
+          username: mydockerhub-user
+          password: $DOCKERHUB_PASSWORD
+
+        environment:
+          MYSQL_ROOT_PASSWORD: rootpw
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: user
+          MYSQL_PASSWORD: passw0rd
+
+    steps:
+      - checkout
+
+      - run: sudo apt update
+      - run: sudo docker-php-ext-install zip
+
+      - run:
+          # Our primary container isn't MYSQL so run a sleep command until it is ready.
+          name: Waiting for MySQL to be ready
+          command: |
+            for i in `seq 1 10`;
+            do
+              nc -z 127.0.0.1 3306 &amp;&amp; echo Success &amp;&amp; exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for MySQL &amp;&amp; exit 1
+
+      - run:
+          name: Install MySQL CLI
+          command: |
+            sudo apt-get install default-mysql-client
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            # "composer.lock" can be used if it is committed to the repo
+            - v1-dependencies-{{ checksum "composer.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+
+      - run:
+          name: Create .env file and add db parameters
+          command: |
+            sudo cp env .env
+            sudo chmod 777 .env
+            sudo echo "" &gt;&gt; .env
+            sudo echo "CI_ENVIRONMENT = development" &gt;&gt; .env
+            sudo echo "" &gt;&gt; .env
+            sudo echo "database.default.hostname = 127.0.0.1" &gt;&gt; .env
+            sudo echo "database.default.database = test_db" &gt;&gt; .env
+            sudo echo "database.default.username = user" &gt;&gt; .env
+            sudo echo "database.default.password = rootpw" &gt;&gt; .env
+            sudo echo "database.default.DBDriver = MySQLi" &gt;&gt; .env
+
+      - run: phpdbg -qrr ./vendor/bin/phpunit tests/Controllers 
+</code></pre>
+
+<p>这里发生了几件事。指定CircleCI版本后，我们指定<a href="https://circleci.com/docs/concepts/#jobs">构建任务</a>。这项工作有两个关键环节。<code>docker</code>构建指定了我们构建过程成功运行所需的映像。其中，我们加载了两个Docker映像，一个用于PHP (7.4)，另一个用于MySQL。<code>auth</code>和<code>environment</code>块定义了允许我们的CodeIgniter应用程序连接到数据库的认证参数。</p>
+
+<p><strong>注意</strong> : <i> CodeIgniter对PHP版本的最低要求是7.2。默认情况下，CircleCI将Docker映像的PHP版本设置为7.1。请务必更改这一点，否则您的构建将会失败。</i></p>
+
+<p><a href="https://circleci.com/docs/concepts/#steps">步骤</a>块做几件重要的事情:</p>
+
+<ol>
+  <li>从存储库中签出代码</li>
+  <li>设置Docker图像</li>
+  <li>安装MySQL</li>
+  <li>安装编写器依赖项</li>
+  <li>创建一个<code>.env</code>文件，并相应地更新数据库参数</li>
+  <li>运行<code>tests/Controllers</code>文件夹中的测试用例。参考<a href="https://circleci.com/docs/code-coverage/#php">文档</a>，了解我们为什么使用<code>phpdbg</code>。</li>
+</ol>
+
+<p>接下来，我们需要在GitHub上建立一个存储库，并将项目链接到CircleCI。看到这个帖子帮助<a href="https://circleci.com/blog/pushing-a-project-to-github/">把你的项目推到GitHub </a>。</p>
+
+<h2>将项目添加到CircleCI</h2>
+
+<p>登录您的CircleCI帐户。如果你注册了你的GitHub账户，你所有的库都会显示在你项目的仪表盘上。</p>
+
+<p>在您的<code>ci-test-circleci</code>项目旁边，点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/47d9cc8ff842677900c5a0be8c466eff.png" alt="Set up Project" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-set-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-set-up-project.png"/></p>
+
+<p>CircleCI会检测您的配置文件，并为您提供使用默认PHP配置的选项。</p>
+
+<p>点击<strong>使用现有配置</strong>然后<strong>开始建造</strong>。您的第一个构建过程将开始运行。此构建将失败。你以后会明白为什么的。</p>
+
+<p><img src="../Images/8d6ff0687762e2d4943415d0b94fc8db.png" alt="Failed Build" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-failed-build.png"/></p>
+
+<p>点击<strong>构建</strong>。您将看到作业步骤和每个作业的状态。为什么最后一步构建失败了？这是因为我们的应用程序没有通过所有的测试。</p>
+
+<p><img src="../Images/114894fc503911a7d7e0b5701cb9ac98.png" alt="Failed Build Details" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-failed-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-failed-build-details.png"/></p>
+
+<p>这是持续集成之美的一个例子；你可以在 i &gt;它们投入生产之前<i>捕捉错误和问题。这种情况下的问题是微不足道的，但是使用更复杂的数据库可以获得同样的好处</i></p>
+
+<p>是时候通过让我们的应用程序通过最后的测试来让我们的管道构建成功了。</p>
+
+<p>我们的测试失败了，因为我们的应用程序在找不到提供的ID的帖子时抛出了一个异常。当这种情况发生时，我们的应用程序应该捕获异常并在响应中返回一条错误消息。</p>
+
+<p>为此，我们需要做一些改变。首先，在<code>app</code>目录中创建一个名为<code>Exception</code>的目录。在<code>app/Exception</code>目录中，创建一个名为<code>ItemNotFoundException.php</code>的类，并添加:</p>
+
+<pre><code>&lt;?php
+
+namespace app\Exception;
+
+use Exception;
+
+class ItemNotFoundException extends Exception
+{
+
+}
+</code></pre>
+
+<p>这个类允许我们只处理在数据库中找不到的项目的异常。如果需要，我们可以为另一个异常应用不同的逻辑(例如，一个<code>AccessDeniedException</code>)。</p>
+
+<p>接下来，在位于<code>app/Models/PostModel.php</code>类中的<code>findPost</code>函数中使用这个异常。添加:</p>
+
+<pre><code>public function findPost($id): array
+{
+    $post = $this
+        -&gt;asArray()
+        -&gt;where(['id' =&gt; $id])
+        -&gt;first();
+
+    if (!$post) throw new ItemNotFoundException('Could not find post for specified ID');
+
+    return $post;
+}
+</code></pre>
+
+<p><strong>注意</strong> : <i>不要忘记在文件</i>的顶部添加这个导入语句。</p>
+<pre><code>use App\Exception\ItemNotFoundException;
+</code></pre>
+
+<p>更改<code>app/Controllers/Post.php</code>类中的<code>show</code>函数:</p>
+
+<pre><code>public function show($id)
+{
+    $model = new PostModel();
+    try {
+        return $this-&gt;getResponse([
+            'message' =&gt; 'Post retrieved successfully',
+            'post' =&gt; $model-&gt;findPost($id)
+        ]);
+    } catch (ItemNotFoundException $e) {
+        return $this-&gt;getResponse([
+            'message' =&gt; $e-&gt;getMessage(),
+        ],
+            ResponseInterface::HTTP_NOT_FOUND);
+    }
+}
+</code></pre>
+
+<p><strong>注意</strong> : <i>别忘了加上进口声明。</i>。</p>
+
+<pre><code>use App\Exception\ItemNotFoundException;
+</code></pre>
+
+<p>提交并推动您的更改。</p>
+
+<pre><code>$ git add .
+$ git commit -m "Handle ItemNotFoundException"
+$ git push origin main
+</code></pre>
+
+<p>一旦成功推送了更改，请返回到您的CircleCI仪表板。有一个新的生成进程正在运行。完成后，状态变为<code>Success</code>。</p>
+
+<p><img src="../Images/2f9ce02a2542087868ee0d34a0ce3a80.png" alt="Successful Build" srcset="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-10-07-ci-successful-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-10-07-ci-successful-build.png"/></p>
+
+<h2>结论</h2>
+
+<p>在本教程中，我向您展示了如何使用GitHub和CircleCI为CodeIgniter应用程序建立持续集成管道。虽然我们的应用程序很简单，测试覆盖面很小，但我们涵盖了CodeIgniter中管道配置和特性测试的关键领域。</p>
+
+<p>当代码库中反映出强大的测试文化时，持续集成确实会大放异彩。通过使用确定应用程序应该如何响应预期和意外场景的测试用例，持续集成使得添加(和部署)新功能的过程更加简单。如果所有测试都通过，更新将被部署到生产服务器上。如果没有，团队会收到警报，他们可以在问题造成任何停机之前解决问题。尝试持续集成，让代码库瓶颈成为团队的过去！</p>
+
+<p>本教程的完整代码库可从GitHub 上的<a href="https://github.com/CIRCLECI-GWP/ci-test-circleci">获得。</a></p>
+
+<p>编码快乐！</p>
+
+<hr/>
+
+<p>Oluyemi是一个技术爱好者、编程狂和热爱新技术的网络开发迷。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Oluyemi是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他的问题解决技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。作为技术专家，他的爱好包括尝试新的编程语言和框架。</p>
+
+            <p><a href="/blog/author/olususi-oluyemi/" class="arrow-link">阅读更多Olususi Oluyemi的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

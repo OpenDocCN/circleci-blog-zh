@@ -1,0 +1,80 @@
+<html>
+<head>
+<title>What you need to know about Docker and CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>关于Docker和CircleCI你需要知道的</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/docker-what-you-should-know/#2018-09-20T10:05:00-07:00">https://circleci.com/blog/docker-what-you-should-know/#2018-09-20T10:05:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>CircleCI 2.0使用Docker执行器实现了构建支持。在发布时，我们很快意识到CircleCI用户遇到的最大障碍之一是缺乏使用Docker的经验。在本帖中，我们将讨论Docker和一些用户应该熟悉的基本命令。</p>
+
+<h2>Docker是什么？</h2>
+
+<p><em>查看<a href="https://circleci.com/blog/docker-what-you-should-know/">为您的CI/CD管道使用Docker的指南</a> </em></p>
+
+<p>" Docker是开发者和系统管理员使用容器开发、部署和运行应用程序的平台."</p>
+
+<p>Docker也被称为应用程序打包工具，它使应用程序能够被配置并打包到一个<a href="https://docs.docker.com/get-started/#images-and-containers"> Docker映像</a>中，该映像可用于生成运行应用程序实例的<a href="https://docs.docker.com/get-started/#images-and-containers"> Docker容器</a>。它提供了许多好处，包括运行时环境隔离、代码一致性和可移植性。Docker容器可以在任何支持<a href="https://www.docker.com/products/docker-engine"> Docker引擎</a>的操作系统上运行。对我们有利的是，大多数操作系统都支持它。</p>
+
+
+
+<h2>码头工人执行人</h2>
+
+<p>CircleCI平台使用了一个叫做执行器的概念。执行器是您的CI/CD作业/配置在CircleCI平台中运行的环境。CircleCI目前支持三种不同的执行器类型:</p>
+
+
+
+<p>在这篇博文中，我们将讨论Docker executor。</p>
+
+<h2>配置Docker执行器</h2>
+
+<p>CircleCI作业定义在一个<a href="https://circleci.com/docs/configuration-reference/"> <code>config.yml</code> </a>构建配置文件中。您可以在这里为您的构建指定Docker执行器的用法。下面是一个<code>config.yml</code>文件的摘录，显示了一个执行者的定义:</p>
+
+<pre><code class="language-yaml">version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:2.7.14
+
+</code></pre>
+
+<p><code>docker:</code>键指示平台在Docker执行器上构建，而<code>- image:</code>键指定在生成Docker容器时使用哪个Docker映像。构建将在基于<code>circleci/python:2.7.14</code>映像的Docker容器中执行。</p>
+
+<h2>基本Docker命令</h2>
+
+<p>为了回应用户缺乏经验的问题，我们编辑了一个基本Docker命令和更多信息链接的列表。这些有助于你了解Docker，控制执行人。这些命令可以在任何安装了Docker引擎的计算机上本地运行。</p>
+
+<h3>构建Docker图像</h3>
+
+
+<h3>Docker 容器</h3>
+
+
+<h3>Docker映像部署</h3>
+
+
+<p>此外，理解<a href="https://docs.docker.com/engine/reference/builder/"> Dockerfile: </a>的概念也很重要，Dockerfile是一个文本文档，它包含用户可以在命令行上调用的所有命令来组合一个图像。</p>
+
+<p>上面列出的命令是用户通过Docker引擎可以使用的所有Docker命令的一个子集。它们代表了一组相关的命令，可以让用户快速熟悉Docker。你可以在这里了解更多关于<a href="https://docs.docker.com/engine/reference/commandline/docker/"> Docker命令的信息。</a></p>
+
+<h3>在CircleCI上构建Docker图像</h3>
+
+<p>CircleCI有一个非常酷的特性，使用户能够轻松地在其CI/CD管道中构建Docker映像。<code>setup_remote_docker:</code>键是一个特性，可以在Docker executor作业中构建、运行和推送映像到Docker注册表。当<code>docker_layer_caching</code>设置为<code>true</code>时，CircleCI将尝试重新使用在之前的工作或工作流程中构建的任何Docker图像(层),这些图像保持不变。也就是说，在之前的作业中构建的每个未更改的图层都可以在远程环境中访问。然而，有些情况下，即使配置指定了<code>docker_layer_caching: true</code>，您的作业也将在干净的环境中运行。这些情况涉及到为依赖于相同环境的相同项目运行许多并行作业。有关Docker层缓存的更多信息，请查看<a href="https://circleci.com/docs/docker-layer-caching/">文档页面</a>。</p>
+
+<h2>摘要</h2>
+
+<p>在这篇文章中，我们讨论了CircleCI Docker执行器和一些“必须知道”的Docker命令。熟悉这些基本命令将会消除CircleCI新用户遇到的一个更大的障碍。</p>
+
+<p>如果你想了解更多关于CircleCI的信息，请查看<a href="https://circleci.com/docs/">文档网站</a>，如果你真的遇到了困难，你也可以通过https://discuss.circleci.com/<a href="https://discuss.circleci.com/">社区/论坛网站联系CircleCI社区。</a></p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,460 @@
+<html>
+<head>
+<title>Beyond API testing with Jest | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用Jest | CircleCI超越API测试</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/api-testing-with-jest/#2022-09-30T09:00:00-07:00">https://circleci.com/blog/api-testing-with-jest/#2022-09-30T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>Jest是一个基于JavaScript的测试框架，可以测试前端和后端应用程序。Jest非常适合验证，因为它捆绑了一些工具，使得编写测试更加易于管理。虽然Jest最常用于简单的API测试场景和断言，但它也可以用于测试复杂的数据结构。在本教程中，我们将介绍如何使用Jest来测试嵌套的API响应，并希望在这个过程中获得乐趣。</p>
+
+<h2>先决条件</h2>
+
+<p>要完成本教程，您需要:</p>
+
+<ol>
+  <li>系统上安装的<a href="https://nodejs.org" target="_blank" rel="noreferrer noopener"> Node.js </a></li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+  <li>Postman或任何其他HTTP客户端来测试API</li>
+  <li><a href="https://www.javascript.com/" target="_blank" rel="noreferrer noopener"> JavaScript </a>的基础知识</li>
+  <li>对API和单元测试的基本理解</li>
+</ol>
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<h3>克隆存储库</h3>
+
+<p>本教程将带您完成为虚拟空间API项目编写Jest测试的过程。要访问整个项目，请通过运行以下命令克隆存储库:</p>
+
+<pre><code class="language-bash">git clone --single-branch --branch base-project https://github.com/CIRCLECI-GWP/space-app-api
+</code></pre>
+
+<pre><code class="language-bash">cd space-app-api
+</code></pre>
+
+<h2>创建我们的空间应用编程接口</h2>
+
+<p>要开始编写我们的cool Jest测试，我们首先需要运行我们的API。这就是我们将要编写测试的内容。对于本教程，我们将使用一个简单的API，它将给出我们可以用来编写测试的响应。我已经选择了一个基于太空旅行的API，所以准备好未来的太空探险家吧！</p>
+
+<p>本教程的API已经开发出来了。使用以下命令进行设置，以安装应用程序依赖项:</p>
+
+<pre><code class="language-bash">npm install
+</code></pre>
+
+<p>启动应用程序(API服务器):</p>
+
+<pre><code class="language-bash">npm start
+</code></pre>
+
+<p>运行这些命令后，我们可以开始编写测试了。</p>
+
+<p>API返回太空旅行所需的最关键项目的响应。它有以下端点:</p>
+<ul>
+  <li>可用的空间目的地</li>
+  <li>现有航班和相关信息</li>
+  <li>精选的航班座位及其配置</li>
+</ul>
+
+<p><strong>注意</strong> : <i>本教程的重点是用Jest进行测试，而不是开发一个<a href="https://github.com/CIRCLECI-GWP/space-app-api" target="_blank" rel="noreferrer noopener">空间API库</a>，所以没有相关步骤。如果您对所有可用的端点或应用程序架构感兴趣，请在这里查看<a href="https://github.com/CIRCLECI-GWP/space-app-api/blob/main/routes/space.js" target="_blank" rel="noreferrer noopener">应用程序的路由文件</a>。</i></p>
+
+<p>假设您已经在机器上克隆并设置了应用程序，所有端点都已经存在。用Postman这样的API客户端向<code>http://localhost:3000/space/flights</code>、<code>http://localhost:3000/space/destinations</code>和<code>http://localhost:3000/space/flights/seats</code>发出<code>GET</code>请求。</p>
+
+<p>细节已经被硬编码到API端点上。</p>
+
+<p><img src="../Images/ddb4c94a04d6d8cce9d5914316d2b0c6.png" alt="space-api-response1" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-30-space-flight-api-response1.png"/></p>
+
+<p><img src="../Images/14031b68cc618442dce8367cf51518ec.png" alt="space-api-response2" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-30-space-flight-api-response2.png"/></p>
+
+<p><img src="../Images/27bdef647d6256f809fb4f250a876233.png" alt="space-api-response3" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-30-space-flight-api-response3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-30-space-flight-api-response3.png"/></p>
+
+<p>既然您已经体验了我们的API如何工作和模拟响应，我们可以继续测试了。</p>
+
+<h2>用Jest编写API测试</h2>
+
+<p>在本节中，您将测试API响应，学习如何测试嵌套的JavaScript对象和数组，并提高您作为开发人员或测试工程师的测试技能。我们将使用JEST来测试API响应的组合，从简单的数组到包含对象的复杂数组响应。我们甚至将测试一个包含有更多子数组和对象的数组的对象。</p>
+
+<h3>安装Jest</h3>
+
+<p>要开始用Jest进行测试，请将其添加到您当前的space API中。要将Jest作为开发依赖项安装，请运行以下命令。</p>
+
+<pre><code class="language-bash">npm install --save-dev jest
+</code></pre>
+
+<p><strong>注</strong> : <i>开发依赖是仅用于开发目的的依赖。这些依赖项不应安装在生产环境中。</i></p>
+
+<p>接下来，您需要对<code>package.json</code>文件进行一些更改，以确保测试在正确的配置下运行。您将添加两个命令，一个用于测试API端点，另一个用于请求Jest监视我们文件中的更改并重新运行测试。在package.json文件中添加Jest命令:</p>
+
+<pre><code class="language-json">"scripts": {
+    "start": "node ./bin/www",
+    "test": "jest"
+},
+</code></pre>
+
+<p>您可以添加一个<a href="https://jestjs.io/docs/configuration" target="_blank" rel="noreferrer noopener"> Jest配置</a>文件，如果这对您的项目更好的话。不过，对于本教程，我们将使用Jest的默认配置。</p>
+
+<h2>在Jest中设置API测试</h2>
+
+<p>在根目录下创建一个<code>tests</code>文件夹。在这个文件夹中，为主路由创建一个测试文件，并添加扩展名<code>.spec.js</code>。对于教程，这将是<code>space.spec.js</code>。添加<code>.spec.js</code>扩展名告诉Jest该文件是一个测试。</p>
+
+<p>像航天飞机发射一样，我们从静态点火开始我们的测试过程，以检查我们的测试配置中的一切都正常工作。</p>
+
+<p>在<code>tests/space.spec.js</code>文件中，使用以下代码实现这个测试:</p>
+
+<pre><code class="language-js">describe('Space test suite', () =&gt; {
+    it('My Space Test', () =&gt; {
+        expect(true).toEqual(true);
+    });
+});
+</code></pre>
+
+<p>现在，当您在终端上运行<code>npm test</code>时，您将获得一个成功执行的测试。当测试运行并通过时，终端上的测试结果应该是绿色的。您可以进一步将断言从<code>true</code>更改为<code>false</code>，在您的终端上的执行将导致红色，表示失败。</p>
+
+<p>在我们开始火箭发射序列之前，您可能想要将Jest的<code>watch</code>命令添加到<code>package.json</code>中。添加这个命令意味着每当应用程序代码改变时，测试都要重新运行。当您的应用程序在一个终端上运行，而您的测试在另一个终端上运行时，这是可能的。在<code>package.json</code>文件中添加该命令:</p>
+
+<pre><code class="language-json">"scripts": {
+    "start": "node ./bin/www",
+    "test": "jest",
+    "test:watch": "npm run test -- --watch"
+},
+</code></pre>
+
+<p>当您在运行watch命令的同时执行Node.js API时，您可以在更改任何代码时实时观察我们的测试的重新运行。当您的API由于更改而中断时，这可以方便地检测到。在一个终端窗口中运行应用程序，与测试并排，显示watch选项(在右边)。</p>
+
+<p><img src="../Images/067d39c3d4f903e07248f7aca2171935.png" alt="watching-jest" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-30-jest-watch.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-30-jest-watch.png"/></p>
+
+<h2>测试我们的空间应用编程接口</h2>
+
+<p>为了在Jest测试中发出API请求，我们需要一个模块来查询我们的端点，并将响应返回给我们的测试。该模块是SuperTest，您可以使用以下命令安装它:</p>
+
+<pre><code class="language-bash">npm install  --save-dev supertest
+</code></pre>
+
+<p>Jest和SuperTest已经建立，并且在Jest测试框架中编写了一个基本测试。在本节中，我们将重点测试端点提供的不同API响应对象。从端点<code>http://localhost:3000/space/destinations</code>提供的响应开始。这是一个简单的对象数组，代表太空飞行将前往的目的地。</p>
+
+<pre><code class="language-bash">[
+  "Mars",
+  "Moon",
+  "Earth",
+  "Mercury",
+  "Venus",
+  "Jupiter"
+]
+</code></pre>
+
+<p>数组是您可以从API端点接收到的最基本的响应之一，但是Jest为我们提供了无数种方法来断言接收到的响应符合我们的期望。</p>
+
+<p>我们的第一个实际测试将集中在这个对象数组上。用这个代码片段替换<code>space.spec.js</code>文件的内容。</p>
+
+<pre><code class="language-js">const request = require('supertest');
+const app = require("../app");
+
+describe('Space test suite', () =&gt; {
+    it('tests /destinations endpoints', async() =&gt; {
+        const response = await request(app).get("/space/destinations");
+        expect(response.body).toEqual(["Mars", "Moon", "Earth", "Mercury", "Venus", "Jupiter"]);
+        expect(response.body).toHaveLength(6);
+        expect(response.statusCode).toBe(200);
+        // Testing a single element in the array
+        expect(response.body).toEqual(expect.arrayContaining(['Earth']));
+
+    });
+
+    // Insert other tests below this line
+
+    // Insert other tests above this line
+});
+</code></pre>
+
+<p>在这个测试中，我们使用SuperTest与API进行交互。该测试首先从<code>/space/destinations</code>端点获取响应，然后使用该响应对几个断言进行测试。最值得注意的断言是最后一个断言，它使用Jest array <code>arrayContaining()</code>方法来验证可以在数组中找到单个项。在这个断言中，Jest映射整个数组，知道哪些数组元素出现在数组中，哪些没有。</p>
+
+<p>虽然上面的数组只包含五个项目，但是您可能会遇到更复杂的情况，在这种情况下，如果不分解对象，您将无法完全测试整个对象。</p>
+
+<p>在下一个测试中，我们将测试<code>/space/flights/seats</code>端点。这个端点提供了一个比上面的数组更复杂的响应，我们将再次使用Jest来测试它。</p>
+
+<p>鉴于我们的响应的性质，我们将使用从端点接收的响应的一部分，这将为我们提供一个测试模板，我们希望为响应中的后续对象编写该模板。</p>
+
+<pre><code class="language-bash">{ "starship": [
+    {
+      "firstClass": {
+        "heatedSeats": true,
+        "chairOptions": [
+          "leather",
+          "wollen"
+        ],
+        "vaultAccess": true,
+        "drinksServed": [
+          "tea",
+          "coffee",
+          "space-special",
+          "wine"
+        ],
+        "windowAccess": true,
+        "privateCabin": "2",
+        "VRAccess": "unlimited",
+        "cost": "$20000",
+        "seatHover": {
+          "cryoMode": [
+            "extreme",
+            "ludacris",
+            "plaid"
+          ],
+          "staticMode": [
+            "ludacris",
+            "plaid"
+          ]
+        }
+      },
+      "businessClass": { ... }
+    }
+  ],
+  "blueOrigin": [
+    {
+      "firstClass": { ... },
+      "businessClass": { ... }
+    }
+  ]
+
+}
+</code></pre>
+
+<p><strong>注意</strong> : <i>你可以通过使用Postman </i>这样的工具调用端点来查看完整的响应。</p>
+
+<p>这个测试的重点是为对象编写一个详尽的测试，同时确保测试的可读性和简单性。鉴于回答的复杂性，我们将在保持测试可读性的同时，尽可能地覆盖更多内容。</p>
+
+<pre><code class="language-js">...
+
+    it('tests /space/flights/seats endpoint - starship', async () =&gt; {
+        const response = await request(app).get("/space/flights/seats");
+        expect(response.body.starship).toEqual(expect.arrayContaining([expect.any(Object)]));
+        // Checking that the starship Object contains firstClass Object which then contains a set of objects
+        expect(response.body.starship).toEqual(expect.arrayContaining(
+            [expect.objectContaining({ firstClass: expect.any(Object) })]));
+
+        expect(response.body.starship).toEqual(expect.arrayContaining([expect.objectContaining(
+            { businessClass: expect.any(Object) })]));
+
+        // Checking that under the bussinessClass Object we have the array drinks served
+        expect(response.body.starship)
+            .toEqual(expect.arrayContaining([expect.objectContaining({
+                businessClass: expect.objectContaining({ drinksServed: expect.any(Array) })
+            })]));
+
+        // Checking that under the firstClass: Object we have the option ludacris in the seatHover Object
+        expect(response.body.starship)
+        .toEqual(expect.arrayContaining([expect.objectContaining({
+            firstClass: expect.objectContaining({ seatHover: expect.objectContaining({
+                cryoMode : expect.arrayContaining(['ludacris'])}) })
+        })]));
+
+        // Checking that under the firstClass: Object we have the option plaid in the seatHover Object
+        expect(response.body.starship)
+        .toEqual(expect.arrayContaining([expect.objectContaining({
+            firstClass: expect.objectContaining({ seatHover: expect.objectContaining({
+                staticMode : expect.arrayContaining(['plaid'])}) })
+        })]));
+    });
+
+...
+</code></pre>
+
+<p>这个测试使用<a href="https://jestjs.io/docs/using-matchers" target="_blank" rel="noreferrer noopener"> Jest matchers </a>遍历上面提供的对象的不同级别。它首先测试顶级对象，缩小到嵌套在响应中的对象和数组。这个测试一开始可能看起来有点吓人，但是它表明我们可以专门测试API的响应区域，而不需要断言整个响应对象。</p>
+
+<p>在下一节中，我们将学习如何在发射到太空之前用Jest编写自定义错误消息！</p>
+
+<h2>使用Jest自定义匹配器进行错误消息传递</h2>
+
+<p>Jest匹配器允许您以多种方式测试数据。您可以显式地测试一个特定的条件，甚至可以扩展您自己的自定义匹配器，如果该条件没有被现有的条件覆盖的话。运行测试时，您可以声明自定义匹配器并显示自定义错误。</p>
+
+<p>例如，一旦我们进入太空，我们需要能够覆盖指挥中心发出的命令。为此，我们将使用来自上面创建的<code>/space/flights</code> API端点的响应。</p>
+
+<p>使用<code>expect.extend(matchers)</code>方法添加定制期望。在我们创建的flights端点中，对象返回每个设置为<code>true</code>或<code>false</code>的活动状态。为了只返回活动的航班，我们可以创建一个匹配器。</p>
+
+<p>要创建一个使用定制匹配器的测试，需要声明匹配器并定义哪些参数会导致通过或失败。这个匹配器可以在Jest <code>describe</code>块中的任何地方声明。为了可读性，将它放在测试文件的顶部，紧接在describe块之后。对于这个项目，我们希望检查返回的航班是否处于活动状态。</p>
+
+<pre><code class="language-js">...
+
+    expect.extend({
+        toBeActive(received) {
+            const pass = received === true;
+            if (pass) {
+                return {  
+                    message: () =&gt;
+                        `expected ${received} is an acceptable flight status`,
+                    pass: true,
+                };
+            }
+        }
+    });
+
+...
+</code></pre>
+
+<p>自定义匹配器期望接收航班的状态值并返回自定义消息。但是当我们运行我们的测试时，我们得到错误的消息，即使测试不满足传递的飞行状态值的期望。换句话说，是假阴性。要解决这个问题，添加一个<code>else</code>语句来适应我们的断言不符合标准的情况。else语句将捕获运行测试时可能发生的所有假阴性，并报告它们。像这样更新代码:</p>
+
+<pre><code class="language-js">...
+
+    expect.extend({
+        toBeActive(received) {
+            const pass = received === true;
+            if (pass) {
+                return {
+                    message: () =&gt;
+                        `expected ${received} to be an acceptable flight status`,
+                    pass: true,
+                };
+            } else {
+                return {
+                    message: () =&gt;
+                        `expected ${received} to be an acceptable flight status of flight - only true is acceptable`,
+                    pass: false,
+                };
+            }
+        },
+    });
+
+...
+</code></pre>
+
+<p>当测试出现假阴性时，将发出第一条定制消息。第二次发射是在试验失败时，通过接收来自太空飞行活动状态的<code>false</code>值。</p>
+
+<p>将这个代码块添加到我们之前添加的<code>expect.extend</code>代码块下面。</p>
+
+<pre><code class="language-js">...
+
+    it('tests /space/flights endpoint - positive test', async () =&gt; {
+        const response = await request(app).get("/space/flights");
+        expect(response.body[0].active).toBeActive();
+    });
+
+    it('tests /space/flights endpoint - false negative', async () =&gt; {
+        const response = await request(app).get("/space/flights");
+        expect(response.body[0].active).not.toBeActive();
+    });
+
+    it('tests /space/flights endpoint - failing test', async () =&gt; {
+        const response = await request(app).get("/space/flights");
+        expect(response.body[1].active).toBeActive();
+    });
+
+...
+</code></pre>
+
+<p>当您运行这些测试时，有些测试会失败，并显示以下输出:</p>
+
+<pre><code class="language-bash">&gt; jest
+
+ FAIL  tests/space.spec.js
+  Space test suite
+    ✓ tests /destinations endpoints (25 ms)
+    ✓ tests /space/flights/seats endpoint - starship (4 ms)
+    ✓ tests /space/flights endpoint - positive test (3 ms)
+    ✕ tests /space/flights endpoint - false negative (2 ms)
+    ✕ tests /space/flights endpoint - failing test (3 ms)
+  ...
+
+GET /space/destinations 200 2.851 ms - 51
+GET /space/flights/seats 200 0.699 ms - 1073
+GET /space/flights 200 0.610 ms - 1152
+GET /space/flights 200 0.382 ms - 1152
+GET /space/flights 200 0.554 ms - 1152
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 3 passed, 5 total
+Snapshots:   0 total
+Time:        0.512 s, estimated 1 s
+Ran all test suites.
+</code></pre>
+
+<p><strong>注意</strong> : <i>这两个失败的测试是出于演示的目的而编写的。为了让测试在CI上通过，用<code>it.skip()</code>函数跳过它们，这样它们在默认情况下就不会运行。</i></p>
+
+<pre><code class="language-js">...
+
+    it('tests /space/flights endpoint - positive test', async () =&gt; {
+        const response = await request(app).get("/space/flights");
+        expect(response.body[0].active).toBeActive();
+    });
+
+    it.skip('tests /space/flights endpoint - false negative', async () =&gt; {
+        const response = await request(app).get("/space/flights");
+        expect(response.body[0].active).not.toBeActive();
+    });
+
+    it.skip('tests /space/flights endpoint - failing test', async () =&gt; {
+        const response = await request(app).get("/space/flights");
+        expect(response.body[1].active).toBeActive();
+    });
+
+...
+</code></pre>
+
+<p>我们通过了测试。复查<a href="https://github.com/CIRCLECI-GWP/space-api/blob/main/tests/space.spec.js" target="_blank" rel="noreferrer noopener"> GitHub </a>上<code>tests/space.spec.js</code>文件的最终状态。</p>
+
+<h2>添加CircleCI配置文件</h2>
+
+<p>这里，您将把CircleCI的管道配置添加到我们的本地项目中。首先在根目录下创建一个<code>.circleci</code>文件夹。在该文件夹中，创建一个<code>config.yml</code>文件。现在，通过如下代码块所示的配置，向<code>config.yml</code>文件添加细节:</p>
+
+<pre><code class="language-yml">version: 2.1
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: cimg/node:14.20.0
+    steps:
+      - checkout
+      - restore_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+      - run:
+          name: install dependencies
+          command: npm install
+      - save_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+          paths:
+            - ./node_modules
+      - run:
+          name: run space test
+          command: npm test
+      - store_artifacts:
+          path: ~/repo/space
+</code></pre>
+
+<p>在此配置中，CircleCI使用从环境中提取的节点Docker映像，然后更新npm程序包管理器。下一步是恢复缓存(如果存在)。仅当使用<code>save-cache</code>检测到变化时，应用程序依赖关系才会更新。最后，我们将运行我们的空间测试，并将缓存的项目存储在工件的<code>space</code>目录中。</p>
+
+<p>现在，如果您克隆了示例项目存储库，那么它已经在git中初始化并设置好了。了解我们的项目是如何与CircleCI集成在一起的会很有帮助。要设置CircleCI，通过运行以下命令初始化项目中的GitHub存储库:</p>
+
+<pre><code class="language-bash">git init
+</code></pre>
+
+<p>添加一个提交，然后<a href="https://circleci.com/blog/pushing-a-project-to-github/">将您的项目推送到GitHub </a>。</p>
+
+<p>接下来，登录您的CircleCI帐户。如果您注册了您的GitHub帐户，所有与您的GitHub用户名相关联的存储库都将在您的项目仪表板上可用。从列表中选择<code>space-app-api</code>项目。</p>
+
+<p><img src="../Images/c32ce92ede836db3ccf0c20ece6a7ef5.png" alt="Select project" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-30-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-30-select-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>按钮。将提示您是否已经在项目中定义了CircleCI的配置文件。输入分支名称(对于本教程，我们使用<code>main</code>)。点击<strong>设置项目</strong>按钮完成该过程。</p>
+
+<p>这将启动CircleCI管道并成功运行测试！</p>
+
+<p><img src="../Images/270a95fc713da0b799868ae21cf137a3.png" alt="Test run successfully" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-30-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-30-test-run-successfully.png"/></p>
+
+<h2>结论</h2>
+
+<p>在本教程中，您已经设置了一个space-api，安装了Jest，并编写了针对该api的测试。您还学习了如何使用Jest匹配器，甚至编写自己的自定义匹配器。通过本教程，我们还介绍了如何将CircleCI集成到项目中，将测试推送到GitHub，以及为CI管道创建不同的构建步骤。最后，我们介绍了在管道上运行我们的测试，并验证管道的所有步骤都按预期工作。</p>
+
+<p>所有系统都在为我们进入太空做准备。倒计时快乐！</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Waweru Mwaura是一名软件工程师，也是一名专门研究质量工程的终身学习者。他是Packt的作者，喜欢阅读工程、金融和技术方面的书籍。你可以在<a href="https://waweruh.github.io/" target="_blank" rel="noreferrer noopener">他的网页简介</a>上了解更多关于他的信息。</p>
+
+            <p><a href="/blog/author/waweru-mwaura/" class="arrow-link">阅读更多Waweru Mwaura的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

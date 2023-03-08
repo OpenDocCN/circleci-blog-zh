@@ -1,0 +1,526 @@
+<html>
+<head>
+<title>Automatiing Laravel tests | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>自动测试| circleci</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/automatic-testing-for-laravel-projects/#2022-10-07T06:27:00-07:00">https://circleci.com/blog/automatic-testing-for-laravel-projects/#2022-10-07T06:27:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>克隆样本Laravel应用程序</li>
+    <li>将Laravel测试添加到配置文件中</li>
+    <li>自动化测试</li>
+  </ol>
+</blockquote>
+
+<p>Laravel附带了一个强大的测试套件，允许开发人员在浏览器中执行单元测试、测试API端点和运行自动化功能测试。</p>
+
+<p>在这篇文章中，我们将把Laravel框架中可用的测试过程添加到我们的CircleCI配置文件中，以便在每次推出新代码时自动执行这些测试。</p>
+
+<h2>先决条件</h2>
+
+<p>要跟进这篇文章，你需要做几件事:</p>
+
+<ul>
+  <li><a href="https://www.php.net/" target="_blank" rel="noreferrer noopener"> PHP </a> &gt; = 7.1安装在你的系统上。您可以通过在终端上运行命令<code>php -v</code>来确认这一点。</li>
+  <li><a href="https://getcomposer.org/" target="_blank" rel="noreferrer noopener">作曲</a>全球安装。通过在终端上运行<code>composer</code>命令来确认这一点。</li>
+  <li>一个<a href="https://github.com/" target="_blank" rel="noreferrer noopener"> GitHub </a>账户。</li>
+  <li>一个<a href="https://circleci.com/signup/"> CircleCI账户</a>。</li>
+</ul>
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<p>一旦你有了这些并开始运行，你就可以开始跟进了。</p>
+
+<h2>克隆示例项目</h2>
+
+<p>首先，克隆这个Laravel项目。它已经包含了一些我们将用CircleCI自动化的测试。</p>
+
+<pre><code class="language-bash">git clone https://github.com/yemiwebby/laravel-api-test
+</code></pre>
+
+<p>一旦您克隆了项目，创建一个新的GitHub存储库，并将示例项目推送到其中。要熟悉您刚刚克隆的项目，请通过运行以下命令来安装项目的依赖项:</p>
+
+<pre><code class="language-bash">cd laravel-api-test
+
+composer install
+</code></pre>
+
+<p>接下来，在项目的根目录下创建一个名为<code>.env</code>的文件，并将<code>.env.example</code>的内容复制到其中(如果您使用的是Linux，只需运行<code>cp .env.example .env</code>)。这个文件应该在你的<code>.gitignore</code>文件中被忽略(这已经在克隆项目的<code>.gitignore</code>中被忽略了)。</p>
+
+<p>运行以下命令为Laravel项目生成应用程序密钥:</p>
+
+<pre><code class="language-bash">php artisan key:generate
+</code></pre>
+
+<p>现在，通过运行以下命令在浏览器中运行项目:</p>
+
+<pre><code class="language-bash">php artisan serve
+</code></pre>
+
+<p>通过访问URL <code>http://127.0.0.1:8000</code>，在浏览器中进入项目主页。</p>
+
+<p><img src="../Images/0c30ea88affdabb2813efe132ff2c711.png" alt="Laravel app homepage" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-laravel-homepage.png"/></p>
+
+<p>这是一个简单的主页，类似于每个新的Laravel项目的默认页面。在这种情况下，页面包含一个链接，上面写着<strong>点击我</strong>。点击后，链接会将您重定向到<code>http://127.0.0.1:8000/myresponse</code>。</p>
+
+<p><code>/myresponse</code>路线显示<strong>以下是我的回应</strong>。</p>
+
+<p><img src="../Images/05e11771324b99f95fab874f2dca58ce.png" alt="Laravel App Response Page" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-laravel-app-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-laravel-app-response.png"/></p>
+
+<p>我们稍后将测试这种行为。</p>
+
+<p>该项目还包含一个<code>.env.testing</code>环境文件，仅用于我们的测试用例。应用程序测试可以在<code>tests</code>文件夹中找到。</p>
+
+<p>在<code>tests</code>文件夹中设置了三种类型的测试。一个单元测试文件在<code>Unit</code>文件夹(<code>ExampleUnitTest.php</code>)，另一个包含HTTP测试的文件在<code>Feature</code>文件夹(<code>ExampleHttpTest.php</code>)，最后一个浏览器测试文件在<code>Browser</code>文件夹(<code>ExampleBrowserTest.php</code>)。</p>
+
+<p>在本文中，我们将通过将这些测试添加到我们的CircleCI配置中来实现自动化。</p>
+
+<h2>向CircleCI配置中添加单元测试</h2>
+
+<p>添加到CircleCI配置中的第一组测试是包含在<code>tests/Unit/ExampleUnitTest.php</code>文件中的单元测试。</p>
+
+<p>这个文件包含两个测试用例:</p>
+
+<pre><code class="language-php">public function testBasicTest()
+{
+    $this-&gt;assertTrue(true);
+}
+
+public function testUserCreation()
+{
+    $user = new User([
+        'name' =&gt; "Test User",
+        'email' =&gt; "test@mail.com",
+        'password' =&gt; bcrypt("testpassword")
+    ]);   
+
+    $this-&gt;assertEquals('Test User', $user-&gt;name);
+}
+
+</code></pre>
+
+<p>默认情况下，任何Laravel项目都会进行第一次测试。它断言布尔值<code>true</code>。</p>
+
+<p>第二个测试用<code>User</code>模型创建了一个新的用户实例。然后，它根据预期值检查新创建的用户实例的名称，以断言匹配。</p>
+
+<p>您可以在每次推送到您的存储库时自动运行这个测试。</p>
+
+<p>进入项目的根目录，创建一个名为<code>.circleci</code>的文件夹。在这个文件夹中，创建一个名为<code>config.yml</code>的文件。</p>
+
+<p>下面是自动化单元测试需要做的事情:</p>
+
+<ol>
+  <li>启动所需的环境</li>
+  <li>使用composer安装依赖项</li>
+  <li>缓存依赖关系</li>
+  <li>为项目建立一个<code>.env</code>环境文件</li>
+  <li>运行单元测试</li>
+</ol>
+
+<p>将这段代码粘贴到config.yml文件中:</p>
+
+<pre><code class="language-yaml">version: 2.1
+orbs:
+  browser-tools: circleci/browser-tools@1.1
+jobs:
+  build:
+    docker:
+      # Specify the version you desire here
+      - image: cimg/php:7.4.14-browsers
+
+    steps:
+      - browser-tools/install-browser-tools    
+      - checkout
+
+      - run:
+          name: "Prepare Environment"
+          command: |
+            sudo apt update
+            sudo docker-php-ext-install zip
+
+      - run:
+          name: "Create Environment file"
+          command: |
+            mv .env.testing .env
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            # "composer.lock" can be used if it is committed to the repo
+            - v1-dependencies-{{ checksum "composer.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run:
+          name: "Install Dependencies"
+          command: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+
+      - run:
+          name: "Generate App key"
+          command: php artisan key:generate
+
+      # run tests with phpunit
+      - run:
+          name: "Run Unit Tests"
+          command: ./vendor/bin/phpunit tests/Unit
+</code></pre>
+
+<p>这个配置获取一个PHP映像，并将您的代码签出到环境中。环境文件从<code>.env.testing</code>开始创建。</p>
+
+<pre><code class="language-yaml">jobs:
+  build:
+    docker:
+      # Specify the version you desire here
+      - image: circleci/php:7.4-node-browsers
+
+    steps:
+      - checkout
+
+      - run:
+          name: "Prepare Environment"
+          command: |
+            sudo apt update
+            sudo docker-php-ext-install zip
+
+      - run:
+          name: "Create Environment file"
+          command: |
+            mv .env.testing .env
+
+</code></pre>
+
+<p><code>artisan</code>命令安装依赖项。现在您可以生成Laravel所需的应用程序密钥。</p>
+
+<pre><code class="language-yaml">      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            # "composer.lock" can be used if it is committed to the repo
+            - v1-dependencies-{{ checksum "composer.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run:
+          name: "Install Dependencies"
+          command: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+
+      - run:
+          name: "Generate App key"
+          command: php artisan key:generate
+
+</code></pre>
+
+<p>准备好所有需要的资产后，运行<code>tests/Unit</code>文件夹中的单元测试。</p>
+
+<pre><code class="language-yaml">      # run tests with phpunit
+      - run:
+          name: "Run Unit Tests"
+          command: ./vendor/bin/phpunit tests/Unit
+
+</code></pre>
+
+<p>很好。</p>
+
+<p>现在<a href="https://circleci.com/blog/pushing-a-project-to-github/">将你的更新推送到你的GitHub库</a>。</p>
+
+<h2>将API项目连接到CircleCI</h2>
+
+<p>你的下一个任务是在CircleCI建立项目。去你的CircleCI控制台。如果您已经注册了GitHub帐户，那么您的所有存储库都可以在项目的仪表板上看到。</p>
+
+<p>接下来，找到你的<code>laravel-api-test</code>项目，点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/8006bbe9bf544ffdbf8bb23a2373ce9b.png" alt="Select project" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-select-project.png"/></p>
+
+<p>系统将提示您编写新的配置文件，或者在项目中使用现有的配置文件。选择现有选项。在GitHub上输入您的代码所在的分支的名称，然后点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/2b4594e6142320e6ea11843a21c77db9.png" alt="Select main branch" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-select-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-select-config.png"/></p>
+
+<p>点击<strong>开始建造</strong>。</p>
+
+<p><img src="../Images/8190dd5a04802210f1fc46e709ba2201.png" alt="Pipeline Successful build 1" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-successful-build-1.png"/></p>
+
+<h2>向CircleCI配置添加http测试</h2>
+
+<p>下一个要自动化的任务是http测试。该项目包含一个API路径，该路径包含在<code>routes/api.php</code>文件中。</p>
+
+<pre><code class="language-php">Route::post('createuser', 'UserController@createUser');
+</code></pre>
+
+<p><strong>注意:</strong> <i>别忘了加上导入<code>use App\Http\Controllers\UserController</code> </i></p>
+
+<p>这条路线映射到<code>UserController</code>控制器中的一个<code>createUser</code>方法。该方法在数据库中创建一个新用户，并返回一条成功消息:“成功创建用户”。它还返回状态代码:<code>201(Created)</code>。</p>
+
+<p>已经为此端点编写了一个测试，以断言成功创建用户的状态代码和成功消息。该测试包含在文件<code>tests/Feature/ExampleHttpTest.php</code>中。</p>
+
+<pre><code class="language-php">public function testUserCreationEndpointTest()
+{
+    $name = $this-&gt;faker-&gt;name();
+    $email = $this-&gt;faker-&gt;email();
+    $password = "mypassword";
+
+    $response = $this-&gt;postJson('/api/createuser', [
+        'name' =&gt; $name, 
+        'email' =&gt; $email,
+        'password' =&gt; $password,
+        'password_confirmation' =&gt; $password
+    ]); 
+
+    $response
+        -&gt;assertStatus(201)
+        -&gt;assertExactJson([
+            'message' =&gt; "Successfully created user!",
+        ]);
+}
+
+</code></pre>
+
+<p>这个测试通过调用<code>createuser</code>端点来创建一个新的虚拟用户。然后，它检查响应代码和响应体，看它是否与预期的相匹配。</p>
+
+<p>现在，您可以在CircleCI配置中自动化这个测试。以下是步骤:</p>
+
+<ol>
+  <li>在数据库文件夹中创建一个名为<code>database.sqlite</code>的sqlite数据库。<code>.env.testing</code>使用sqlite数据库进行测试。<code>config/database.php</code>中的sqlite配置也默认使用这个数据库。</li>
+  <li>运行迁移</li>
+  <li>用PHPUnit运行Http测试</li>
+</ol>
+
+<p>将这些步骤添加到CircleCI配置文件中:</p>
+
+<pre><code class="language-yaml">    - run:
+        name: "Install Sqlite"
+        command: sudo apt-get install php7.4-sqlite3      
+
+    - run:
+        name: "Create database and run migration"
+        command: |
+          touch database/database.sqlite
+          php artisan migrate --env=testing
+
+    - run:
+        name: "Run Http Tests"
+        command: ./vendor/bin/phpunit tests/Feature  
+
+</code></pre>
+
+<p>这些命令安装Sqlite，引用本教程的特定版本(7.4)，然后在<code>database</code>文件夹中创建数据库文件。然后，他们运行迁移，指定测试环境。</p>
+
+<p>在第二步中，运行包含在<code>tests/Feature</code>文件夹中的http测试。</p>
+
+<p>保存文件并将您的更改推送到您的存储库中。这应该会触发CI/CD管道，并且测试应该会成功运行。</p>
+
+<p><img src="../Images/34f05c61099a44e592faaa2a87bc268c.png" alt="Pipeline successful 2" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-successful-build-2.png"/></p>
+
+<h2>向CircleCI配置添加浏览器测试</h2>
+
+<p>您将添加到配置中的最后一组测试是浏览器测试。</p>
+
+<p>Laravel使用<a href="https://laravel.com/docs/9.x/dusk" target="_blank" rel="noreferrer noopener"> laravel/dusk </a>包直接在浏览器中运行测试。默认情况下，laravel/dusk使用谷歌Chrome和一个独立的<a href="https://sites.google.com/a/chromium.org/chromedriver/home"> ChromeDriver </a>安装来运行你的浏览器测试。如果您设置了自己的Selenium服务器，则可以使用其他浏览器。</p>
+
+<p>Chrome驱动已经和laravel/dusk包一起安装了，所以你不需要担心单独安装它。</p>
+
+<p>默认情况下，当运行<code>dusk</code>命令启动浏览器测试时，laravel/dusk会尝试启动Chrome驱动程序。对于本教程，我们需要手动启动驱动程序来完全控制这个过程。注释掉<code>tests/DuskTestCase.php</code>中自动启动Chrome浏览器的那一行:</p>
+
+<pre><code class="language-php">public static function prepare()
+{
+    // static::startChromeDriver();
+}
+
+</code></pre>
+
+<p>这已经在克隆的项目中完成了，所以您不需要自己去做。</p>
+
+<p>默认情况下，新的Laravel项目不会附带<code>DuskTestCase.php</code>文件和<code>tests/Browser</code>目录。您可以在安装laravel/dusk时通过运行以下命令来创建它们:</p>
+
+<pre><code class="language-bash">composer require --dev laravel/dusk
+php artisan dusk:install
+</code></pre>
+
+<p>关于laravel/dusk及其操作的更多细节可以在该包的<a href="https://laravel.com/docs/9.x/dusk"> Laravel文档页面</a>中找到。</p>
+
+<p>我们已经知道我们的应用程序有一个主页，主页上有一个标记为<strong> Click Me </strong>的链接。当单击它时，它会重定向到一个显示字符串“这是我的响应”的路由。</p>
+
+<p>在<code>tests/Browser</code>文件夹中的<code>ExampleBrowserTest.php</code>浏览器测试文件中，有一个测试断言了这个行为。它还会检查大Laravel标签是否能在你的主页上找到。</p>
+
+<pre><code class="language-php">public function testBasicExample()
+{
+    $this-&gt;browse(function (Browser $browser) {
+        $browser-&gt;visit('/')
+                -&gt;assertSee('Laravel');
+    });
+}
+
+public function testLink()
+{
+    $this-&gt;browse(function (Browser $browser) {
+        $browser-&gt;visit('/')
+                -&gt;clickLink('Click Me')-&gt;assertSee("Here is my response");
+    });
+}
+
+</code></pre>
+<p>要运行您的浏览器测试，请将其添加到您的CircleCI配置中:</p>
+
+<ol>
+  <li>安装laravel/dusk包。</li>
+  <li>安装staudenmeir/dusk-updater软件包。这个包将你的Chrome驱动更新到Docker镜像上的Chrome浏览器版本。</li>
+  <li>为您的映像启动Chrome驱动程序(在本例中是Linux)。</li>
+  <li>为应用服务。</li>
+  <li>运行浏览器测试。</li>
+</ol>
+
+<p>将这些步骤添加到CircleCI配置中:</p>
+
+<pre><code class="language-yaml">    - run:
+        name: "Install Dusk and Update Chrome Drivers"
+        command: |
+          composer require --dev laravel/dusk
+          composer require --dev staudenmeir/dusk-updater
+          php artisan dusk:update --detect
+
+    - run:
+        name: Start Chrome Driver
+        command: ./vendor/laravel/dusk/bin/chromedriver-linux
+        background: true
+
+    - run:
+        name: Run Laravel Server
+        command: php artisan serve
+        background: true
+
+    - run:
+        name: Run Browser Tests Tests
+        command: php artisan dusk
+
+</code></pre>
+<p>这个片段从安装laravel/dusk开始。然后安装staudenmeir/dusk-updater包，让你可以更新我们的chrome驱动程序。</p>
+
+<p>接下来，它在后台启动Chrome驱动程序和Laravel应用服务器，确保它们在后台运行。<code>background: true</code>被添加到两个步骤中。</p>
+
+<p>最后一步是使用<code>dusk</code>命令运行浏览器测试。</p>
+
+<p>以下是完整的<code>config.yml</code>文件:</p>
+
+<pre><code class="language-yaml">version: 2.1
+orbs:
+  browser-tools: circleci/browser-tools@1.1
+jobs:
+  build:
+    docker:
+      # Specify the version you desire here
+      - image: cimg/php:7.4.14-browsers
+
+    steps:
+      - browser-tools/install-browser-tools    
+      - checkout
+
+      - run:
+          name: "Create Environment file"
+          command: |
+            mv .env.testing .env
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            # "composer.lock" can be used if it is committed to the repo
+            - v1-dependencies-{{ checksum "composer.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run:
+          name: "Install Dependencies"
+          command: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+
+      - run:
+          name: "Generate App key"
+          command: php artisan key:generate
+
+      # run tests with phpunit
+      - run:
+          name: "Run Unit Tests"
+          command: ./vendor/bin/phpunit tests/Unit
+
+      - run:
+          name: "Install sqlite"
+          command: sudo apt-get install php7.4-sqlite3
+
+      - run:
+          name: "Create database and run migration"
+          command: |
+            touch database/database.sqlite
+            php artisan migrate --env=testing
+
+      - run:
+          name: "Run Http Tests"
+          command: ./vendor/bin/phpunit tests/Feature          
+
+      - run:
+          name: "Install Dusk and Update Chrome Drivers"
+          command: |
+            composer require --dev laravel/dusk
+            composer require --dev staudenmeir/dusk-updater
+            php artisan dusk:update --detect
+
+      - run:
+          name: Start Chrome Driver
+          command: ./vendor/laravel/dusk/bin/chromedriver-linux
+          background: true
+
+      - run:
+          name: Run Laravel Server
+          command: php artisan serve
+          background: true
+
+      - run:
+          name: Run Browser Tests Tests
+          command: php artisan dusk
+
+</code></pre>
+
+<p>准备好之后，将您的更改推送到存储库。测试将成功运行。</p>
+
+<p><img src="../Images/02303c0e322e11a363b168a0beed5032.png" alt="Pipeline successful 3" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-06-successful-build-3.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-06-successful-build-3.png"/></p>
+
+<p>注意到<strong>启动Chrome驱动</strong>和<strong>运行Laravel服务器</strong>旁边的圆形图标是“灰色的”。这表明这些进程正在配置中指定的后台运行。</p>
+
+<h2>结论</h2>
+
+<p>在本文中，您了解了如何将不同类型的Laravel测试添加到您的CircleCI配置中，以及CircleCI如何使运行这些测试变得轻而易举。如果您的一些测试没有成功运行，请尝试再次浏览post，看看您是否错过了任何步骤。我相信你能找到丢失的部分。完整的源代码可以在GitHub 的<a href="https://github.com/CIRCLECI-GWP/laravel-api-testing" target="_blank" rel="noreferrer noopener">这里找到。</a></p>
+
+<p>祝你度过一个没有bug的编码周。</p>
+
+<hr/>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

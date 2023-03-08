@@ -1,0 +1,184 @@
+<html>
+<head>
+<title>How Lightspeed optimized iOS test runs with parallelism and caching | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Lightspeed优化的iOS测试如何与并行和缓存一起运行| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/how-lightspeed-optimized-ios-testing/#2022-03-30T05:00:00-07:00">https://circleci.com/blog/how-lightspeed-optimized-ios-testing/#2022-03-30T05:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>在Lightspeed，我们维护多个大型iOS项目及其模块化的依赖关系。去年的<a href="https://en.wikipedia.org/wiki/Lightspeed_(company)" target="_blank" rel="noreferrer noopener">收购</a>汇集了我们公司许多不同的CI/CD方法。我最近领导了将这些项目和实践结合起来的计划。</p>
+
+<p>在这篇文章中，我将解释我们持续集成管道的目标以及我们用来实现这些目标的实现。</p>
+
+<h2>我们需要CI提供什么</h2>
+
+<h3>速度</h3>
+
+<p>该团队从一开始就明确表示，总运行时间对他们来说是一笔巨大的交易。快速反馈使他们能够专注于同一项任务。</p>
+
+<h3>可靠性</h3>
+
+<p>现有的解决方案主要是运行Jenkins的内部机器。这有快速构建的好处，但是对它们的维护是开发人员的负担。他们经常需要重新启动，而在疫情的全球分布的团队中，这对生产效率来说并不好。也很难保持干净的环境和统一的设置。</p>
+
+<h3>灵活性</h3>
+
+<p>在我们研究其他解决方案时，使用的灵活性成了一个问题。我们的每个项目都有许多依赖项，例如跨平台Appium测试或需要自制的工具。</p>
+
+<h3>标准化</h3>
+
+<p>这符合灵活性，但是在每个项目中有一个CI标准是有益的，因为知识可以在团队和开发人员之间共享。CircleCI已经被其他团队和项目独立采用，这帮助我们更有信心选择它作为我们需要的解决方案。</p>
+
+<p>使用CircleCI可以满足大部分要求。Circle的正常运行时间超过99%,由于其他团队已经在使用它，标准化速度更快。我们的管道中唯一需要工作的方面是执行速度。当我们第一次完成CircleCI配置文件的最基本迭代时，我们的运行时间超过了一个小时(1.5小时)。相对于我们的自托管机器，这是一个巨大的增长，自托管机器的运行时间不到一半(30分钟)。</p>
+
+<h2>我们为提高运行时间所做的三大改变</h2>
+
+<h3>平行</h3>
+
+<p>并行性是改善任何CI工作流程的重要组成部分。<a href="https://circleci.com/blog/a-guide-to-test-splitting/">将测试分割成并发流</a>意味着运行时间减少到运行时间最长的任务的长度。此外，使用CircleCI作业进行拆分使我们能够重新运行单个作业，大大减少了重新运行时间。</p>
+
+<p>测试iOS应用程序比测试web应用程序更复杂，因为我们需要传递构建好的二进制文件，以便测试有所依据。为此，我们在<code>config.yml</code>中创建了两个工作。</p>
+
+<p><strong>建造</strong></p>
+<ul>
+  <li>检查代码</li>
+  <li>恢复缓存</li>
+  <li>捆绑安装</li>
+  <li>安装Cocoapods</li>
+  <li>从Brewfile安装</li>
+  <li>安装基于SPM的工具</li>
+  <li>解决Swift包裹依赖性</li>
+  <li>构建派生数据</li>
+  <li>保存新缓存</li>
+  <li>保留到工作区</li>
+</ul>
+
+<p><strong>运行</strong></p>
+<ul>
+  <li>附加到工作区</li>
+  <li>捆绑安装</li>
+  <li>跑浪子巷</li>
+  <li>准备存储测试结果</li>
+  <li>存储测试结果</li>
+  <li>存储工件</li>
+</ul>
+
+<p>CircleCI中iOS并行的关键是<code>persist_to_workspace</code>，它将保存您定义的路径，以便其他作业可以访问它们。由于每个作业都是一个干净的实例，这就是我们在它们之间维护状态的方式。</p>
+
+<p>持久化整个项目，包括来自构建的派生数据，对于我们的主项目来说将近8Gb。这本身就需要10分钟来上传和再次下载。通过只保存所需的文件和文件夹，我们看到了更好的性能:</p>
+
+<pre><code>- persist_to_workspace:
+    root: /Users/distiller # Default path for a Circle job
+    paths:
+      - project/DerivedData/Build/Products # This is the built app that can then be ran against for testing
+      - project/fastlane # So we can run Fastlane on the parallel jobs
+      - project/Gemfile # So we can run Fastlane on the parallel jobs
+      - project/Gemfile.lock # So we can run Fastlane on the parallel jobs
+      - project/SnapshotTests # Contains the source snapshot images
+      - 'project/UnitTests/ViewControllerTests/__Snapshots__' # Contains the source snapshot images
+      - project/commit_author # Used for the Slack message integration in Fastlane
+      - .gem # So we can run Fastlane on the parallel jobs
+</code></pre>
+
+<p>我们维护一个共享的浪子车道库，在每个项目中使用。在CI服务和我们的底层业务逻辑之间有一个<a href="https://en.wikipedia.org/wiki/Mediator_pattern">中介者</a>,使得未来的改变更加容易。xcodebuild和浪子都有能力构建测试，并在不构建的情况下再次运行它们。</p>
+
+<p>运行作业可以简单地检索所有这些存储的状态，方法是:</p>
+
+<pre><code>- attach_workspace: # Gives this job access to the results stored by the build job, so that many parallel jobs can be used from the result
+    at: /Users/distiller
+</code></pre>
+
+<p>我们将测试分成<a href="https://www.raywenderlich.com/10212963-xcode-test-plans-for-ios-getting-started">个测试计划</a>。我们进行了快照、单元和UI测试。UI测试是迄今为止最慢的，我们有多项工作来分解它们。</p>
+
+<p>目标是让每个测试有大致相同的执行时间。将它们收集在一个相似的用例下，并提供一个描述性的名称，可以帮助开发人员快速理解失败的原因。</p>
+
+<h3>回归测试</h3>
+
+<p>在合并之前测试拉请求(PR)的目的是确保现有代码不会受到某种程度的影响。这不需要运行每一个测试；通常，只要定期运行完整集，就可以使用子集来验证更改。</p>
+
+<p>通过使用更多的测试计划，我们分离出回归和PR测试。回归测试在PRs上有一个可选的保持步骤，以便在需要时可以运行。然后，基于每个团队的时区，在整个工作周安排回归。</p>
+
+<pre><code>scheduled_regression:
+  triggers:
+    - schedule:
+        cron: "0 05,18,23 * * 1-5" # 18:00 NZDT, 18:00 GMT, 18:00 EST, Monday - Friday (Circle uses UTC)
+        filters:
+          branches:
+            only:
+              - develop
+</code></pre>
+
+<p>调整回归和PR测试的内容可以给你更快的PR运行时间，同时仍然保持良好的覆盖率。如果开发人员觉得他们的特性需要的话，他们也可以轻松地运行所有的测试。</p>
+
+<p><img src="../Images/43a40de758d61b279f72f523b8fb6492.png" alt="A completed regression test workflow" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-30-lightspeed-green-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-30-lightspeed-green-build.png"/></p>
+
+<h3>贮藏</h3>
+
+<p>在该项目中，通过Swift Package Manager (SPM)为每个版本下载8GB数据。这大大增加了构建的时间，所以我们利用<a href="https://circleci.com/blog/config-best-practices-dependency-caching/">缓存</a>来加速它。</p>
+
+<p>在构建步骤中，我们恢复一个现有的缓存，解析包，并为下一个作业保存缓存。解析是必需的步骤，因为它告诉Xcode基于新的本地包刷新SPM。</p>
+
+<p><strong>恢复:</strong></p>
+
+<pre><code>- restore_cache: # To speed up builds we cache the SPM packages and use the resolved file as a hash
+    key: spm-cache-v4-{{ checksum "Project.xcworkspace/xcshareddata/swiftpm/Package.resolved" }}
+</code></pre>
+
+<p><strong>解决:</strong></p>
+
+<pre><code class="language-Ruby">lane :resolve_cached_spm_dependencies do |options|
+  if options[:xcode_scheme].nil? || options[:derived_data_path].nil?
+    UI.user_error!("Resolving dependencies was invoked, but an `xcode_scheme` or `derived_data_path` were not provided.")
+  end
+
+  if options[:workspace_name].nil? == false
+    # Resolve dependencies and point to cache directory
+    sh("xcodebuild -resolvePackageDependencies -workspace ../#{options[:workspace_name]}.xcworkspace -scheme #{options[:xcode_scheme]} -clonedSourcePackagesDirPath #{options[:derived_data_path]}/SourcePackages")
+  elsif options[:project_name].nil? == false
+    sh("xcodebuild -resolvePackageDependencies -project ../#{options[:project_name]}.xcodeproj -scheme #{options[:xcode_scheme]} -clonedSourcePackagesDirPath #{options[:derived_data_path]}/SourcePackages")
+  else
+    UI.user_error!("Resolving dependencies was invoked, but a `workspace_name` or `project_name` were not provided.")
+  end
+end
+</code></pre>
+
+<p><strong>保存:</strong></p>
+
+<pre><code>- save_cache:
+    paths:
+      - ./DerivedData/SourcePackages
+    key: spm-cache-v4-{{ checksum "Project.xcworkspace/xcshareddata/swiftpm/Package.resolved" }}
+</code></pre>
+
+<p>我们注意到使用缓存在构建时间上有显著的改进。只有当解析文件的内容改变时，例如当更新或添加包时，才需要更新。</p>
+
+<h2>结论</h2>
+
+<p>通过对CircleCI配置的这些更改，我们看到了测试运行时间的显著减少。总的来说，PR测试的运行时间从1.5小时减少到30分钟。</p>
+
+<p>我们的管道还可以更快。但是当我们结合以下优势时:</p>
+
+<ul>
+  <li>减少片状剥落</li>
+  <li>零硬件维护和停机时间</li>
+  <li>对安全性没有要求，如VPN等。</li>
+  <li>无需现场重启硬件</li>
+</ul>
+
+<p>我们发现这是一个可以接受的解决方案，并将继续努力实现未来更快、更智能的CI。</p>
+
+<hr/>
+
+<p>Jonathan 是Lightspeed的一名iOS开发人员，从事移动开发已经九年了。他对干净、直观的过程感兴趣，并通过代码使生活变得更容易。他总是忙于一个兼职项目，并和家人住在世界科技之都北爱尔兰的海边。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

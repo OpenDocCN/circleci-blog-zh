@@ -1,0 +1,283 @@
+<html>
+<head>
+<title>API contract testing with Joi | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>与Joi | CircleCI的API合同测试</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/api-contract-testing-with-joi/#2022-10-19T00:00:00-07:00">https://circleci.com/blog/api-contract-testing-with-joi/#2022-10-19T00:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>设置Joi合同测试框架</li>
+    <li>使用Joi编写契约测试并验证API响应</li>
+    <li>根据模式验证API响应</li>
+  </ol>
+</blockquote>
+
+<p>当你签合同的时候，你希望双方都能信守承诺。测试应用程序也是如此。<a href="https://martinfowler.com/bliki/ContractTest.html" target="_blank" rel="noreferrer noopener">契约测试</a>验证服务可以相互通信，并且服务之间共享的数据符合一组指定的规则。在这篇文章中，我将指导您使用Joi作为一个库来为使用API的服务创建API契约。</p>
+
+<h2>先决条件</h2>
+
+<p>要完成本教程，您需要:</p>
+
+<ol>
+  <li>JavaScript的基础知识</li>
+  <li>写作测试的基础知识</li>
+  <li>您系统上安装的<a href="https://nodejs.org" target="_blank" rel="noreferrer noopener"> Node.js </a>(版本&gt; = 11.0)</li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+</ol>
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<p>在这篇文章中，我将演示如何为一个开源API端点编写契约测试。您将测试的端点监控不同货币的比特币价格指数。然后，您将使用NodeJS应用程序来测试由比特币基地API返回的响应的契约。</p>
+
+<h2>克隆演示项目</h2>
+
+<p>要开始这个练习，您需要克隆这个演示项目。该项目是一个构建在<code>Express.js</code>之上的节点应用程序。Coinbuzz应用程序本身尚未开发。在本教程中，您将关注契约测试，这些测试将有助于确保应用程序的稳定性，就像它将被开发一样。</p>
+
+<p>该项目将使用<code>Coinbase</code>API，对于本教程，您将使用端点<code>https://api.coindesk.com/v1/bpi/currentprice/CNY.json</code>。该端点获取人民币相对于美元的比特币价格指数。</p>
+
+<p>通过运行以下命令克隆项目:</p>
+
+<pre><code class="language-bash">git clone https://github.com/CIRCLECI-GWP/coin-buzz-contract-testing.git
+</code></pre>
+
+<p>从项目文件夹安装依赖项:</p>
+
+<pre><code class="language-bash">cd coin-buzz-contract-testing;
+
+npm install
+</code></pre>
+
+<p>不需要运行应用程序；您将只运行该项目中的测试。</p>
+
+<h2>为什么使用合同测试</h2>
+
+<p>在开始之前，让我给你一些关于契约测试的背景知识。这种测试提供了不同服务在需要时工作的信心。假设一个组织有多个使用<code>Authentication</code> API的支付服务。API用一个<code>username</code>和一个<code>password</code>让用户登录到一个应用程序。然后，当登录操作成功时，它会给它们分配一个<code>access token</code>。其他服务如<code>Loans</code>和<code>Repayments</code>需要用户登录后使用<code>Authentication</code> API服务。</p>
+
+<p><img src="../Images/ddc26109b232e55bdeb1bd8de317250f.png" alt="Microservices dependencies" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-microservices-dependencies.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-microservices-dependencies.png"/></p>
+
+<p>如果<code>Authentication</code>服务改变了它的工作方式，需要<code>email</code>而不是<code>username</code>，那么<code>Loans</code>和<code>Repayments</code>服务将会失败。通过契约测试，<code>Loans</code>和<code>Repayments</code>服务都可以跟踪<code>Authentication</code> API，让服务发出的请求具有一组预期的行为。这些服务可以访问有关故障发生的时间、方式和位置的信息。还有关于故障是否由外部依赖引起的信息，在本例中是<code>Authentication</code>。</p>
+
+<h2>设置合同测试环境</h2>
+
+<p>契约测试旨在监控应用程序的状态，并在出现意外结果时通知测试人员。当依赖于其他服务的稳定性的工具使用契约测试时，它们是最有效的。两个例子:</p>
+<ul>
+  <li>一个前端应用程序，依赖于后端API的稳定性(就像在这个项目中)</li>
+  <li>微服务环境或依赖另一个API来处理信息的API</li>
+</ul>
+
+<p>从CoinDesk测试端点将帮助您了解不同货币在不同日期的比特币价格指数。要了解更多信息，请查看<a href="https://github.com/CIRCLECI-GWP/coin-buzz-contract-testing/blob/master/app.js">克隆应用程序</a>中的<code>app.js</code>。</p>
+
+<p>在开始测试API之前，您需要了解它的结构。这些知识会帮助你写合同。首先，使用浏览器向这个URL发出一个简单的<code>GET</code>请求:</p>
+
+<pre><code class="language-bash">https://api.coindesk.com/v1/bpi/currentprice/CNY.json
+</code></pre>
+
+<p>这个请求获取某段时间内比特币的当前价格。然后显示美元和CNY的换算。</p>
+
+<p><img src="../Images/5f0451cc26db837b5509bed327250bc6.png" alt="Bitcoin Price Index browser response" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-USD-CNY-browser-response.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-USD-CNY-browser-response.png"/></p>
+
+<p>虽然响应对象一开始看起来有些吓人，但我会帮助您完成它。在教程的下一部分，我们将使用<code>Joi</code>把它分解成单独的对象。</p>
+
+<h2>创建Joi合同</h2>
+
+<p>Joi是一个工具，它使得分析对象并把它们分成可以验证的块成为可能。Joi将一个响应视为具有两个键值<code>time</code>和<code>bpi</code>的单个对象。每个值都属于特定的数据类型。通过分解响应，Joi可以分析响应，并根据定义的模式契约创建成功或失败的断言。</p>
+
+<p>要为您的项目安装<code>joi</code>包，请打开一个终端窗口并运行以下命令:</p>
+
+<pre><code class="language-bash">npm install joi
+</code></pre>
+
+<p>太好了！您已经开始创建您的Joi合同。本节教程将介绍如何创建对象的一部分，然后可以扩展到创建响应的其他部分。您将使用一个示例代码块来展示如何将对象分解成块。您可以测试<code>currencyObject</code>并在以后将其重新用于美元或CNY。</p>
+
+<pre><code class="language-js">const currencyObject = Joi.object({
+        code: Joi.string().required(),
+        symbol: Joi.string().optional(),
+        rate: Joi.string().required(),
+        description: Joi.string().required(),
+        rate_float: Joi.number().required()
+  }).required();
+
+</code></pre>
+
+<p>在这个代码块中，您正在分解货币对象，并告诉Joi您希望货币对象具有关键字<code>code</code>、<code>symbol</code>、<code>rate</code>、<code>description</code>和<code>rate_float</code>。同样在契约中，描述了你对象中物品的状态，包括它们应该是<code>optional()</code>还是<code>required()</code>。在这种情况下，您添加了可选的<code>symbol</code>键，因为您希望在具有类似结构的其他响应中重用<code>currencyObject</code>。</p>
+
+<p><img src="../Images/93b8e34554a544a3468e9fb79f95a769.png" alt="Partial API response and JOI contract" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-contract-and-api-response-references.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-contract-and-api-response-references.png"/></p>
+
+<p>货币对象与美元和CNY的货币响应并行匹配。它可以被重用，因为<code>currencyObject</code>合同符合CNY和美元响应对象的标准。完整的<code>BPIContract</code>与<code>currencyObject</code>集成在一起，可以多次重复使用。回应的完整合同的更大背景是来自<a href="https://api.coindesk.com/v1/bpi/currentprice/CNY.json" target="_blank" rel="noreferrer noopener">coin desk CNY</a>的请求。</p>
+
+<p>教程的这一部分已经介绍了如何创建Joi契约，以及如何定义需要由契约模式验证的响应的属性。请记住，为了“收紧”模式，您应该定义契约模式值是<code>required</code>还是<code>optional</code>。这就为失败时是抛出错误还是忽略它创造了一个界限。</p>
+
+<h2>处理Joi合同错误</h2>
+
+<p>在撰写合同时，处理可能由响应问题引起的错误是很重要的。您需要知道每次执行测试时，以及当契约模式失败时，响应是否一致。理解潜在的契约失败将帮助您学习如何调整应用程序来处理失败。</p>
+
+<p>为了处理这些错误，创建一个目录并将其命名为<code>lib</code>。将两个文件添加到目录中:</p>
+<ol>
+  <li>一个是请求助手，它使用<code>axios</code>帮助发出API请求</li>
+  <li>另一个文件供<code>schemaValidation()</code>方法根据定义的模式验证响应</li>
+</ol>
+
+<p><img src="../Images/ccdabf7fe51be3facddf9e2330cc27ae.png" alt="Side by side lib files" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-side-by-side-comparision-of-library-helper-methods.png"/></p>
+
+<p>模式验证文件验证所提供的响应和契约是否一致。如果不是，就会导致错误。下一个代码块展示了一个方法如何根据定义的Joi契约模式来验证收到的响应。</p>
+
+<pre><code class="language-js"> async function schemaValidation(response, schema) {
+    if (!response || !schema) throw new Error('An API response and contract are required');
+    const options = { abortEarly: false };
+    try {
+        const value = await schema.validateAsync(response, options);
+        return value
+    }
+    catch (err) {
+        throw new Error(err);
+    }
+}
+
+module.exports = {
+    schemaValidation
+}
+
+</code></pre>
+
+<p>Joi方法负责根据创建的模式验证响应。在这种情况下，您已经在文件<code>contracts/bpi-contracts.js</code>中创建了一个模式。在下一节中，您将通过编写一个测试并传入模式和从比特币基地API收到的API响应来验证这个方法是否有效。</p>
+
+<h2>编写测试和断言</h2>
+
+<p>您已经成功地编写了合同和方法，在检查不一致性的同时根据API响应来验证它们。下一步是编写一个使用这种方法的测试。要使用您的模式测试API，您需要安装jest(一个JavaScript测试框架)和axios(一个JavaScript请求生成框架)。</p>
+
+<pre><code class="language-bash">npm install jest axios
+</code></pre>
+
+<p>您将使用<a href="https://jestjs.io/" target="_blank" rel="noreferrer noopener"> Jest </a>运行您的测试，使用<a href="https://axios-http.com/" target="_blank" rel="noreferrer noopener"> axios </a>向比特币基地端点发出API请求。要进行设置，添加<code>test</code>命令来运行<code>package.json</code>文件中的测试:</p>
+
+<pre><code class="language-js">"scripts": {
+    "start": "node ./bin/www",
+    "test": "jest"
+  },
+</code></pre>
+
+<p>在scripts部分添加这个命令可以让Jest扫描您的项目，查找任何扩展名为<code>.spec</code>或<code>.test</code>的文件。当一个被发现时，Jest把它们当作测试文件并运行它们。</p>
+
+<p>现在，在<code>contract-tests</code>目录中创建一个测试。该测试在发出API请求后调用模式验证方法。</p>
+
+<pre><code class="language-js">const { getData } = require('../lib/request-helper')
+const { schemaValidation } = require('../lib/validateContractSchema');
+const { BPIContract } = require('../contracts/bpi-contracts');
+
+describe('BPI contracts', () =&gt; {
+    test('CNY bpi contract schema check', async () =&gt; {
+        const response = await getData({
+            url: 'https://api.coindesk.com/v1/bpi/currentprice/CNY.json' });
+        return schemaValidation(response, BPIContract);
+    });
+});
+</code></pre>
+
+<p>这个调用使用<code>getData()</code>方法发出请求。<code>getData()</code>方法使用axios来调用比特币基地API。然后，它使用响应根据模式验证方法<code>schemaValidation()</code>来验证API响应。对于从端点接收到的响应，这里已经有了Joi模式定义。运行您的测试并验证它是否有效:</p>
+
+<pre><code class="language-bash">npm test 
+</code></pre>
+
+<p>检查你的终端有一些好消息。</p>
+
+<p><img src="../Images/14677330b7d267367572f90adc185eeb.png" alt="Successful test run" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-successful-test-run.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-successful-test-run.png"/></p>
+
+<p>瞧啊。你的测试通过了。</p>
+
+<p>然而，我们还没有完成。您需要验证测试是否也能处理合同<i>不</i>正确的情况。在之前的契约模式中，您在<code>currencyObject</code>中使用了字段<code>symbol: Joi.string().optional()</code>。您可以将Joi期望更改为<code>required()</code>，并查看Joi是否会产生错误。编辑<code>currencyObject</code>使其与此匹配:</p>
+
+<pre><code class="language-js">const currencyObject = Joi.object({
+        code: Joi.string().required(),
+        symbol: Joi.string().required(),
+        rate: Joi.string().required(),
+        description: Joi.string().required(),
+        rate_float: Joi.number().required()
+    }).required();
+</code></pre>
+<p>重新运行测试后，您确实会看到一个错误。</p>
+
+<p><img src="../Images/60c884a344264cf11c2c271346c9bcb4.png" alt="Failed test run" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-failed-responses.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-failed-responses.png"/></p>
+
+<p>Joi能够捕获错误，现在期望货币对象中的<code>symbol</code>对象项是<code>required()</code>而不是<code>optional()</code>。来自API的响应没有将<code>symbol</code>作为响应的一部分，Joi拒绝了API响应。回应不符合合同标准。</p>
+
+<p>您已经能够证明您的契约模式是可行的。对响应的修改将导致失败，您将收到警告。</p>
+
+<p>将<code>currencyObject</code>中的字段<code>symbol: Joi.string().required()</code>改回<code>optional()</code>继续本教程。</p>
+
+<h2>编写CI管道配置</h2>
+
+<p>在本节中，您将通过为CircleCI添加管道配置来自动化测试。首先在根目录下创建一个名为<code>.circleci</code>的文件夹。在文件夹中，创建一个<code>config.yml</code>文件。现在添加配置详细信息:</p>
+
+<pre><code class="language-yml">version: 2.1
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: cimg/node:10.16.3
+    steps:
+      - checkout
+      - run:
+          name: update npm
+          command: "npm install -g npm@5"
+      - restore_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+      - run:
+          name: install dependencies
+          command: npm install
+      - save_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+          paths:
+            - ./node_modules
+      - run:
+          name: run coinbuzz contract-tests
+          command: npm test
+      - store_artifacts:
+          path: ~/repo/coinbuzz
+</code></pre>
+
+<p>在这种配置中，CircleCI使用从环境中提取的节点Docker映像。然后，它会更新npm程序包管理器。接下来，如果缓存存在，它将被恢复。仅当使用<code>save-cache</code>检测到变化时，应用程序依赖关系才会更新。运行Coinbuzz测试，缓存的项目存储在工件的<code>coinbuzz</code>目录中。</p>
+
+<h2>在CircleCI建立一个项目</h2>
+
+<p>如果您克隆了示例项目存储库，那么它已经在git中初始化并设置好了。了解您的项目如何与CircleCI集成会有所帮助，因此，要设置CircleCI，请通过运行以下命令在您的项目中初始化GitHub存储库:</p>
+
+<pre><code class="language-bash">git init
+</code></pre>
+
+<p>接下来，在根目录下创建一个<code>.gitignore</code>文件。在该文件中，添加<code>node_modules</code>来忽略npm生成的模块被添加到您的远程存储库中。添加一个提交，然后<a href="https://circleci.com/blog/pushing-a-project-to-github/">将你的项目推送到GitHub </a>。</p>
+
+<p>登录<a href="https://app.circleci.com/"> CircleCI </a>，进入<code>Projects</code>。列出了与您的GitHub用户名或您的组织相关的所有存储库，包括您想要在CircleCI中设置的存储库。这种情况下是<code>coin-buzz-contract-testing</code>。</p>
+
+<p><img src="../Images/4fea3af253b73e90ae507bad7c2488c5.png" alt="Select project" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-select-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>按钮。将提示您是否已经在项目中定义了CircleCI的配置文件。输入分支名称(对于本教程，您将使用main)。点击<strong>设置项目</strong>完成该过程。</p>
+
+<p>这将成功运行。</p>
+
+<p><img src="../Images/9824c0e217fc6e7f3e9c777e64098813.png" alt="Select project" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-18-test-run-successfully.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-18-test-run-successfully.png"/></p>
+
+<h2>结论</h2>
+
+<p>在本教程中，您已经为API响应创建了一个契约模式，一个处理模式中错误的方法，以及一个验证契约模式工作的测试。我希望我已经展示了为依赖于外部服务可用性的API或前端应用程序建立契约测试是多么容易。既然您可以将失败的服务精确定位到已更改的响应对象，那么您就可以向未检测到的依赖性剥落说再见了。</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Waweru Mwaura是一名软件工程师，也是一名专门研究质量工程的终身学习者。他是Packt的作者，喜欢阅读工程、金融和技术方面的书籍。你可以在<a href="https://waweruh.github.io/" target="_blank" rel="noreferrer noopener">他的网页简介</a>上了解更多关于他的信息。</p>
+
+            <p><a href="/blog/author/waweru-mwaura/" class="arrow-link">阅读更多Waweru Mwaura的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

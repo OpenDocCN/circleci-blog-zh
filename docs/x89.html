@@ -1,0 +1,227 @@
+<html>
+<head>
+<title>Speed up XCUITest execution with parallelism and test splitting | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>通过并行和测试分割加速XCUITest执行| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/xcuitest-parallel-execution/#2022-09-21T05:00:00-07:00">https://circleci.com/blog/xcuitest-parallel-execution/#2022-09-21T05:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>使用XCUITest和fastlane设置iOS UI测试</li>
+    <li>使用CircleCI自动运行XCUITest</li>
+    <li>利用并行性和测试拆分加速XCUITest时间</li>
+  </ol>
+</blockquote>
+
+<p>在本文中，我将向您展示如何通过拆分和并行运行XCUITest(iOS模拟器上的UI测试)来减少它们的执行时间。</p>
+
+<p>像<a href="https://circleci.com/"> CircleCI </a>这样的自动化测试和CI/CD平台是iOS应用开发所必需的。重要的是不仅要一次介绍它们，而且要不断改进它们。</p>
+
+<p>当应用程序代码增长和自动化测试增加时，CI/CD中构建和测试的执行时间会变长。构建和测试时间越长，开发速度越慢。</p>
+
+<p>因为像XCUITest (Xcode UITest)这样的UI测试需要在实际的iOS设备或者iOS模拟器上运行，所以执行时间往往会比较长。</p>
+
+<p>CircleCI有多种方法可以减少iOS应用程序开发中的执行时间:</p>
+
+
+<p>在本文中，我将向您展示如何将CircleCI的测试拆分和并行性与<a href="https://fastlane.tools/" target="_blank" rel="noreferrer noopener"> fastlane </a>结合起来，以减少执行时间。</p>
+
+<h2>先决条件</h2>
+
+<p>对于本教程，您需要:</p>
+
+<ul>
+  <li>CircleCI帐户，最好是用于最佳macOS虚拟机并发的<a href="https://circleci.com/pricing/">性能计划</a>。</li>
+  <li>Xcode已安装。本教程使用Xcode 13.4.1。</li>
+  <li><a href="https://fastlane.tools/" target="_blank" rel="noreferrer noopener">快车道</a>已安装。</li>
+  <li>熟悉编写XCUITest (Xcode UITest)。</li>
+</ul>
+
+<h2>如何使用CircleCI和fastlane将测试分割和并行性添加到XCUITest运行中(概述)</h2>
+
+<p>本教程中介绍的iOS应用程序的示例代码可以在<a href="https://github.com/tadashi0713/circleci-demo-ios" target="_blank" rel="noreferrer noopener"> GitHub </a>上获得。</p>
+
+<p>这包括多个UI测试。通过插入<code>sleep()</code>改变执行时间，如下所示:</p>
+
+<pre><code>import XCTest
+
+class CircleCIDemoUITests5: XCTestCase {
+    func testTapButton5() throws {
+        // UI tests must launch the application that they test.
+        let app = XCUIApplication()
+        app.launch()
+        
+        // Elements
+        let text = app.staticTexts["text"]
+        let button = app.buttons["button"]
+        
+        XCTAssertEqual(text.label, "Hello, world!")
+        sleep(50)
+        button.tap()
+        XCTAssertEqual(text.label, "Button Tapped!")
+    }
+}
+</code></pre>
+
+<p>要使用fastlane连续运行所有测试，使用<a href="https://docs.fastlane.tools/actions/run_tests/"> run_tests </a>动作并编写以下代码。</p>
+
+<pre><code>desc "Run all UITests"
+lane :ui_test_all do
+  run_tests(
+    scheme: "CircleCIDemoUITests",
+    devices: ["iPhone 13 (15.4)"]
+  )
+end
+</code></pre>
+
+<p>要并行运行测试，请遵循以下步骤:</p>
+
+<ol>
+  <li>运行UI测试的预构建(build_for_testing)</li>
+  <li>启动多个macOS虚拟机/iOS模拟器</li>
+  <li>基于执行时间的分割测试</li>
+  <li>并行运行分割测试</li>
+  <li>上传测试结果，包括执行时间</li>
+</ol>
+
+<h2>预构建<code>build_for_testing</code>来运行UI测试</h2>
+
+<p>所有的iOS应用测试，包括UI测试，都必须在运行前构建。对于本教程，我提前完成了构建部分，因此您可以稍后在多个macOS虚拟机上并行运行测试。</p>
+
+<p>从Xcode8开始，<code>build-for-testing</code>和<code>test-without-building</code>允许你分离构建和测试执行。</p>
+
+<p>在快速通道中执行<code>build-for-testing</code>时，启用<code>run_tests</code>动作中的<code>build_for_testing</code>参数。</p>
+
+<pre><code>desc "Run all UITests"
+lane :build_for_ui_test do
+  run_tests(
+    scheme: "CircleCIDemoUITests",
+    devices: ["iPhone 13 (15.4)"],
+    derived_data_path: "dist",
+    build_for_testing: true
+  )
+end
+</code></pre>
+
+<p><code>derived_data_path</code>参数允许您指定工件的路径。</p>
+
+<p>这是CircleCI <code>build_for_ui_test</code>的工作:</p>
+
+<pre><code>build_for_ui_test:
+  macos:
+    xcode: 13.3.1
+  resource_class: macos.x86.medium.gen2
+  steps:
+    - checkout
+    - ruby/install-deps
+    - run: bundle exec fastlane build_for_ui_test
+    - persist_to_workspace:
+        root: .
+        paths:
+          - dist
+</code></pre>
+
+<p>这包括以下步骤:</p>
+<ul>
+  <li>使用<a href="https://circleci.com/developer/orbs/orb/circleci/ruby">红宝石球</a>安装快速通道。</li>
+  <li>跑快车道(<code>build_for_testing</code>)。</li>
+  <li>使预构建工件可用于下一个作业，<a href="https://circleci.com/docs/workspaces/"> persist_to_workspace </a>。</li>
+</ul>
+
+<h2>UI测试的测试拆分和并行性</h2>
+
+<p>在预构建<code>build_for_ui_test</code>任务完成后，运行<code>ui_test_parallel</code>任务来并行拆分和运行UI测试。</p>
+
+<pre><code>ui_test_parallel:
+  parallelism: 2
+  macos:
+    xcode: 13.3.1
+  resource_class: macos.x86.medium.gen2
+  steps:
+    - checkout
+    - macos/preboot-simulator:
+        device: iPhone 13
+        version: "15.4"
+    - attach_workspace:
+        at: .
+    - ruby/install-deps
+</code></pre>
+
+<p>启动多个macOS虚拟机来并行运行测试。您可以通过设置<code>parallelism</code>键的值来增加或减少并行运行的macOS虚拟机的数量。</p>
+
+<p>这项工作的步骤包括:</p>
+
+
+<p>然后，拆分测试并并行运行它们。</p>
+
+<p>这是一条快车道:</p>
+
+<pre><code>desc "Run specific UITests"
+lane :ui_test_without_building do |options|
+  run_tests(
+    scheme: "CircleCIDemoUITests",
+    devices: ["iPhone 13 (15.4)"],
+    only_testing: options[:tests],
+    derived_data_path: "dist",
+    test_without_building: true
+  )
+end
+</code></pre>
+
+<p>这段代码使用了<code>run_tests</code>动作，但是有两处不同。首先，它启用了<code>test_without_building</code>参数。这次我们已经预构建了应用程序<code>build-for-testing</code>，因此我们可以通过启用<code>test-without-building</code>参数来运行测试，而无需构建。</p>
+
+<p>第二，启用<code>only_testing</code>参数。此参数只允许运行某些测试，而不是所有测试。<code>only_testing</code>(特定测试)的目标可以从外部通过。</p>
+
+<p>下面是CircleCI配置文件的一部分，它拆分并并行运行测试:</p>
+
+<pre><code>- run:
+    name: Split tests and run UITests
+    command: |
+      CLASSNAMES=$(circleci tests glob "CircleCIDemoUITests/*.swift" \
+        | sed 's@/@.@g' \
+        | sed 's/.swift//' \
+        | circleci tests split --split-by=timings --timings-type=classname)
+      FASTLANE_ARGS=$(echo $CLASSNAMES | sed -e 's/\./\//g' -e 's/ /,/g')
+      bundle exec fastlane ui_test_without_building tests:$FASTLANE_ARGS
+- store_test_results:
+    path: fastlane/test_output/report.junit
+</code></pre>
+
+<p>目标测试文件由<code>circleci tests glob</code>检索并由<code>circleci tests split</code>分割。</p>
+
+<p>你可以看到<code>--split-by=timings</code>标志被加到了<code>circleci tests split</code>上。这将利用来自前一次测试运行的计时数据，在指定数量的并行运行的测试环境中尽可能均匀地分割测试套件。<code>--split-by=timings</code>标志给出了可用计算能力的最短测试时间。您可以在下面的视频中了解更多关于测试分割和并行性的信息。</p>
+
+<p><iframe src="https://www.youtube.com/embed/zeukH6V_gEk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="">视频</iframe></p>
+
+<p>在这种情况下，具有不同执行时间的五个测试分两次并行运行。测试执行时间几乎没有变化。</p>
+
+<p><img src="../Images/49333205b6bb8812a99166f1c75441a5.png" alt="Parallel test runs" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-09-20-image2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-09-20-image2.png"/></p>
+
+<h2>结论</h2>
+
+<p>在本文中，我介绍了如何通过拆分和并行运行XCUITest(iOS模拟器上的UI测试)来减少它们的执行时间。</p>
+
+<p>该解决方案的关键要点:</p>
+<ul>
+  <li>基于时间的测试分割为可用的计算能力提供了最短的测试时间。</li>
+  <li>通过设置CircleCI配置文件中的<code>parallelism</code>键的值，可以轻松调整并行度。</li>
+  <li>即使在并行运行多个macOS虚拟机时，如在这种情况下，性价比也很高。</li>
+</ul>
+
+<p><strong>注:</strong> <i> CircleCI按每分钟macOS VM使用量(积分)收费，而不是按并行数收费。要了解更多信息，请查看我们的<a href="https://circleci.com/pricing"> CircleCI定价和计划信息</a>。</i></p>
+
+<p>如果你想提高iOS应用程序开发的性能，我希望你会发现这很有用。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

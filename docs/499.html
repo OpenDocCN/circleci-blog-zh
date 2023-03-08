@@ -1,0 +1,331 @@
+<html>
+<head>
+<title>Performing database tests on SQL databases | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在SQL数据库| CircleCI上执行数据库测试</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/relational-db-testing/#2021-09-30T09:00:00-07:00">https://circleci.com/blog/relational-db-testing/#2021-09-30T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>测试是那些活动中的一种，如果不是详尽的，就不会对你的软件开发过程产生完全的影响。开发人员常常只关心测试系统的应用层(也称为代码库)，而忽略了测试数据层(数据库)，这与测试代码本身同样重要。</p>
+
+<p>什么是数据库测试？数据库测试主要包括构建<a href="https://en.wikipedia.org/wiki/SQL"> SQL </a>查询，以断言和验证数据库应用程序所需的不同数据库操作、结构和属性。这些可能包括验证模式、测试CRUD操作和事务，以确保正确设置数据库来为应用程序服务。关于数据库测试和执行测试的策略的更多信息，您可以查看我们的<a href="https://circleci.com/blog/intro-db-testing/">数据库测试介绍文章</a>。</p>
+
+<p>在本教程中，您将学习并演示如何测试关系型<a href="https://www.mysql.com/"> MySQL </a>数据库，然后着手建立一个持续集成管道来自动化测试过程。</p>
+
+<h2>先决条件</h2>
+
+<p>要跟进，你需要几样东西:</p>
+
+<ol>
+  <li>JavaScript的基础知识</li>
+  <li>安装在您系统上的<a href="https://nodejs.org"> Node.js </a>(版本&gt; = 12)</li>
+  <li>一个<a href="https://circleci.com/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+  <li><a href="https://en.wikipedia.org/wiki/SQL"> SQL </a>的基础知识。</li>
+</ol>
+
+<p>安装并设置好所有这些之后，您就可以开始了。</p>
+
+<h2>获取远程MySQL实例</h2>
+
+<p>运行数据库测试时，您希望确保不是在生产数据库上运行这些测试。确保测试数据库与生产数据库完全相似。</p>
+
+<p>对于本教程，您将需要一个远程MySQL数据库来运行测试。许多云提供商提供免费的MySQL数据库，您可以在以后使用和删除。你可以从任何你喜欢的服务中免费获得你的MySQL数据库，只要你有连接细节。</p>
+
+<p>对于本教程，我使用来自<a href="https://www.cloudclusters.io/">云团</a>的数据库。一旦你注册，导航到<a href="https://www.cloudclusters.io/plans/MySQL"> MySQL </a>。MySQL的Express计划对我们的项目来说应该足够好。点击<strong>免费试用</strong>。使用默认设置，建立一个免费的MySQL数据库。我们将在下一节使用数据库细节。</p>
+
+<p><strong>注意事项</strong>:</p>
+<ul>
+  <li>如果您使用的服务在实例化时不创建默认表，则创建一个表。</li>
+  <li><i>对于本教程，您可以使用MySQL 5.7或MySQL 8.0版本，以及<code>latin</code>、<code>utf8</code>、<code>utf8mb4</code>和<code>gbk</code>字符集。唯一的例外是MySQL 8.0版本中的<code>utf8mb4</code>字符集，它会抛出一个错误。</i></li>
+</ul>
+
+<p>你可以在GitHub 上获得最终的项目代码<a href="https://github.com/CIRCLECI-GWP/relational-db-testing">。这里使用的MySQL实例是MySQL 5.7版本。名为<code>circleci</code>的数据库使用了<code>utf8</code>字符集。</a></p>
+
+<h2>用Jest和MySQL SDK设置测试项目</h2>
+
+<p>一旦设置好远程MySQL，现在就可以开始设置测试环境了。不同的代码库有不同的测试运行器来执行测试。在本教程中，您将使用<a href="https://jestjs.io/"> Jest </a>测试框架和<a href="https://www.npmjs.com/package/mysql2"> MySQL Node.js SDK </a>来执行数据库测试，因为我们使用的是JavaScript项目。</p>
+
+<p>通过创建一个文件夹并移动到其根目录来启动一个新的Node.js项目:</p>
+
+<pre><code>mkdir relational-db-testing
+cd relational-db-testing
+</code></pre>
+
+<p>然后，使用以下命令初始化Node.js项目并构建一个基本的<code>package.json</code>文件:</p>
+
+<pre><code>npm init -y
+</code></pre>
+
+<p>接下来，安装<code>jest</code>作为开发依赖项:</p>
+
+<pre><code>npm install --save-dev jest
+</code></pre>
+
+<p>然后，安装<code>mysql2</code>和<code>faker</code>包以连接到您的MySQL实例并生成假的测试数据:</p>
+
+<pre><code>npm install mysql2 faker
+</code></pre>
+
+<p>现在您已经有了项目设置和所有的包，是时候开始编写测试了。</p>
+
+<h2>CRUD测试的数据完整性</h2>
+
+<p>对于本教程，您将运行简单的CRUD(创建-读取-更新-删除)测试来验证CRUD操作中的数据完整性。</p>
+
+<p>在项目的根目录下创建一个新文件<code>users.test.js</code>。在这个文件中，您将通过添加用户、读取添加的用户、更新用户和删除用户数据来测试一个<code>users</code>数据库表。</p>
+
+<p>将以下代码添加到文件中。包括测试<code>CREATE</code>和<code>READ</code>操作的测试。</p>
+
+<pre><code>const { createPool } = require("mysql2/promise");
+const faker = require("faker");
+
+describe("Database Tests", () =&gt; {
+  let connection;
+
+  beforeEach(async () =&gt; {
+    let createTableSQL =
+      "CREATE TABLE `users` ( `id` INT(2) NOT NULL AUTO_INCREMENT , `name` VARCHAR(100) NOT NULL , `email` VARCHAR(50) NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;";
+
+    connection = await createPool({
+      host: "YOUR_DB_HOST",
+      user: "YOUR_DB_USER",
+      password: "YOUR_DB_PASSWORD",
+      port: YOUR_DB_PORT,
+      database: "YOUR_DB_NAME"
+    });
+    console.log("Connected to database");
+
+    await connection.query(createTableSQL);
+  });
+
+  it("Test CREATE and READ", async () =&gt; {
+    try {
+      const total_test_users = 3;
+      let insertQueries = [];
+
+      for (let i = 0; i &lt; total_test_users; i++) {
+        let insertSQL = `INSERT INTO users (id, name, email) VALUES (NULL, '${faker.name.findName()}', '${faker.internet.email()}');`;
+
+        insertQueries.push(connection.query(insertSQL));
+      }
+
+      await Promise.all(insertQueries);
+
+      const [rows, fields] = await connection.query("SELECT * FROM users");
+
+      expect(rows.length).toBe(total_test_users);
+    } catch (error) {
+      console.log(error);
+      let dropTableSQL = "DROP TABLE IF EXISTS `users`";
+      await connection.query(dropTableSQL);
+      await connection.end();
+    }
+  }, 60000);
+
+  afterEach(async () =&gt; {
+    let dropTableSQL = "DROP TABLE IF EXISTS `users`";
+    await connection.query(dropTableSQL);
+    await connection.end();
+  });
+});
+</code></pre>
+
+<p>这项测试:</p>
+<ul>
+  <li>建立与数据库实例的连接</li>
+  <li>在<code>beforeEach</code>函数调用中，它创建了一个带有字段<code>id</code>、<code>name</code>和<code>email</code>的<code>users</code>表</li>
+  <li>在<code>afterEach</code>函数调用中，表格被删除，连接结束</li>
+</ul>
+
+<p>删除这个表可以确保套件中的每个测试都有一个新的<code>users</code>表实例，以避免测试使用相同的共享数据。记住分别用您的远程MySQL数据库主机、用户、密码、端口和数据库名称替换<code>YOUR_DB_HOST</code>、<code>YOUR_DB_USER</code>、<code>YOUR_DB_PASSWORD</code>、<code>YOUR_DB_PORT</code>和<code>YOUR_DB_NAME</code>。</p>
+
+<p>在<code>Test CREATE and READ</code>测试用例中，<code>faker</code>库用于向<code>users</code>表添加3个用户。然后查询该表，以确保它包含刚刚添加的用户的确切数量。</p>
+
+<p>要运行这个测试，更新您的<code>package.json</code>文件中的<code>test</code>脚本:</p>
+
+<pre><code>....,
+"scripts" : {
+    "test" : "jest"
+}
+</code></pre>
+
+<p>现在转到您的终端，通过运行以下命令来运行测试:</p>
+
+<pre><code>npm run test
+</code></pre>
+
+<p>测试完成后，您的终端会显示以下输出。</p>
+
+<pre><code>&gt; jest
+
+  console.log
+    Connected to database
+
+      at Object.&lt;anonymous&gt; (users.test.js:18:17)
+
+ PASS  ./users.test.js (5.5 s)
+  Database Tests
+    ✓ Test CREATE and READ (4292 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        5.554 s
+Ran all test suites.
+</code></pre>
+
+<p>通过了对<code>CREATE</code>和<code>READ</code>的测试，这意味着可以用简单的<code>INSERT</code>查询对我们的模式和数据库执行这些操作。这可以进一步扩展，以检查重复的电子邮件或用户名等情况。</p>
+
+<p>对于<code>UPDATE</code>和<code>DELETE</code>操作，继续在第一个测试的<code>it</code>模块下添加以下测试用例:</p>
+
+<pre><code>it("Test UPDATE and DELETE", async () =&gt; {
+  try {
+    let name = "Test user";
+    let email = "test@user.com";
+    let nameUpdate = "My Test User";
+
+    let insertSQL = `INSERT INTO users (id, name, email) VALUES (NULL, '${name}', '${email}');`;
+
+    await connection.query(insertSQL);
+
+    //Run and test update
+    let updateSQL = `UPDATE users SET name='${nameUpdate}' WHERE email='${email}'`;
+    await connection.query(updateSQL);
+
+    const [rows, fields] = await connection.query("SELECT * FROM users");
+    expect(rows[0].name).toBe(nameUpdate);
+
+    //Run and test delete
+    let deleteSQL = `DELETE FROM users WHERE email='${email}'`;
+    await connection.query(deleteSQL);
+
+    const [allrows] = await connection.query("SELECT * FROM users");
+    expect(allrows.length).toBe(0);
+  } catch (error) {
+    console.log(error);
+    let dropTableSQL = "DROP TABLE IF EXISTS `users`";
+    await connection.query(dropTableSQL);
+    await connection.end();
+  }
+}, 60000);
+</code></pre>
+
+<p>在这个测试中，通过创建一个新用户并更新该用户的<code>name</code>字段来测试<code>UPDATE</code>操作。然后查询该表以检查更新是否持续。</p>
+
+<p>接下来，使用用户的电子邮件对用户数据运行一个<code>DELETE</code>操作。再次查询该表以检查该用户是否不再存在。</p>
+
+<p>保存该文件并再次运行测试命令(<code>npm run test</code>)。这一次，您将在终端中看到以下输出:</p>
+
+<pre><code>&gt; jest
+
+  console.log
+    Connected to database
+
+      at Object.&lt;anonymous&gt; (users.test.js:18:17)
+
+  console.log
+    Connected to database
+
+      at Object.&lt;anonymous&gt; (users.test.js:18:17)
+
+ PASS  ./users.test.js (8.165 s)
+  Database Tests
+    ✓ Test CREATE and READ (3452 ms)
+    ✓ Test UPDATE and DELETE (3205 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        8.226 s
+Ran all test suites.
+</code></pre>
+
+<h2>自动化测试过程</h2>
+
+<p>既然您已经正确地运行了您的测试，那么是时候自动化测试过程了。首先，您需要保存对测试文件的所有更改。</p>
+
+<p>然后，将当前目录作为本地git存储库，并添加一个<code>.gitignore</code>文件。运行这些命令:</p>
+
+<pre><code>git init
+wget https://raw.githubusercontent.com/github/gitignore/master/Node.gitignore &amp;&amp; mv Node.gitignore .gitignore
+</code></pre>
+
+<p>第二个命令复制GitHub官方文件<code>.gitignore</code>的内容，用于托管在<a href="https://github.com/github/gitignore/blob/master/Node.gitignore">这里</a>的JavaScript项目。</p>
+
+<p>接下来，<a href="https://circleci.com/blog/pushing-a-project-to-github/">将项目推送到GitHub </a>。</p>
+
+<p>转到CircleCI仪表板上的<code>Projects page</code>添加项目。</p>
+
+<p><img src="../Images/abc30d1da08beac012af86f71c9d784d.png" alt="Add Project - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-09-24-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-09-24-add-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>开始设置项目。在弹出的模式上点击<strong>跳过这一步</strong>。我们将在本教程的后面手动添加CircleCI配置。</p>
+
+<p><img src="../Images/1db4d9df6349a014119d1af122daf49b.png" alt="Add Config - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-09-24-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-09-24-add-config.png"/></p>
+
+<p>在设置页面上，单击<strong>使用现有配置</strong>以指示CircleCI您将手动添加一个配置文件，而不是使用示例。接下来，系统会提示您下载管道的配置文件或开始构建。</p>
+
+<p><img src="../Images/c670008478e5d7063b545a0e50595698.png" alt="Build Prompt - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-09-24-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-09-24-start-building-prompt.png"/></p>
+
+<p>点击<strong>开始建造</strong>。这个构建将会失败，因为我们还没有设置配置文件。那将是你的下一步。</p>
+
+<p>要添加持续集成管道脚本，请返回到您的项目。在项目文件夹的根目录下创建一个名为<code>.circleci</code>的文件夹，并向其中添加一个名为<code>config.yml</code>的文件。在<code>config.yml</code>里面，输入这个代码:</p>
+
+<pre><code>version: 2.1
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - run:
+          name: Update NPM
+          command: "sudo npm install -g npm"
+      - restore_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+      - run:
+          name: Install Dependencies
+          command: npm install
+      - save_cache:
+          key: dependency-cache-{{ checksum "package-lock.json" }}
+          paths:
+            - ./node_modules
+      - run:
+          name: Run tests
+          command: npm run test
+</code></pre>
+
+<p>这个配置获取适当的Node.js映像并更新其中的<code>npm</code>。然后安装并缓存依赖项，以加快后续的构建。最后，使用<code>npm run test</code>命令运行测试。</p>
+
+<p>提交对项目的所有更改，并推送到您的远程GitHub存储库。这将触发构建管道，应该会成功。</p>
+
+<p><img src="../Images/9f7e2e347748c1cd13cbae9bb0e4f389.png" alt="Build Successful - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-09-24-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-09-24-build-successful.png"/></p>
+
+<p>点击<strong>构建</strong>，然后展开<strong>运行测试</strong>查看测试细节。</p>
+
+<p><img src="../Images/479ac8a94e7b25595521c8f5a5c9168f.png" alt="Build Details - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-09-24-build-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-09-24-build-details.png"/></p>
+
+<h2>结论</h2>
+
+<p>在本教程中，您已经演示了如何测试关系数据库(MySQL)以及如何使用CircleCI自动化测试过程。如果测试对你的团队来说不是优先考虑的事情，与他们分享这个教程，这样他们就可以自己了解设置测试是多么容易。数据是您将要开发的几乎每个应用程序的核心。故障、损坏或数据泄露会导致用户对产品的可信度失去信心，并导致公司失去业务。在您的软件开发操作中，将数据库测试放在首位。</p>
+
+<p>编码快乐！</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

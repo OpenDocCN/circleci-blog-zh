@@ -1,0 +1,94 @@
+<html>
+<head>
+<title>Container image scanning with Twistlock and CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用扭锁和圆环扫描集装箱图像</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/integrating-container-image-scanning-into-circleci-builds-with-the-twistlock-orb/#2019-01-30T09:00:00-08:00">https://circleci.com/blog/integrating-container-image-scanning-into-circleci-builds-with-the-twistlock-orb/#2019-01-30T09:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>开发人员和DevOps团队是采用容器的主要驱动力。DevSecOps的实践将安全性嵌入到当今的现代工作流中，而不会增加来自组织安全方面的不必要的摩擦。这并不意味着安全团队被排除在外。相反:通过与开发人员已经在使用的工具(如CircleCI)集成，安全团队制定的标准将作为构建和部署过程的一部分不断得到应用。</p>
+
+
+
+<p>通过在容器映像在生产环境中运行之前对其进行扫描来实现DevSecOps，可以产生一些好处，例如向开发人员提供快速反馈，以及将不安全或不符合要求的工作负载排除在生产环境之外。与安全和合规性相关的质量关来自与安全团队的协商，并作为CI流程的一部分自动完成。因此，开发人员可以快速获得反馈，并可以在开发某个功能时修复安全漏洞和合规性问题，而不会产生上下文切换的成本，或者更糟糕的是，将易受攻击的代码发布到产品中的风险。通过这种方式，在CI/CD过程中设置安全性和遵从性质量关口可以极大地增强开发人员容器的安全性，而不会降低它们的速度。</p>
+
+<h2>通过CircleCI Orb注册表使用Twistlock</h2>
+
+<p>扭锁球可以在<a href="https://circleci.com/developer/orbs/orb/twistlock/twistcli-scan" target="_blank" rel="noreferrer noopener"> CircleCI Orb注册表</a>中找到。此外，我们的<a href="https://github.com/add-twistlock/twistcli-scan-image-orb" target="_blank" rel="noreferrer noopener"> GitHub repo </a>包括关于配置Twistlock许可证、在Twistlock中为CI用户角色设置凭证的关键细节，以及其他可能有帮助的参数、命令和脚本。</p>
+
+<h2>使用twistcli扫描图像</h2>
+
+<p>CircleCI orb利用了我们的命令行控制和配置工具<code>twistcli</code>。<code>twistcli</code>工具支持扫描图像以发现漏洞和合规性问题，并且无需原生插件即可与任何CI工作流集成。</p>
+
+<p>下面，您可以看到一个示例<code>.circleci/config.yml</code>文件，它将在CircleCI中的构建之后扫描您的图像，然后将图像推送到您的容器注册表:</p>
+
+<pre><code class="language-yaml">version: 2.1
+orbs:
+  twistcli: twistlock/twistcli-scan@1.0.4
+jobs:
+  docker-build-and-save:
+    executor: twistcli/default
+    steps:
+      - checkout
+      - run: 'docker build -t myrepo/myimage:tag .'
+      - run: mkdir -p workspace
+      - run: 'docker save myrepo/myimage:tag -o workspace/image.tar'
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            - image.tar
+workflows:
+  scan-image:
+    jobs:
+      - docker-build-and-save
+      - twistcli/scan-image:
+          requires:
+            - docker-build-and-save
+          context: tl_scan_context
+          image: 'myrepo/myimage:tag'
+          imagetar: image.tar
+          vuln-thresh: critical
+          comp-thresh: ''
+          only-fixed: true
+</code></pre>
+
+<p>在示例<code>config.yml</code>文件中，<code>vuln-thresh</code>和<code>comp-thresh</code>指的是Twistlock将在每个构建中警告或阻止的特定严重性级别。虽然许多用户可能会选择简单地扫描他们的映像以查找漏洞或合规性问题，但您可以自定义这些设置，以阻止构建在映像不符合您的安全要求时将映像推送到您的注册表中(如下图所示)。例如，如果有已知的供应商修补程序，许多用户会选择阻止关键漏洞进入他们的容器注册表。</p>
+
+<p>此外，您可以选择将<code>only-fixed</code>设置为true或false，以仅识别具有已知供应商修补程序的问题。</p>
+
+<p>要深入了解整个样本<code>config.yml</code>文件，您可以跳到<a href="https://github.com/add-twistlock/twistcli-scan-image-orb#4-adapt-the-example-configyml-to-your-environment" target="_blank" rel="noreferrer noopener"> Twistlock orb GitHub repo </a>的这个特定部分。</p>
+
+<h2>在CircleCI中查看扫描结果</h2>
+
+<p>一旦配置了CI用户角色和脚本，您就可以在CircleCI和Twistlock控制台中看到每个构建的漏洞扫描结果。下面，您可以看到一个CircleCI工作流示例，我在其中扫描了一个Docker版本:</p>
+
+<p><img src="../Images/5ada5fdb6680525277c8da2fff8fa0bf.png" alt="CircleCI workflow" srcset="https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2019-01-28-CircleCI-Workflow.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2019-01-28-CircleCI-Workflow.jpg"/></p>
+
+<p>此外，我可以查看详细的扫描结果，包括表面CVEs、软件包信息、供应商修复状态和严重性。我还可以看到针对300多项Docker、Kubernetes和Linux CIS基准的合规性检查:</p>
+
+<p><img src="../Images/1e8adee0df057a0cc2c1e84d5e1584cf.png" alt="scan results" srcset="https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2019-01-28-scan-results.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2019-01-28-scan-results.jpg"/></p>
+
+<p>如果您对跨团队和环境的所有扫描结果的更全局视图感兴趣，您可以通过导航到<strong>监控&gt;漏洞&gt; Twistcli扫描</strong>在Twistlock控制台中查看所有扫描。在那里，您可以看到每个构建的状态，或者单击任何扫描来查看更详细的扫描结果，就像在CircleCI中一样。在下面的屏幕截图中,“Status”列显示我的所有扫描都符合我的策略要求，只有靠近底部的一个扫描不符合我的策略要求:</p>
+
+<p><img src="../Images/581bc88bdfa95da4e3fc0fff7309f900.png" alt="Twistlock console" srcset="https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2019-01-28-Twistlock-console.jpg?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2019-01-28-Twistlock-console.jpg"/></p>
+
+<h2>摘要</h2>
+
+<p>我们很自豪能够与CircleCI合作，将安全性嵌入到DevOps工作流中。要了解更多关于您和您的团队如何操作DevSecOps的信息，请查看我们的信息图<a href="https://www.twistlock.com/7-tips-navigate-operationalizing-devsecops/" target="_blank" rel="noreferrer noopener"> 7个提示，以导航操作DevSecOps </a>。</p>
+
+<hr/>
+
+<p>Jeremy Adams为Twistlock带来了超过10年的IT运营和自动化经验。在那里，他与整个云原生生态系统的合作伙伴合作，将安全性集成到他们的DevOps工作流中，以发布安全的应用程序并保护他们免受主动威胁。此前，Jeremy曾在Puppet和Sun Microsystems担任以客户为中心的技术职务。他是一名退伍军人，快乐地移居到俄勒冈州的波特兰。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

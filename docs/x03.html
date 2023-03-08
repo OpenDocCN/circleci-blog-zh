@@ -1,0 +1,277 @@
+<html>
+<head>
+<title>Testing a Flask framework with Pytest | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Pytest | CircleCI测试烧瓶框架</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/testing-flask-framework-with-pytest/#2022-12-05T06:27:00-08:00">https://circleci.com/blog/testing-flask-framework-with-pytest/#2022-12-05T06:27:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>在Flask应用程序上设置Pytest</li>
+    <li>编写Pytest测试</li>
+    <li>分组测试</li>
+  </ol>
+</blockquote>
+
+<p>用任何编程语言编写测试都可能很困难，但也不尽然。在本教程中，我将向您展示如何使用Flask和Pytest轻松编写和运行测试。</p>
+
+<p>作为奖励，我们还将集成一个CI/CD管道，使用CircleCI在Flask应用程序上运行测试。</p>
+
+<p>请务必查看我们的其他Flask教程，了解<a href="https://circleci.com/blog/application-logging-with-flask/">应用程序日志</a>、<a href="https://circleci.com/blog/authentication-decorators-flask/">认证装饰者</a>和<a href="https://circleci.com/blog/automating-flask-deployments-with-pythonanywhere/">自动化Flask部署</a>。</p>
+
+<h2>先决条件</h2>
+
+<p>为了从本教程中获得最大收益，您需要:</p>
+
+<ul>
+  <li>对<a href="https://www.python.org/" target="_blank" rel="noreferrer noopener"> Python </a>编程语言的基本理解</li>
+  <li>了解<a href="https://flask.palletsprojects.com/en/2.0.x/%7B:%20target=%22_blank%22%20rel=%22noreferrer%20noopener%22%7D">烧瓶</a>框架</li>
+  <li>对测试的基本理解</li>
+</ul>
+
+<p>您还需要进行以下安装和设置:</p>
+
+<ol>
+  <li>您的计算机中安装的Python版本&gt; = 3.5</li>
+  <li>GitHub账户；您可以在处创建一个<a href="https://github.com/join" target="_blank" rel="noreferrer noopener"/></li>
+  <li>CircleCI账户；您可以在处创建一个<a href="https://circleci.com/signup/"/></li>
+  <li>来自GitHub的项目资源库；在这里克隆它<a href="https://github.com/CIRCLECI-GWP/testing-flask-pytest" target="_blank" rel="noreferrer noopener"/></li>
+</ol>
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<p>一旦项目被克隆，转到项目的根文件夹。使用命令<code>pip install -r requirements.txt</code>安装依赖项。</p>
+
+<h2>为什么要用烧瓶？</h2>
+
+<p><a href="https://flask.palletsprojects.com/en/2.0.x/" target="_blank" rel="noreferrer noopener"> Flask </a>是一个用Python编写的轻量级微web框架。Flask预装了核心特性，因此您可以根据项目的需求进行定制。Flask并不决定使用哪个数据库或者默认的解析器是什么。所有这些都可以通过修改来改变，这使得它对于开发团队的新需求来说是可扩展的和灵活的。</p>
+
+<p>在这个项目教程中，我们将使用一个用Flask构建的简单的<code>book-retrieval</code> API。我们将使用API来展示如何在Flask应用程序中编写测试。为了保持本教程的简单，我们将把重点放在测试API上，而不是构建它。API应用程序可以在克隆存储库的项目根目录下的<code>api.py</code>文件中找到。</p>
+
+<p>现在你知道了Flask是什么以及如何使用它，你可以通过学习<code>Pytest</code>以及如何在Flask应用上设置它来建立这些知识。</p>
+
+<h2>什么是Pytest，我如何使用它？</h2>
+
+<p>Pytest是一个Python测试框架，旨在帮助开发人员编写更好的系统并满怀信心地发布它们。用Pytest编写小型的、可伸缩的测试很简单。该代码片段显示了Pytest测试的基本布局:</p>
+
+<pre><code class="language-py">from api import app # Flask instance of the API
+
+def test_index_route():
+    response = app.test_client().get('/')
+
+    assert response.status_code == 200
+    assert response.data.decode('utf-8') == 'Testing, Flask!'
+</code></pre>
+
+<p>测试Flask要求我们首先从我们的<code>api</code>(在我们的应用程序中创建)导入一个Flask实例<code>app</code>，如前面的代码片段所示。然后，导入的实例从Flask公开一个<code>test_client()</code>方法，该方法包含向被测应用程序发出<code>HTTP</code>请求所需的特性。在本例中，它指向我们默认的(<code>/</code> ) API端点。然后，我们断言<code>test_client()</code>收到的响应是在解码字节对象后预期的。在下面的步骤中，您将使用这种格式来编写您的测试。</p>
+
+<p><strong>注意:</strong> <i>默认情况下，Pytest使用<code>utf-8</code>编解码器对API响应进行编码。您需要使用<code>decode()</code>方法将从测试客户端接收的<code>byte</code>对象转换成可读的字符串响应，如前面的代码片段所示。</i></p>
+
+<h2>在烧瓶上设置Pytest</h2>
+
+<p>安装Pytest很简单。如果您克隆了存储库，那么它已经安装好了，您可以跳过这一步。如果尚未克隆存储库，请在终端上运行以下命令:</p>
+
+<pre><code class="language-bash">pip install pytest
+</code></pre>
+
+<p><strong>注意:</strong> <i>如果你使用的是<a href="https://docs.python.org/3/library/venv.html" target="_blank" rel="noreferrer noopener">虚拟环境</a>，<a href="https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/" target="_blank" rel="noreferrer noopener">在安装前激活</a>。最佳实践是使用虚拟环境来隔离不同的应用程序及其相关的Python包。</i></p>
+
+<h3>导入Pytest模块</h3>
+
+<p>安装完成后，导入Pytest模块。这个片段可以放在任何测试文件上:</p>
+
+<pre><code class="language-py">import pytest
+</code></pre>
+
+<h3>测试的命名约定</h3>
+
+<p>对于本教程，将您的测试保存在应用程序根文件夹的<code>tests</code>目录中。Pytest建议测试文件名以格式<code>test_*.py</code>开始，或者以格式<code>**_test.py</code>结束，使用这些格式可以使Pytest很容易地自动发现测试文件，并且在运行测试时最大限度地减少混淆。当创建测试:<code>test_index_route():</code>时，在<code>test methods</code>前加上<code>test</code>一词。</p>
+
+<h2>用Pytest编写测试</h2>
+
+<p>现在您已经知道如何在Flask应用程序上设置Pytest，您可以开始为图书检索API编写测试了。你的第一个测试将是<code>/bookapi/books</code>路线。</p>
+
+<pre><code class="language-py"># get books data
+
+books = [
+    {
+        "id": 1,
+        "title": "CS50",
+        "description": "Intro to CS and art of programming!",
+        "author": "Havard",
+        "borrowed": False
+    },
+    {
+        "id": 2,
+        "title": "Python 101",
+        "description": "little python code book.",
+        "author": "Will",
+        "borrowed": False
+    }
+]
+
+@app.route("/bookapi/books")
+def get_books():
+    """ function to get all books """
+    return jsonify({"Books": books})
+</code></pre>
+
+<p>这个路径所做的只是返回一个硬编码到<code>books</code>变量中的图书列表。您将在下一步中测试这个端点。使用相同的格式，定义您的测试函数，并断言<code>test_client()</code>收到的响应是您所期望的。</p>
+
+<pre><code class="language-py">import json
+from api import app
+
+def test_get_all_books():
+    response = app.test_client().get('/bookapi/books')
+    res = json.loads(response.data.decode('utf-8')).get("Books")
+    assert type(res[0]) is dict
+    assert type(res[1]) is dict
+    assert res[0]['author'] == 'Havard'
+    assert res[1]['author'] == 'Will'
+    assert response.status_code == 200
+    assert type(res) is list
+    ....
+</code></pre>
+
+<p>这个测试片段确保您能够接收一个图书列表。通过断言<code>test_client()</code>收到的响应确实是您期望的图书列表，您可以做到这一点。您还断言响应包含一个<code>dictionaries</code>的<code>list</code>，它是定义的book对象中的单本书。您还断言列表中的第一本书有作者<code>Havard</code>，第二本书有作者<code>Will</code>。这就是编写一个从<code>/bookapi/books</code>端点获取所有书籍的测试所需的全部内容。</p>
+
+<h2>使用Pytest运行测试</h2>
+
+<p>要运行Pytest测试，您可以在终端中使用<code>py.test</code>或<code>pytest</code>。您也可以通过在Pytest命令后明确指定文件名来运行单个文件:<code>pytest test_api.py</code>。当执行这些命令时，Pytest会在根目录或指定的单个文件中查找所有的测试。</p>
+
+<p>当没有显式定义测试文件时，Pytest在根目录中执行任何遵循标准命名模式的测试，而不需要指定文件名或目录。</p>
+
+<p><img src="../Images/3d266f1f71f9d825bdf1c0901679ab9d.png" alt="Executing your first test" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-12-01-executing-our-first-test.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-12-01-executing-our-first-test.png"/></p>
+
+<p>您已经验证测试已成功执行！Pytest用绿点<code>.</code>标记通过的测试；它用红色的<code>F</code>标记测试失败。计算点或f的数量，以确定有多少测试通过和失败，以及执行的顺序。</p>
+
+<p><strong>注意:</strong> <i>如果您正在调试控制台的测试，并且您需要打印出一个响应，您可以使用<code>$ pytest -s test_*.py</code>来登录到stdout。当Pytest <code>s</code>选项被定义时，您可以在测试中控制消息，并在测试执行期间调试输出。</i></p>
+
+<p>既然您已经成功地执行了您的第一个测试，那么当您推进到<code>main</code>分支时，您可以集成CircleCI来自动运行测试。</p>
+
+<h2>设置CircleCI</h2>
+
+<p>在根目录下创建一个<code>.circleci</code>目录，然后在那里添加一个<code>config.yml</code>文件。配置文件包含每个项目的CircleCI配置。使用CircleCI Python <code>orb</code>执行测试，如下所示:</p>
+
+<pre><code class="language-yml">version: 2.1
+orbs:
+  python: circleci/python@2.1.1
+jobs:
+  build-and-test:
+    docker:
+      - image: cimg/python:3.11.0
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - run:
+          name: Run tests
+          command: pytest
+workflows:
+  sample:
+    jobs:
+      - build-and-test
+</code></pre>
+
+<p>CircleCI orbs是YAML代码的可重用包。Orbs将多行代码压缩成一行。在这个例子中，这一行代码是:<code>python: circleci/python@2.1.1</code>。您可能需要启用组织设置以允许在CircleCI仪表板中使用第三方orb，或者向您组织的CircleCI管理员请求权限。</p>
+
+<p>设置好配置后，提交您的更改，然后<a href="https://circleci.com/blog/pushing-a-project-to-github/">将您的更改</a>推送到GitHub。</p>
+
+<p>登录CircleCI并转到项目仪表板。从与您的用户名或组织相关联的GitHub存储库列表中，找到您想要在CircleCI中设置的特定存储库。这种情况下是<code>testing-flask-with-pytest</code>。</p>
+
+<p><img src="../Images/8e7e2ef14e27f7dfc57adf9d63e67a14.png" alt="Select project" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-12-01-select-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-12-01-select-project.png"/></p>
+
+<p>接下来，点击<strong>设置项目</strong>开始在CircleCI上构建项目。这将显示一个模式弹出窗口，其中有一个默认选项，可以使用项目存储库中的配置文件。输入存放配置文件的分支的名称。</p>
+
+<p><img src="../Images/a25c1768720d73ad7c5a3fd0e7597d24.png" alt="Select configuration" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-12-01-select-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-12-01-select-configuration.png"/></p>
+
+<p>点击<strong>设置项目</strong>完成该过程。</p>
+
+<p>瞧啊。在CircleCI仪表板中，单击构建以查看详细信息。您可以验证运行第一个Pytest测试并将其集成到CircleCI中是成功的。</p>
+
+<p><img src="../Images/bf8631bfb35e7cc24644e27ab69fc3ed.png" alt="Pipeline setup success" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-12-01-pipeline-setup-success.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-12-01-pipeline-setup-success.png"/></p>
+
+<p>既然您已经成功地设置了持续集成，下一步就是对测试进行分组，并运行分组测试的批次。</p>
+
+<h2>分组和运行测试批次</h2>
+
+<p>随着应用程序功能的增加，您需要增加测试的数量，以确保一切正常。很容易被大量可用的测试脚本淹没。不过您不需要担心，Pytest已经解决了这个问题。Pytest允许您通过对测试进行分组，从一个文件中运行多个测试。</p>
+
+<p>Pytest提供了<code>markers</code>，您可以使用它来设置测试函数的属性和特性。</p>
+
+<h3>使用Pytest测试标记</h3>
+
+<p>我们可以使用标记赋予测试不同的行为，比如跳过测试，运行测试的子集，甚至失败。Pytest附带的一些默认标记包括<code>xfail</code>、<code>skip</code>和<code>parameterize</code>。对于这个项目，您将创建一个定制标记，它将对所有执行<code>GET</code>请求到<code>/bookapi/books</code>和<code>/bookapi/book/:id</code>端点的测试进行分组。</p>
+
+<p>以下是您将用于创建自定义标记的结构示例:</p>
+
+<pre><code class="language-py">@pytest.mark.&lt;markername&gt;
+def test_method():
+  # test code
+</code></pre>
+
+<p>要在Pytest中使用自定义标记，请将其定义为<code>pytest</code>命令中的一个参数:</p>
+
+<pre><code class="language-bash">$ pytest -m &lt;markername&gt;
+</code></pre>
+
+<p><code>-m &lt;markername&gt;</code>是您将用于测试的自定义标记名称。</p>
+
+<p>您需要在您的测试文件中导入<code>pytest</code>来使用Pytest标记。还需要注册标记，以便Pytest可以抑制关于它们的警告。将此添加到您的<code>pytest.ini</code>文件中:</p>
+
+<pre><code class="language-ini">[pytest]
+markers =
+    &lt;markername&gt;: Marker description
+</code></pre>
+
+<h3>使用标记对测试进行分组</h3>
+
+<p>对于本教程，您想要将向<code>/bookapi</code>端点发出<code>GET</code>请求的测试分组。</p>
+
+<p>创建一个名为<code>get_request</code>的客户标记，并将其添加到测试中:</p>
+
+<pre><code class="language-py">import pytest
+...
+# Other imports here
+
+@pytest.mark.get_request
+def test_get_book_by_id():
+    response = app.test_client().get('/bookapi/books/1')
+    res = json.loads(response.data.decode('utf-8')).get("Book")
+    print(res)
+    assert res['id'] == 1
+    assert res['author'] == 'Havard'
+    assert res['title'] == 'CS50'
+    assert response.status_code == 200
+</code></pre>
+
+<p>用<code>pytest -m get_request</code>参数运行测试会执行测试文件中所有用<code>@pytest.mark.get_request</code>装饰器标记的测试。您也可以通过在终端中运行它来验证这一点。</p>
+
+<p>现在，将您的更改提交并推送到GitHub，并检查管道是否成功执行。</p>
+
+<p><img src="../Images/7b847ed5b35d019b982b25cdbb9888d1.png" alt="Passing Tests" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-12-01-passing-tests.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-12-01-passing-tests.png"/></p>
+
+<p>太棒了。您的所有测试都已成功执行。</p>
+
+<h2>结论</h2>
+
+<p>在本教程中，您已经使用Pytest设置了测试，执行了测试，学习了使用Pytest标记对测试进行分组。您学习了如何使用Pytest命令行参数来执行测试，以及如何使用<code>test_client()</code>方法来发出<code>HTTP</code>请求。您知道如何在测试中使用收到的响应。我希望你喜欢这个教程。如果你有，与你的团队分享你所学到的。没有什么比教别人更能巩固学习了。直到下一个，享受你的编码项目！</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Waweru Mwaura是一名软件工程师，也是一名专门研究质量工程的终身学习者。他是Packt的作者，喜欢阅读工程、金融和技术方面的书籍。你可以在<a href="https://waweruh.github.io/" target="_blank" rel="noreferrer noopener">他的网页简介</a>上了解更多关于他的信息。</p>
+
+            <p><a href="/blog/author/waweru-mwaura/" class="arrow-link">阅读更多Waweru Mwaura的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

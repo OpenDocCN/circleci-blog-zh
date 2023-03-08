@@ -1,0 +1,192 @@
+<html>
+<head>
+<title>Customized pipeline notifications | CircleCI + Slack</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>自定义管道通知| CircleCI + Slack</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-slack-integration/#2020-10-09T09:00:00-07:00">https://circleci.com/blog/circleci-slack-integration/#2020-10-09T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>今天我们为CircleCI发布了Slack orb v4.0。它使得<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/">管道</a>通知易于实现和定制。现在，随着对Slack的<a href="https://app.slack.com/block-kit-builder">块套件生成器</a>的支持，它还提供了一种可视化的方式来创建无尽的自定义通知。看看这个松弛的球体:</p>
+
+
+
+<p><img src="../Images/d7e0d76cd69553ea67804d964073e705.png" alt="Pipeline on-hold notification example" srcset="https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-09-25-slack1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-09-25-slack1.png"/></p>
+
+<h2>有什么新鲜事？</h2>
+
+<h3>简单易用。</h3>
+<p>以前，Slack orb利用多个命令和大量orb参数来逐段构建通知。现在，在4.0及更高版本中，您可以选择几个内置的可用模板之一，或者使用Slack的<a href="https://app.slack.com/block-kit-builder"> Block Kit Builder </a>可视化地定制和导入您自己的通知。</p>
+
+<p>在新的Slack orb中，你只会发现一个单独的命令<code>notify</code>，和一个任务<code>on-hold</code>。notify命令是orb的核心，可用于根据<em>事件</em>向任何(或多个)空闲通道发送通知，如CircleCI作业已通过或失败。</p>
+
+<h3>专为团队打造</h3>
+<p>新的Slack orb使用OAuth进行认证，而不是像以前的版本那样使用<a href="https://api.slack.com/messaging/webhooks">传入的webhooks </a>。通过这一改变，您现在可以在Slack工作区中安装一个“bot”应用程序，用于CircleCI通知，并通过一个集成向多个通道发出警报。要设置认证，请务必查看<a href="https://github.com/CircleCI-Public/slack-orb/wiki/Setup"> GitHub wiki中的Slack orb </a></p>
+
+<h3>升级</h3>
+
+<p>Slack orb版本4.0.0是对以前的Slack orb的完全重写，具有新的功能集和更简单的设计，更易于使用。旧版本的Slack orb将继续运行，迁移到新的Slack orb体验完全是可选的。</p>
+
+<p>要迁移到新的Slack orb，必须完全删除旧orb，因为版本4.0不与orb的以前版本共享任何功能。</p>
+
+<p>从访问<a href="https://github.com/CircleCI-Public/slack-orb/wiki"> GitHub wiki </a>开始</p>
+
+<h2>它是如何工作的？</h2>
+
+<p><a href="https://circleci.com/orbs/">orb</a>是CircleCI配置的包，可以导入并在您的配置文件中使用。</p>
+
+<p>要向前跳，你可以在<a href="https://circleci.com/developer/orbs/"> orb注册表</a>和<a href="https://github.com/CircleCI-Public/slack-orb/"> GitHub </a>上查看<a href="https://circleci.com/developer/orbs/orb/circleci/slack"> Slack orb </a>。</p>
+
+<p>Slack orb的主要组件是<code>notify</code>命令，它可以在任何作业结束时使用，根据该作业的状态发送通知。</p>
+
+<pre><code class="language-yaml"> - slack/notify:
+      event: fail
+      template: basic_fail_1
+</code></pre>
+
+<p>现在有一个带<code>event</code>参数的通知命令。<code>notify</code>命令应该放在任何作业的末尾，因为它将一直运行，并且可以检测作业的当前状态。</p>
+
+<p>您可以指定在<code>always</code>发送通知，或者在<code>fail</code>或<code>pass</code>发送通知。如果指定了一个<code>branch_pattern</code>参数，当前分支也必须匹配发送通知的模式。</p>
+
+<p>对于消息正文，您可以选择orb附带的一个预配置模板，或者创建您自己的自定义通知。</p>
+
+<p>你可以在<a href="https://github.com/CircleCI-Public/slack-orb/wiki"> GitHub Wiki </a>上看到可用模板的完整列表。</p>
+
+<p><img src="../Images/25f7a895a222ac2e451e5c93f9e6ae3e.png" alt="Slack Orb Templates" srcset="https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-09-25-slack2.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-09-25-slack2.png"/></p>
+
+<p>默认情况下，Slack orb将尝试发送到由<code>$SLACK_DEFAULT_CHANNEL</code>环境变量指定的通道，但是您也可以通过<code>channel</code>参数选择一个或多个通道。</p>
+
+<h2>一个工作实例</h2>
+
+<p>下面是CircleCI上测试和部署工作流的半真实示例。它有一个在每次提交时测试应用程序的作业(<code>test</code>)，还有一个只在标记提交时运行的部署作业(<code>deploy</code>)。</p>
+
+<p>在本例中，我们将在部署之前暂停我们的工作流(<code>test-and-deploy</code>)<em><a href="https://circleci.com/docs/workflows/#holding-a-workflow-for-a-manual-approval"/></em>，等待人工批准。在工程师手动批准工作流后，将执行部署作业。对于此工作流，我们希望设置三种潜在的时差通知:</p>
+
+<ul>
+  <li>工作流程处于暂停状态时的通知</li>
+  <li>部署失败时的通知</li>
+  <li>如果部署成功，则发出不同的通知</li>
+</ul>
+
+<p>下面的使用示例直接来自orb注册表。</p>
+
+<p>这种配置有两个假设:</p>
+<ol>
+  <li>您已经将OAuth令牌作为<code>$SLACK_ACCESS_TOKEN</code>存储在名为<code>slack-secrets</code>的<a href="https://circleci.com/docs/contexts/#restricting-a-context">受限上下文</a>中</li>
+  <li>您已经将<code>$SLACK_DEFAULT_CHANNEL</code>定义为一个<a href="https://circleci.com/docs/env-vars/#setting-an-environment-variable-in-a-project">项目环境变量</a>，或者在<code>slack-secrets</code>上下文中。</li>
+</ol>
+
+<pre><code class="language-yaml"> version: 2.1
+ orbs:
+   slack: circleci/slack@4.0
+ jobs:
+   # This "test" job will run on every commit (as per our workflow)
+   # We are ok with no notifications sent for this job.
+   test:
+     docker:
+       - image: cimg/base:stable
+     steps:
+       - run: echo "test my app"
+   # This "deploy" job will only run on a tagged commit (as per our workflow)
+   # We want to be alerted if this job fails and also when it succeeds.
+   deploy:
+     docker:
+       - image: cimg/base:stable
+     steps:
+       - run: echo "deploy my app"
+       # In the event the deployment has failed, alert the engineering team
+       - slack/notify:
+           event: fail
+           template: basic_fail_1
+           mentions: "@EngineeringTeam"
+       # When there is a successful deployment, send a notification with a different template.
+       - slack/notify:
+           event: pass
+           template: success_tagged_deploy_1
+ workflows:
+   test-and-deploy:
+     jobs:
+       # We want the test job to run on all commits, so we will list it with no filters.
+       - test
+       # When we are on a tagged commit (example "v1.0.0"), we want to also place the workflow on-hold, pending manual approval for deployment.
+       # We will also make use of the Slack orb's "on-hold" job to notify us to this on-hold workflow, making it easy to respond.
+       - slack/on-hold:
+          context:
+            - slack-secrets
+          requires:
+            - test
+          filters:
+            tags:
+              only: /^v.*/
+       # Jobs with the type of "approval" act as place holders to pause the workflow, the job name does not matter.
+       # Wait for both the test job and for the notification to send before pausing.
+       - pause_workflow:
+          type: approval
+          requires:
+            - test
+            - slack/on-hold
+          filters:
+            tags:
+              only: /^v.*/
+       # The deploy job will continue once the workflow has been manually approved.
+       - deploy:
+          context:
+            - slack-secrets
+          requires:
+            - pause_workflow
+          filters:
+            tags:
+              only: /^v.*/
+</code></pre>
+
+<h2>创建自定义通知</h2>
+
+<p>以前，创建自定义通知需要使用许多参数。它们受到限制并且难以配置。现在，你只需要一个参数就可以创建几乎任何你能想到的通知，而且通知是使用Slack的<a href="https://app.slack.com/block-kit-builder"> Block Kit Builder </a>可视化设计的。你可以从Slack的任何内置模板开始，或者从头开始设计你自己的模板。</p>
+
+<video autoplay="" loop="" muted="" playsinline="" title="Slack Block Kit Builder example">
+  <source src="/blog/media/2020-09-25-slack.mp4" type="video/mp4"/>
+</video>
+
+<p>在上面屏幕的右侧，您可以获得包含我们通过<code>custom</code>参数(作为<code>template</code>参数的替代)提供给Slack orb的文本的有效负载。</p>
+
+<pre><code class="language-yaml">- slack/notify:
+    event: always
+    custom: |
+      {
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "Current Job: $CIRCLE_JOB"
+            }
+          },
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "Write some text here"
+            }
+          }
+         ]
+        }
+</code></pre>
+
+<p>在拷贝有效负载之前，使用屏幕左侧的组件自定通知的外观。环境变量可以在任何文本字段中使用，其值将在运行时被替换。</p>
+
+<p>如需更多信息和示例，请查看GitHub Wiki 和T2 orb注册页面。</p>
+
+<h2>加入社区</h2>
+
+<p>欢迎Orb开发者和消费者<a href="https://discuss.circleci.com/c/ecosystem/orbs/62">加入我们的讨论论坛</a>！我们希望听到您的意见，无论您对Slack orb有什么问题、意见或担忧。需要提出问题或想要申请功能？我们也希望在<a href="https://github.com/CircleCI-Public/slack-orb/issues/new/choose"> GitHub </a>上听到你的声音。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

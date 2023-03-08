@@ -1,0 +1,245 @@
+<html>
+<head>
+<title>Detect hardcoded secrets with GitGuardian | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用gitguardian | circleci检测hhardcore机密</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/detect-hardcoded-secrets-with-gitguardian/#2022-08-26T13:00:00-07:00">https://circleci.com/blog/detect-hardcoded-secrets-with-gitguardian/#2022-08-26T13:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>开发人员正以前所未有的速度使用他们需要的软件生态系统来构建功能。这些不断扩展的选项包括开源库和包、SaaS工具、部署系统、云服务等等。为了保证安全，我们总是需要一样东西:秘密。</p>
+
+<h2>什么是秘密？</h2>
+
+<p>机密是应用程序、服务或基础结构中使用的数字身份验证凭据(API密钥、证书和令牌)。就像密码(在MFA的情况下加上一个设备)用于认证一个人一样，密码用于认证一个系统以实现互操作性。</p>
+
+<p>观看视频:什么是秘密？</p>
+
+<h2>为什么在CI/CD环境中秘密是一个问题？</h2>
+
+<p>当软件工程师使用CI/CD管道将工件、应用和基础设施部署到多个环境中时，他们需要处理越来越多的凭证。有很多地方秘密会不安全地暴露出来:</p>
+
+<ul>
+  <li>源代码</li>
+  <li>构建、测试或部署CI/CD工作流</li>
+  <li>容器图像层</li>
+  <li>转轮控制台输出</li>
+</ul>
+
+<p>凭据泄露不仅仅是一个安全问题；旋转泄漏的机密会中断CI/CD工作流。</p>
+
+<h2>秘密是如何出现在源代码中的？</h2>
+
+<p>两个字:人为失误。</p>
+
+<p>绝大多数泄露的凭证都是错误的，并不是出于恶意。硬编码凭证可能是一种临时的解决方案，有时开发人员并没有意识到Git实际上在跟踪一个被删除的秘密。新开发人员不知道正确的程序，或者测试被跳过。可能出现的错误数不胜数。</p>
+
+<h2>为什么硬编码的秘密不同于其他类型的漏洞？</h2>
+
+<p>不像其他漏洞，它指出了代码中的特定弱点，检测秘密需要一个项目的整个代码库历史。</p>
+
+<p>当一个开发人员错误地犯了一个秘密时，有两种可能性:要么承认，要么不承认。</p>
+
+<p>在前一种情况下，一个非常常见的错误是删除它并简单地提交更改。这个秘密从源代码的当前状态中消失了，但是它仍然在提交历史中！</p>
+
+<p>在后一种情况下，秘密很可能会到达远程版本控制系统(VCS)。在这一点上，秘密已经被认为是泄漏了(最好的情况是，它将在代码审查阶段被检测到，但是秘密可能已经需要在那一点上被旋转)。</p>
+
+<p>发现隐藏在代码库历史深处的有效秘密并不罕见。秘密检测需要考虑这种攻击面<i>和</i>扫描存储库的增量变化，以防止这种泄漏。</p>
+
+<h2>GitGuardian入门</h2>
+
+<p>在本教程中，您将学习如何将GitGuardian实时监控添加到CircleCI工作流中，以扫描每个新提交的秘密。</p>
+
+<p>GitGuardian在历史记录或增量提交中检测存储库中的秘密。秘密检测发生在开发生命周期的多个阶段:在带有<a href="https://docs.gitguardian.com/internal-repositories-monitoring/integrations/git_hooks/pre_commit" target="_blank" rel="noreferrer noopener">预提交钩子</a>或<a href="https://docs.gitguardian.com/internal-repositories-monitoring/integrations/git_hooks/pre_push" target="_blank" rel="noreferrer noopener">预推钩子</a>的开发人员的本地机器上，在<a href="https://docs.gitguardian.com/internal-repositories-monitoring/integrations/git_hooks/pre_receive" target="_blank" rel="noreferrer noopener">预接收钩子</a>中或在CI环境中。</p>
+
+<p>有了GitGuardian dashboard，可以在公司范围内实现可见性，以同时保护所有存储库。</p>
+
+<p><img src="../Images/4886bf81677b83dbc1c1dd4f3fba4821.png" alt="Company-wide perimeter" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-24-perimeter.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-24-perimeter.png"/></p>
+
+<p>仪表板还使开发人员和AppSec工程师能够在整个补救过程中进行协作。我们不会在教程中讨论这个，但是你可以在<a href="https://docs.gitguardian.com/internal-repositories-monitoring/incidents/overview" target="_blank" rel="noreferrer noopener">文档</a>中了解更多。</p>
+
+<h3>先决条件</h3>
+
+<p>要学习本教程，您需要:</p>
+
+<ol>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+  <li>一个<a href="https://dashboard.gitguardian.com/auth/signup" target="_blank" rel="noreferrer noopener"> GitGuardian </a>账户</li>
+</ol>
+
+<h3>分叉样本存储库</h3>
+
+<p>在本教程中，您将使用来自GitGuardian的<code>sample_secrets</code> <a href="https://github.com/GitGuardian/sample_secrets" target="_blank" rel="noreferrer noopener">测试库</a>。这个存储库包含各种用于测试目的的秘密。将其转到您的GitHub用户帐户或您是管理员的GitHub组织。</p>
+
+<p>然后，打开<a href="https://app.circleci.com/"> CircleCI项目</a>页面，点击<code>sample_secrets</code>名称，然后选择<strong>更快:提交一个启动CI管道到一个新的分支</strong>。</p>
+
+<p>这在存储库中创建了新的分支<code>circleci-project-setup</code>，包含了由<code>./circleci/config.yml</code>文件配置的演示工作流<code>say-hello-workflow</code>。</p>
+
+<h3>创建GitGuardian API令牌</h3>
+
+<p>你需要一个GitGuardian API令牌来使用GitGuardian orb。从GitGuardian仪表盘，转到<strong> API &gt;个人访问令牌</strong>，然后点击<strong>创建令牌</strong>。给令牌一个<code>scan</code>范围和一个容易记住的名称:</p>
+
+<p><img src="../Images/38a93f7074021a37f9bbdc9d08de78db.png" alt="Create a token" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722164658.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-24-20220722164658.png"/></p>
+
+<p>复制令牌并放在手边；这是你唯一可以观看的时间。</p>
+
+<p><strong>注意:</strong> <i>如果您正在使用GitGuardian的商业计划或30天商业试用，请创建一个<strong>服务帐户</strong>，而不是个人访问令牌。<strong>服务帐户</strong>是一种特殊类型的API键，用于表示非人类用户，如CI runner。要创建一个，请转到<strong> API &gt;服务帐户</strong>并遵循相同的步骤。</i></p>
+
+<p>从CircleCI仪表板中，单击<code>sample_secrets</code>项目，然后单击<strong>项目设置&gt;环境变量。</strong>点击<strong>添加环境变量</strong>。将其命名为<code>GITGUARDIAN_API_KEY</code>，并赋予它与您之前复制的令牌相同的值。</p>
+
+
+
+<h2>使用ggshield扫描增量更改</h2>
+
+<p>您现在需要在CircleCI <code>config.yml</code>中添加一个工作流来使用<code>ggshield</code> orb。</p>
+
+<p>用以下内容复制并替换该文件:</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  ggshield: gitguardian/ggshield@volatile
+
+workflows:
+  scan_my_commits:
+    jobs:
+      - ggshield/scan:
+          name: ggshield-scan
+          base_revision: &lt;&lt;pipeline.git.base_revision&gt;&gt;
+          revision: &lt;&lt;pipeline.git.revision&gt;&gt;
+</code></pre>
+
+<p>你也可以在<code>ggshield</code> <a href="https://circleci.com/developer/orbs/orb/gitguardian/ggshield"> orb注册页面</a>找到这个片段。</p>
+
+<p>当管道被触发时，<code>base_revision</code>和<code>revision</code>值将被填充:</p>
+
+<ul>
+  <li><code>base_revision</code>是要扫描的第一个提交的提交ID。</li>
+  <li><code>revision</code>是上次扫描的提交的ID。</li>
+</ul>
+
+<p>在这个配置中，只扫描最新的提交，这对于CI管道来说很方便。您可能不想在每次管道启动时扫描整个git历史。该扫描对自上次修订以来的所有提交进行操作，以确保没有秘密被提交然后被删除。</p>
+
+<p>当您处理完<code>config.yml</code>文件后，提交它，推送它，并转到CircleCI仪表板来观看管道启动。如果这是你第一次使用第三方宝珠，你可能不得不接受在<strong>组织设置&gt;安全&gt;宝珠安全设置</strong>中使用它们。</p>
+
+<p><img src="../Images/62d92e18e09f830ca91d49554335b26e.png" alt="Scan commits" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220722171454.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-24-20220722171454.png"/></p>
+
+<p>单击作业以了解有<strong>个提交要扫描:1个</strong>。</p>
+
+<pre><code>#!/bin/bash -eo pipefail
+
+ggshield secret scan -v ci
+
+CIRCLE_RANGE: dea39f827dfe23f06f4ea63d7fb16ab0c363db9d...90220851160dcf018f372536da223dc0396aa247
+CIRCLE_SHA1: 90220851160dcf018f372536da223dc0396aa247
+Commits to scan: 1
+Scanning Commits---------------------------------]    0%Scanning Commits  [####################################]  100%
+secrets-engine-version: 2.71.0
+No secrets have been found
+commit 90220851160dcf018f372536da223dc0396aa247
+Author: ***
+Date: ***
+
+CircleCI received exit code 0
+</code></pre>
+<p>要验证屏蔽是否如预期的那样工作，只需对测试存储库的一个文件提交一个更改。例如，打开<code>sample_secrets/bucket_s3.py</code>文件，添加或删除尾部空白，然后提交这个更改(确保在<code>circle-project-setup</code>分支上)。</p>
+
+<p>这将失败，因为ggshield将扫描最近的提交并检测文件中的两个秘密:</p>
+
+<pre><code>#!/bin/bash -eo pipefail
+ggshield secret scan -v ci
+CIRCLE_RANGE: 90220851160dcf018f372536da223dc0396aa247...2d08c13226628ecfb3ee9a07001c185915a84adf
+CIRCLE_SHA1: 2d08c13226628ecfb3ee9a07001c185915a84adf
+Commits to scan: 1
+Scanning Commits---------------------------------]    0%Scanning Commits  [####################################]  100%
+
+secrets-engine-version: 2.71.0
+
+commit 2d08c13226628ecfb3ee9a07001c185915a84adf
+Author: XXXX
+Date: XXXX
+
+🛡️  ⚔️  🛡️  2 incidents have been found in file bucket_s3.py
+
+&gt;&gt;&gt; Incident 1(Secrets detection): AWS Keys (Validity: Invalid)  (Ignore with SHA: 9f2785cab705507aaea637b8b38d8e1ff9ce8a4334dda586187cbb018ed33163) (1 occurrence)
+ 8  8 |
+ 9  9 | def aws_upload(data: Dict):
+10    |     database = aws_lib.connect("AKIA************WSZ5", "hjshnk5**************************89sjkja") |_____client_id____|
+10    |     database = aws_lib.connect("AKIA************WSZ5", "hjshnk5**************************89sjkja")
+10 |     database = aws_lib.connect("AKIA************WSZ5", "hjshnk5**************************89sjkjb")
+11 11 |     database.push(data)
+
+&gt;&gt;&gt; Incident 2(Secrets detection): AWS Keys (Validity: Invalid)  (Ignore with SHA: e8077f59453457d2b3d980be4d8655eaa901c7aa8810a6079b429477e07a57f9) (1 occurrence)
+ 9  9 | def aws_upload(data: Dict):
+10    |     database = aws_lib.connect("AKIA************WSZ5", "hjshnk5**************************89sjkja")
+10 |     database = aws_lib.connect("AKIA************WSZ5", "hjshnk5**************************89sjkjb")
+|_____client_id____|
+10 |     database = aws_lib.connect("AKIA************WSZ5", "hjshnk5**************************89sjkjb")
+|_____________client_secret____________|
+11 11 |     database.push(data)
+
+Exited with code exit status 1
+CircleCI received exit code 1
+
+</code></pre>
+
+<p><strong>有效性:无效</strong>告诉你两件事:</p>
+
+<ol>
+  <li>秘密可以被检查(情况并非总是如此)。</li>
+  <li>这个秘密不再有效了。</li>
+</ol>
+
+
+
+<h2>更进一步:扫描提交历史</h2>
+
+<p>但是，如果您想扫描所有过去的提交来寻找秘密呢？当您分叉<code>sample_secrets</code>存储库时，GitGuardian已经为您完成了历史扫描(这是默认行为)。</p>
+
+<p>进入你的<a href="https://dashboard.gitguardian.com/" target="_blank" rel="noreferrer noopener"> GitGuardian仪表板</a>，在<strong>周界</strong>页面搜索<code>sample_secrets</code>信号源。您应该看到GitGuardian在存储库中检测到了9个公开的秘密事件。</p>
+
+<p><img src="../Images/fa72f8c70d4c82ec41d153510467fd77.png" alt="Scan commits" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104054.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-24-20220725104054.png"/></p>
+
+<p>如果需要，您可以<strong>再次扫描选择的源</strong>。</p>
+
+<p><img src="../Images/58faf62ddcf772733287fcbc2f08fbef.png" alt="Open secrets" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725104039.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-24-20220725104039.png"/></p>
+
+<p>单击源以显示机密表。历史扫描期间检测到的事件会被标记。</p>
+
+<p><img src="../Images/a21d8a970455f5b301675610ceefdfca.png" alt="Table of secrets" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-08-24-20220725103832.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-08-24-20220725103832.png"/></p>
+
+<p>您可以用命令<code>ggshield scan repo</code>扫描任何任意的git历史，但是没有专用的orb。</p>
+
+<h2>更进一步:补救和开发人员工作流程</h2>
+
+<p>如果你能走到这一步，恭喜你！可以肯定的是，提交给这个存储库的任何秘密都会打破管道，并在仪表板中报告，以及所有其他过去的事件。你可以<a href="https://docs.gitguardian.com/internal-repositories-monitoring/incidents/lifecycle" target="_blank" rel="noreferrer noopener">阅读更多</a>关于如何利用它们来分配事件、协作和组织清理你的存储库泄露的秘密。</p>
+
+<p>这里是我们给所有GitGuardian用户的一个建议:预防总是比补救更好，所以要尽早在开发人员的工作流程中集成秘密检测。</p>
+
+<p>为了理解为什么，想象一下GitGuardian在CircleCI工作流中检测到一个广泛使用的秘密。最佳做法是立即撤销并轮换它，就好像它被破坏了一样，即使它没有被破坏。但事实是，轮换一个秘密几乎总是一项艰难的工作。对许多人来说，这可能意味着工作流程的中断。它可能会在整个CI/CD链中，甚至在生产中导致意外的故障。</p>
+
+<p>这就是为什么我们一直提倡在开发者工作流中集成GitGuardian和ggshield，作为预提交、预推送(客户端)，或者预接收(服务器端)钩子，确保没有秘密可以在第一时间到达版本控制系统。</p>
+
+<p>您还可以将GitGuardian原生集成到源代码管理平台中:</p>
+
+
+<h2>结论</h2>
+
+<p>本教程演示了秘密是如何容易被泄露的。与运行时漏洞不同，泄漏的秘密可能会持续存在于旧的提交中，并构成真正的威胁。这就是为什么在您的CI工作流中使用secrets detector对于代码安全性是必不可少的。</p>
+
+<p>这种意识是在安全、运营和开发人员之间建立共同责任文化的重要第一步，以防止生产问题，保持管道运行，并尽快补救问题。</p>
+
+<p>想了解更多？访问GitGuardian <a href="https://docs.gitguardian.com/" target="_blank" rel="noreferrer noopener">文档</a>和<a href="https://blog.gitguardian.com/" target="_blank" rel="noreferrer noopener">博客</a>获取最佳实践、备忘单和更多内容。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

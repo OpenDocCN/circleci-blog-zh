@@ -1,0 +1,78 @@
+<html>
+<head>
+<title>Continuous integration for .NET applications | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>持续集成。网络应用| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/cicd-for-dotnet/#2021-11-30T09:00:00-08:00">https://circleci.com/blog/cicd-for-dotnet/#2021-11-30T09:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>。NET是一个流行的开源、跨平台开发框架，用于为web、桌面、移动和云构建快速、可伸缩的全栈应用程序。这种灵活性使得。NET是开发企业web应用程序的领先平台。网络开发是市场上最受欢迎的技能之一。</p>
+
+<p>高性能。NET团队可以通过采用<a href="/blog/essential-devops-principles/"> DevOps原则</a>和一个成熟的、专用的持续集成平台来加速他们的开发周期，并且更加一致和可靠地发布代码。借助CircleCI的<a href="/blog/windows-general-availability-announcement/">原生Windows支持</a>，您可以自动化您的构建、测试和部署阶段。NET开发工作流从概念到产品的快速和安全。</p>
+
+<p>Windows支持包含在CircleCI的免费计划中，因此团队和个人开发者可以利用持续集成带来的效率提升。</p>
+
+<h2>建筑。CircleCI上的NET项目</h2>
+
+<p>CircleCI的支持。NET开发从<a href="/execution-environments/windows/"> Windows执行环境</a>开始。</p>
+
+<p>Windows executor使用专用虚拟机为每个作业提供强大的、可定制的构建流程编排，并包括<a href="https://circleci.com/docs/hello-world-windows/#software-pre-installed-in-the-windows-image">构建和测试您的所需的所有工具。NET应用程序，包括:</a></p>
+
+<ul>
+  <li>Windows Server 2019</li>
+  <li>Visual Studio 2019</li>
+  <li>。网络5</li>
+  <li>。NET Core SDK</li>
+</ul>
+
+<p>您还可以访问在您的Windows环境中运行作业的三个shell——PowerShell、Bash和CMD——您可以使用它们来<a href="https://circleci.com/docs/ssh-access-jobs/"> SSH到您的Windows VM </a>并对失败的管道进行故障排除。</p>
+
+<p>想要构建私有基础设施的团队可以使用带有机器执行器和Windows映像的<a href="https://circleci.com/docs/runner-overview/"> runners </a>。为了让执行环境更加灵活，您可以在Windows executor上运行<a href="/blog/guide-to-using-docker-for-your-ci-cd-pipelines/"> Docker容器</a>。您还可以通过运行您的。NET核心应用程序、SQL Server和Docker executor上Linux容器中的其他依赖项。</p>
+
+<p>的简单演示，演示如何使用Windows executor来构建您的？NET项目，查看Windows上的Hello World。</p>
+
+<p>你可以在CircleCI学院的<a href="https://academy.circleci.com/build-environments-1?access_code=public-2021">构建环境课程中或者通过观看约翰·哈蒙德的</a><a href="https://www.youtube.com/watch?v=stsLkbiskiM" target="_blank" rel="noreferrer noopener">在CircleCI </a>上使用Windows入门视频教程来了解更多关于使用Windows executor进行构建的信息。</p>
+
+<h2>为配置持续集成管道。带球体的网</h2>
+
+<p><a href="https://circleci.com/docs/orb-intro/">orb</a>是<a href="/blog/what-is-yaml-a-beginner-s-guide/"> CircleCI YAML </a>的预打包位，您可以在您的管道配置文件中使用它来降低复杂性，并跨项目共享命令、执行器和作业规范。</p>
+
+<p>使用<a href="https://circleci.com/developer/orbs/orb/circleci/windows"> Windows orb </a>，您可以调用Windows executor，设置想要使用的Windows资源的大小，并开始在您的。NET开发工作流和作业，只需几行代码。</p>
+
+<p>将Windows orb添加到您的管道中就像在您的<code>config.yml</code>文件中包含以下行一样简单:</p>
+
+<pre><code>orbs:
+  win: circleci/windows@2.4
+</code></pre>
+
+<p>您可以通过在配置文件中包含额外的orb来扩展管道的功能。例如，你可以使用<a href="https://circleci.com/developer/orbs/orb/circleci/microsoft-msix"> MSIX球体</a>来<a href="/blog/building-msix-installers-on-circleci/">建造你的。NET桌面应用程序作为签名的MSIX包</a>。</p>
+
+<p>游戏开发者可以使用第三方<a href="https://circleci.com/developer/orbs/orb/w3d/unity-build"> Unity orb </a>来构建Unity项目，并在构建完成后存储构建日志和工件。关于使用CircleCI构建Unity项目的更多信息，请参见<a href="https://medium.com/xrpractices/continuous-integration-for-unity-using-circleci-8d555f9fa35d" target="_blank" rel="noreferrer noopener">使用CircleCI持续集成Unity</a>。</p>
+
+<h2>构建、测试和部署。CI/CD管道中的. NET应用程序</h2>
+
+<p>随着持续集成管道的建立，您可以自动构建和测试您的。NET应用程序，每次你的代码发生变化。</p>
+
+<p>例如，您可以使用Windows orb来<a href="/blog/building-and-testing-an-asp-net-core-application/">构建和测试ASP.NET核心web应用程序</a>。在Windows执行环境中，您可以使用<code>dotnet.exe test</code>命令对您的代码自动运行单元测试，允许您在问题到达您的用户之前快速识别和修复问题。</p>
+
+<p>您还可以将您的管道配置为<a href="https://circleci.com/integrations/deployment/">自动部署</a>。NET web应用程序应用于各种宿主环境。一旦您的应用程序通过了您设置的所有测试，您就可以将您的应用程序部署到任意数量的托管平台上。</p>
+
+<p>您可以使用<a href="https://circleci.com/developer/orbs/orb/circleci/heroku"> Heroku orb </a>来<a href="/blog/deploy-dotnetcore-heroku/">将ASP.NET核心应用部署到Heroku </a>或<a href="https://circleci.com/developer/orbs/orb/circleci/azure-cli"> Azure CLI orb </a>来<a href="/blog/deploy-dotnetcore-azure/">将ASP.NET核心应用部署到Azure Web应用服务</a>。自动化部署将消除手动批准步骤，并为您的开发团队节省大量时间和精力。</p>
+
+<h2>开始建设。CircleCI上的免费网络</h2>
+
+<p>自动化。具有全功能CI/CD平台的. NET开发工作流<a href="https://circleci.com/resources/2020-state-of-software-delivery/">使团队更快更有弹性</a>。合适的工具让开发者有更多的机会创新，并快速持续地向用户交付价值。CircleCI一流的支持。NET开发，包括新的。NET 6和Visual Studio 2022版本，您可以放心地选择CircleCI作为您的团队的长期家园，进行持续集成和交付。</p>
+
+<p>了解CircleCI如何帮助您构建、测试和部署您的。NET应用的速度和信心，<a href="https://circleci.com/signup/">今天就注册一个免费的CircleCI账户</a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

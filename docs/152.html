@@ -1,0 +1,86 @@
+<html>
+<head>
+<title>Matrix jobs - simple configuration for complicated software | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>矩阵作业-复杂软件的简单配置| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-matrix-jobs/#2020-09-24T09:00:00-07:00">https://circleci.com/blog/circleci-matrix-jobs/#2020-09-24T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>CircleCI具有多种特性，这些特性使其可配置、灵活且高效。其中一些是<a href="https://circleci.com/docs/orb-intro/">球体</a>、<a href="https://circleci.com/docs/reusing-config/">可重用配置</a>、<a href="https://circleci.com/docs/pipeline-variables/">管道变量</a>，以及一个<a href="https://circleci.com/blog/introducing-our-redesigned-UI-built-for-increased-user-productivity/"> UI </a>，使查看状态和修复构建比以往任何时候都更有效。矩阵作业是效率工作台的另一个工具。</p>
+
+<h2>什么是矩阵作业？</h2>
+
+<p>矩阵作业是开发人员为复杂软件编写简单配置的秘密武器。只需几行配置，您就可以从单个测试进入更全面的测试套件，或者从一个任务进入并行化的相关工作。CircleCI内置了对矩阵的支持，作为我们工作流语法的一部分。我们的矩阵实现与我们的参数化作业协同工作，以服务于许多用例。</p>
+
+<p>假设我正在开发一个广泛使用的开源JavaScript库。在构建和发布新版本的库之前，我想在几个不同版本的Node.js (10到13)上测试我的代码，并确认它在Linux和macOS上都可以工作。这意味着我有一个二维案例“矩阵”:</p>
+
+<p><img src="../Images/e90afb1ab7aea607dcdaf18a113d6921.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-04-20-matrix1.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-04-20-matrix1.png"/></p>
+
+<p>那么在CircleCI我们如何表达这个？首先，我们将定义两个执行器，代表我们想要测试的操作系统。然后，我们必须创建一个名为test的参数化作业，它的参数与矩阵的维数相匹配。</p>
+
+<pre><code>version: 2.1
+
+executors:
+  linux:
+    docker:
+      - image: cimg/base:2020.01
+  macos:
+    macos:
+      xcode: 11.4
+
+orbs:
+  node: circleci/node@2.0.0
+
+jobs:
+  test:
+    parameters:
+      os:
+        type: executor
+      node-version:
+        type: string
+    executor: &lt;&lt; parameters.os &gt;&gt;
+    steps:
+      - checkout
+      - node/install:
+          node-version: &lt;&lt; parameters.node-version &gt;&gt;
+          install-yarn: true
+      - run: yarn test
+</code></pre>
+
+<p>然后，我们将创建一个使用矩阵调用此作业的工作流:</p>
+
+<pre><code>workflows:
+  all-tests:
+    jobs:
+      - test:
+          matrix:
+            parameters:
+              os: [linux, macos]
+              node-version: ["10.9.0", "11.9.0", "12.9.1", "13.9.0"]
+</code></pre>
+
+<p>推送此配置并检查我的pipeline结果显示，我已经创建了一个包含8个作业的工作流，涵盖了所有基础:</p>
+
+<p><img src="../Images/cf44996a6bdab8df010cc7658bd6fbb1.png" alt="" class="img-auto" data-original-src="https://circleci.com/blog/media/2020-04-14-matrix2.png?imgix=false"/></p>
+
+<p>如需了解设置和运行matrix作业的更多信息，请观看此视频。</p>
+
+<p><iframe src="https://www.youtube.com/embed/K7VqfPTLwzQ" frameborder="0" allowfullscreen="">视频</iframe></p>
+
+<p>所有CircleCI用户均可使用矩阵作业。这个特性非常强大，因为它可以与任何作业参数组合一起工作，为每个单独的作业生成人类可读的名称。进行跨平台测试的方法并不局限于有限的几种，比如只使用Node.js版本和操作系统。它可以是任何可表示为作业参数的东西。这些文档包括更高级的功能，如排除特定的组合和使用模板依赖来创建复杂的工作流。</p>
+
+<p>要了解这篇文章中提到的其他特性，请访问以下链接:</p>
+
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

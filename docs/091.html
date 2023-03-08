@@ -1,0 +1,144 @@
+<html>
+<head>
+<title>Snapcraft - Snapcraft ip | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Snapcraft - Snapcraft ip | CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/build-test-publish-snap-packages/#2017-06-23T06:00:00-07:00">https://circleci.com/blog/build-test-publish-snap-packages/#2017-06-23T06:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>Snapcraft是一个软件包管理系统，它正在努力争取在Linux平台上的一席之地，它重新想象了你如何交付你的软件。一组新的跨发行版工具可以帮助您构建和发布“快照”。我们将介绍如何使用CircleCI 2.0来支持这个过程，以及在这个过程中可能遇到的一些问题。</p>
+
+
+
+<h2>什么是快照包？还有Snapcraft？</h2>
+
+<p><strong>快照</strong>是Linux发行版的软件包。它们的设计吸取了在Android以及物联网设备等移动平台上交付软件的经验教训。<strong> Snapcraft </strong>是一个包含快照和构建快照的命令行工具的名称，<a href="https://snapcraft.io/">是一个网站</a>，几乎是围绕实现这一点的技术的整个生态系统。</p>
+
+<p>Snap包旨在隔离和封装整个应用程序。这一概念实现了Snapcraft的目标，即提高软件的安全性、稳定性和可移植性，允许单个“snap”不仅可以安装在多个版本的Ubuntu上，还可以安装在Debian、Fedora、Arch等版本上。Snapcraft网站上的描述:</p>
+
+<blockquote>
+  <p>为每个Linux桌面、服务器、云或设备打包任何应用程序，并直接提供更新。</p>
+</blockquote>
+
+<h2>在CircleCI 2.0上构建快照包</h2>
+
+<p>在CircleCI上构建快照与您的本地机器基本相同，用<a href="https://circleci.com/docs/"> CircleCI 2.0语法</a>包装。在这篇文章中，我们将浏览一个样本配置文件。如果你不熟悉CircleCI或者想了解更多关于2.0的入门知识，可以从这里开始<a href="https://circleci.com/docs/first-steps/">。</a></p>
+
+<h3>基本配置</h3>
+
+<pre><code class="language-YAML">version: 2
+jobs:
+  build:
+    machine: true
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          command: |
+            sudo apt update &amp;&amp; sudo apt install -y snapd
+            sudo snap install snapcraft --edge --classic
+            /snap/bin/snapcraft
+</code></pre>
+
+<p>这个例子使用<code>machine</code>执行器来安装<code>snapd</code>，这个可执行文件允许您管理快照并启用平台，以及<code>snapcraft</code>，这个工具用于创建快照。</p>
+
+<p>使用了<code>machine</code>执行器而不是<code>docker</code>执行器，因为我们需要一个更新的内核用于构建过程。这里提供了Linux 4.4，这对于我们的目的来说已经足够新了。</p>
+
+<h3>用户空间依赖性</h3>
+
+<p>上面的例子使用了<code>machine</code>执行器，它目前是一个带有<a href="https://circleci.com/docs/1.0/differences-between-trusty-and-precise/"> Ubuntu 14.04(可信)</a>和Linux v4.4内核的虚拟机。如果您的项目/snap需要可信任的存储库中可用的构建依赖项，这是没问题的。如果您需要不同版本的依赖项，比如Ubuntu 16.04 (Xenial)，该怎么办？我们仍然可以在<code>machine</code>执行器中使用Docker来构建我们的快照。</p>
+
+<pre><code class="language-YAML">version: 2
+jobs:
+  build:
+    machine: true
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          command: |
+            sudo apt update &amp;&amp; sudo apt install -y snapd
+            docker run -v $(pwd):$(pwd) -t ubuntu:xenial sh -c "apt update -qq &amp;&amp; apt install snapcraft -y &amp;&amp; cd $(pwd) &amp;&amp; snapcraft"
+</code></pre>
+
+<p>在这个例子中，我们再次在<code>machine</code> executor的VM中安装<code>snapd</code>，但是我们决定安装Snapcraft，并在用Ubuntu Xenial映像构建的Docker容器中构建我们的snap。所有在Ubuntu 16.04中可用的<code>apt</code>包将在构建期间对<code>snapcraft</code>可用。</p>
+
+<h2>测试</h2>
+
+<p>在我们的博客<a href="https://circleci.com/blog/">、我们的文档</a>【我们的文档】<a href="https://circleci.com/docs/">以及互联网上，对你的软件代码进行单元测试已经有了广泛的报道。搜索你的语言/框架和单元测试或CI将会找到大量的信息。在CircleCI上构建快照意味着我们以一个<code>.snap</code>文件结束，除了创建它的代码之外，我们还可以测试这个文件。</a></p>
+
+<h3>工作流程</h3>
+
+<p>假设我们构建的快照是一个webapp。我们可以构建一个测试套件来确保此快照正确安装和运行。我们可以试着安装卡扣。我们可以运行<a href="http://www.seleniumhq.org/"> Selenium </a>来确保正确的页面加载、登录、工作等。这里有一个问题，快照被设计成可以在多个Linux发行版上运行。这意味着我们需要能够在Ubuntu 16.04、Fedora 25、Debian 9等平台上运行这个测试套件。CircleCI 2.0的工作流可以有效地解决这个问题。</p>
+
+<p>CircleCI 2.0测试版最近增加了一个功能，那就是工作流。<em>(更新:CircleCI 2.0现已上线，截止2017年7月11日。点击查看<a href="https://circleci.com/docs/">。)</a></em>这允许我们在CircleCI中以一定的流程逻辑运行离散任务。在这种情况下，<strong>在</strong>我们的snap构建完成后，这将是一个单独的作业，然后我们可以开始snap发行版测试作业，并行运行。我们想要测试的每个发行版都有一个。这些作业中的每一个都是该发行版的不同的<a href="https://circleci.com/docs/building-docker-images/"> Docker映像</a>(或者在将来，会有额外的<code>executors</code>可用)。</p>
+
+<p>下面是一个简单的例子:</p>
+
+<pre><code>workflows:
+  version: 2
+  build-test-and-deploy:
+    jobs:
+      - build
+      - acceptance_test_xenial:
+          requires:
+            - build
+      - acceptance_test_fedora_25:
+          requires:
+            - build
+      - acceptance_test_arch:
+          requires:
+            - build
+      - publish:
+          requires:
+            - acceptance_test_xenial
+            - acceptance_test_fedora_25
+            - acceptance_test_arch
+</code></pre>
+
+<p>这个设置构建了snap，然后用四个不同的发行版在其上运行验收测试。如果所有发行版构建都通过了，那么我们可以运行publish <code>job</code>来完成任何剩余的snap任务，然后将它推送到Snap Store。</p>
+
+<h3>持久化。快照包</h3>
+
+<p>为了在工作流示例中测试我们的<code>.snap</code>包，需要一种在构建之间持久保存该文件的方法。这里我提两种方式。</p>
+
+<ol>
+  <li><strong>工件</strong>——我们可以在<code>build</code>任务期间将快照包存储为CircleCI工件。然后在以下作业中检索它。CircleCI Workflows有自己处理共享工件的方式，可以在这里找到<a href="https://circleci.com/docs/workflows/#using-workspaces-to-share-artifacts-among-jobs">。</a></li>
+  <li><strong> snap store频道</strong> -在snap store发布快照时，有不止一个<code>channel</code>可供选择。将snap的主分支发布到<code>edge</code>渠道进行内部和/或用户测试已经成为一种惯例。这可以在<code>build</code>作业中完成，以下作业从边缘通道安装snap。</li>
+</ol>
+
+<p>第一种方法完成速度更快，其优势是能够在快照进入快照商店和接触任何用户(甚至是测试用户)之前对其进行验收测试。第二种方法的优势在于，从快照存储安装是CI期间运行的测试之一。</p>
+
+<h2>向快照存储验证</h2>
+
+<p>脚本<a href="https://gist.github.com/3v1n0/479ad142eccdd17ad7d0445762dea755">snap craft-config-generator . py</a>可以生成商店凭证并将它们保存到<code>.snapcraft/snapcraft.cfg</code>(注意:在运行公共脚本之前，一定要检查它们)。您不希望在回购中以明文形式存储该文件(出于安全原因)。您可以对文件进行base64编码，并将其存储为一个<a href="https://circleci.com/docs/1.0/environment-variables/#setting-environment-variables-for-all-commands-without-adding-them-to-git">私有环境变量</a>，或者您可以[加密文件][加密文件]并将密钥存储在一个私有环境变量中。</p>
+
+<p>下面是一个将商店凭证保存在加密文件中，并在<code>deploy</code>步骤中使用凭证发布到快照商店的示例:</p>
+
+<pre><code class="language-YAML">- deploy:
+    name: Push to Snap Store
+    command: |
+      openssl aes-256-cbc -d -in .snapcraft/snapcraft.encrypted -out .snapcraft/snapcraft.cfg -k $KEY
+      /snap/bin/snapcraft push *.snap
+</code></pre>
+
+<p>根据前面的工作流示例，这可以是一个仅在验收测试作业通过时运行的部署作业，而不是部署步骤。</p>
+
+<h2>更多信息</h2>
+
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,209 @@
+<html>
+<head>
+<title>Continuous deployment of Node apps to Heroku | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将节点应用持续部署到Heroku | CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuous-deployment-to-heroku/#2021-10-29T09:00:00-07:00">https://circleci.com/blog/continuous-deployment-to-heroku/#2021-10-29T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>CircleCI orbs 是YAML配置的可重用包，它将重复的配置压缩成一行代码。自2018年推出以来，<a href="https://circleci.com/developer/orbs"> CircleCI orbs registry </a>已经被开发者、开发团队以及希望帮助开发者将其服务无缝集成到<a href="https://circleci.com/continuous-integration/">持续集成</a>管道中的公司所使用。</p>
+
+<p>在本教程中，我们将展示如何使用CircleCI orbs将一个<a href="https://nodejs.org/"> Node.js </a>应用程序持续部署到<a href="https://www.heroku.com/"> Heroku </a>，这是最流行的托管平台之一。</p>
+
+<h2>先决条件</h2>
+
+<p>要跟随本教程，您首先需要一些东西:</p>
+
+
+
+<p>有了这些，你就准备好跟随了。</p>
+
+<h2>克隆Node.js API项目</h2>
+
+<p>我们希望在Heroku上托管的应用程序是一个简单的Node.js API项目，它由一个返回“todos”列表的单一路由组成。</p>
+
+<p>由于本练习的重点是将应用程序部署到Heroku平台，因此不需要考虑创建新Node.js应用程序的细节。从<a href="https://github.com/coderonfleek/simple-node-api">这个回购</a>里克隆一个现成的就行了。</p>
+
+<p>要克隆项目，请运行:</p>
+
+<pre><code>git clone https://github.com/coderonfleek/simple-node-api.git
+</code></pre>
+<p>这将把<a href="https://expressjs.com/"> Express.js </a> API项目克隆到您的系统上。这个应用程序的入口点是<code>server.js</code>文件，它包含以下代码:</p>
+
+<pre><code>const express = require("express");
+const routes = require("./routes");
+
+const app = express();
+const port = process.env.PORT || "1337";
+app.set("port", port);
+
+app.use('/', routes);
+
+app.listen(port, () =&gt; console.log(`Server running on localhost:${port}`));
+</code></pre>
+<p>这段代码在端口1337创建并公开了一个新的Express.js应用程序。然后应用程序被设置为使用在<code>routes.js</code>文件中定义的路线。</p>
+
+<p><code>routes.js</code>文件创建了一个新的Express.js路由器，并公开了一个单独的<code>/todos</code> route，它返回了一个在<code>todo.js</code>文件中定义的待办事项数组。然后，它导出路由器对象。代码如下:</p>
+
+<pre><code>const express = require('express');
+const todos = require("./todos");
+
+const router = express.Router();
+
+router.get("/todos", function(req, res) {
+  res.json(todos);
+});
+
+module.exports = router;
+</code></pre>
+
+<p>通过首先安装依赖项来尝试这个项目。在项目的根目录中，键入:</p>
+
+<pre><code>npm install
+</code></pre>
+<p>然后使用以下命令运行应用程序:</p>
+
+<pre><code>node server.js
+</code></pre>
+
+<p>应用程序应该在地址<code>http://localhost:1337</code>启动并运行。打开您喜欢的浏览器，访问位于<code>http://localhost:1337/todos</code>的<code>/todos</code>路线。</p>
+
+<p><img src="../Images/2d44cfebe7fa74c91875b65c85f88973.png" alt="Screenshot of what the route returns" srcset="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-01.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-10-29-cd-heroku-01.png"/></p>
+
+<p>如上所示，该路径返回一个todo对象数组，每个对象都有一个<code>id</code>和<code>task</code>名称。</p>
+
+<p>现在，在你的GitHub帐户上为这个项目创建一个新的存储库，并将项目推送到你刚刚创建的存储库中。</p>
+
+<h2>为部署准备Node.js项目</h2>
+
+<p>当没有指定Heroku Procfile时，Heroku使用<code>npm start</code>命令启动Node.js项目。这个命令表明Heroku需要我们的<code>package.json</code>文件中的一个<code>start</code>脚本来启动我们的应用程序。</p>
+
+<p>这意味着我们需要在我们的<code>package.json</code>文件中创建一个<code>start</code>脚本来指导Heroku如何启动应用程序。如果您正在使用克隆的项目，您可以跳过这一步。否则，转到<code>package.json</code>的<code>scripts</code>部分(目前只包含一个<code>test</code>脚本)并添加<code>start</code>脚本:</p>
+
+<pre><code>….
+“scripts” : {
+  ……,
+  “start”: “node server.js”
+
+}
+</code></pre>
+
+<p>有了这个脚本，Heroku现在可以成功地启动我们的应用程序了。</p>
+
+<h2>在Heroku上创建应用程序</h2>
+
+<p>下一步是创建Heroku应用程序。该应用程序将映射到我们的部署，并帮助我们管理我们部署的应用程序。它将提供度量、扩展能力和访问应用程序日志等功能。</p>
+
+<p>转到Heroku仪表盘，点击<strong>新建</strong>并选择<strong>创建新应用</strong>，创建一个新应用。</p>
+
+<p>这将打开应用程序创建表单。</p>
+
+<p><img src="../Images/7eeb92adb8f5fbb12516d4b18490a229.png" alt="Screenshot of the app creation form" srcset="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-02.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-10-29-cd-heroku-02.png"/></p>
+
+<p>我们已将该应用程序命名为<code>simple-node-api-circleci</code>，但您可以随意给它取任何您喜欢的名称。只要确保该名称不包含空格或对URL不友好的字符。</p>
+
+<p>点击<strong>创建应用</strong>设置您的新应用。</p>
+
+<h2>在CircleCI建立项目</h2>
+
+<p>将应用程序部署到Heroku的下一步是将GitHub存储库中的应用程序连接到CircleCI。</p>
+
+<p>转到您的<a href="https://app.circleci.com/dashboard"> CircleCI仪表板</a>并在<strong>添加项目</strong>部分添加项目。</p>
+
+<p><img src="../Images/299b011783405e3c1a6ec2b8738139f8.png" alt="Screenshot of the dashboard" srcset="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-03.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-10-29-cd-heroku-03.png"/></p>
+
+<p>在你的项目旁边(这里是<code>simple-node-api-updated</code>，点击<strong>设置项目</strong>按钮。</p>
+
+<p>在这个屏幕上，你会立即看到一个错误，说明在项目中找不到CircleCI <a href="https://circleci.com/docs/configuration-reference/">配置文件</a>。</p>
+
+<p>这是可以理解的，因为我们还没有包含管道配置文件。我们将在本教程的后面部分进行介绍。</p>
+
+<p>现在，选择<code>Write your own using our starter config.yml template</code>。在该页面上，选择<code>skip this step</code>，然后选择<code>Use existing config</code>。构建将运行并失败。</p>
+
+<h2>在CircleCI上配置Heroku访问</h2>
+
+<p>为了将我们的项目从CircleCI推送到Heroku，我们需要在CircleCI和Heroku之间配置一个经过认证的握手。通过在CircleCI项目的设置中创建两个<a href="https://circleci.com/docs/env-vars/">环境变量</a>来配置握手:</p>
+<ul>
+  <li><strong> <code>HEROKU_APP_NAME</code> </strong>是您的Heroku应用程序的名称(在本例中是<code>simple-node-api-circleci</code></li>
+  <li><strong> <code>HEROKU_API_KEY</code> </strong>是你的Heroku账号API密匙。这可以在你的Heroku账户的账户标签下的账户设置下找到。滚动到API密匙部分，点击<strong>显示</strong>复制你的API密匙。</li>
+</ul>
+
+<p>进入你的CircleCI仪表盘，点击项目的<strong>设置</strong>。</p>
+
+<p><img src="../Images/523f394784812440ad08e6809192d3fd.png" alt="CircleCI project settings" srcset="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-06.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-10-29-cd-heroku-06.png"/></p>
+
+<p>在设置页面的工具条菜单上，点击构建设置下的<strong>环境变量</strong>。</p>
+
+<p><img src="../Images/34c7766ec1d76962d01cf8b47795853a.png" alt="Environment Variables form" srcset="https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku7.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-03-20-heroku7.png"/></p>
+
+<p>在环境变量页面上，创建两个名为<code>HEROKU_APP_NAME</code>和<code>HEROKU_API_KEY</code>的变量，并输入它们的值。</p>
+
+<p>有了这些，我们的CircleCI配置将能够对Heroku平台进行认证部署。</p>
+
+<h2>使用Heroku orb部署应用程序</h2>
+
+<p>现在来看主要的行动领域:我们的部署管道。这里有一个提示:这将是最容易的一步。你刚才笑了吗？我愿意这样相信！</p>
+
+<p>这一步对于每一个CI工具来说都不容易，但是使用CircleCI orbs，我们可以创造奇迹。这是因为CircleCI orbs registry有一个现成的orb用于将应用程序部署到Heroku。我们将在CircleCI配置中使用Heroku orb来部署我们的应用程序。</p>
+
+<p>在项目的根目录下，创建一个名为<code>.circleci</code>的文件夹，并在其中创建一个名为<code>config.yml</code>的文件。添加此配置:</p>
+
+<pre><code>version: 2.1
+orbs:
+  heroku: circleci/heroku@1.2.6
+workflows:
+  heroku_deploy:
+    jobs:
+      - heroku/deploy-via-git
+</code></pre>
+<p>就这些吗？当然是了！记得吗，我告诉过你我们会变魔术的。</p>
+
+<p>在上面的配置中，我们引入了Heroku orb <code>circleci/heroku@1.2.6</code>，它自动让我们访问一组强大的Heroku作业和命令。</p>
+
+<p>其中一项工作是<code>heroku/deploy-via-git</code>,它将你的应用程序直接从你的GitHub repo部署到你的Heroku账户。</p>
+
+<p>现在，你可能有几个问题。Heroku CLI是如何安装的？代码是什么时候从回购中签出的？身份验证凭据是如何访问的？Heroku的部署命令是什么时候运行的？</p>
+
+<p>这是球体真正力量的闪耀之处。前面问题中的所有进程都已经被Heroku orb抽象了。拉入orb确保我们有一个为部署到Heroku而设置的环境，同时作业检查我们的代码，将其部署到Heroku，并启动应用程序。它抽象了过程的本质细节。</p>
+
+<p>保存配置并将您的更改推送到GitHub存储库。这将立即触发通过CircleCI向Heroku的部署过程。</p>
+
+<p><img src="../Images/fc66a956521736825ef91ff9e60fbe2a.png" alt="Screenshot of successful deployment" srcset="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-07.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-10-29-cd-heroku-07.png"/></p>
+
+<p>成功！要查看Heroku orb在幕后做了什么，请点击构建过程。</p>
+
+<p><img src="../Images/e301ca2f1ed19d993d599707c3f0e85b.png" alt="Build process details" srcset="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-10-29-cd-heroku-08.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-10-29-cd-heroku-08.png"/></p>
+
+<p>您不必定义这些步骤，因为orb会为您处理一切。</p>
+
+<p>要确认应用已经成功部署并且正在运行，请访问链接<code>https://YOUR_HEROKU_APP_NAME.herokuapp.com</code>。对于本教程，这个URL将是<code>https://simple-node-api-circleci.herokuapp.com/todos</code>。这将按预期返回我们的待办事项列表。为了更好的可视性，我使用了Chrome的JSON格式器插件。</p>
+
+<p><img src="../Images/2cf2f3b62648925087a78ef0be139dbf.png" alt="Application using formatter plugin" srcset="https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-03-20-heroku10.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-03-20-heroku10.png"/></p>
+
+<p>现在你知道了。通过CircleCI orbs的强大功能，Node.js API项目只需几个步骤就已成功部署到Heroku。</p>
+
+<h2>结论</h2>
+
+<p>CircleCI orbs是CI/CD世界的游戏规则改变者。抽象大量乏味、容易出错的样板配置代码，以提供简单、稳定和强大的抽象，这有助于开发人员专注于他们最擅长的事情:成功部署应用程序。</p>
+
+<p>一定要检查<a href="https://circleci.com/developer/orbs"> CircleCI orbs注册表</a>中适合您的编程语言和部署偏好的orbs。与你的同事分享这个教程。让他们知道，有了CircleCI球，你不需要重新发明轮子。</p>
+
+<p>编码快乐！</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

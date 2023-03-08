@@ -1,0 +1,458 @@
+<html>
+<head>
+<title>Building a React dashboard to visualize workflow and job events | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>构建React仪表板以可视化工作流和作业事件| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/react-webhook-dashboard/#2022-01-07T12:00:00-08:00">https://circleci.com/blog/react-webhook-dashboard/#2022-01-07T12:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>数据可视化是将大型数据集和指标转化为图表、图形和其他视觉效果的过程。由此产生的数据可视化表示使得识别和共享实时趋势、异常值以及关于数据中所表示信息的新见解变得更加容易。使用CircleCI <a href="https://circleci.com/docs/webhooks/"> webhooks </a>，我们可以收集工作流和作业事件的数据。在本教程中，我将引导您创建一个基于React的仪表板来可视化这些数据。</p>
+
+<h2>先决条件</h2>
+
+<p>要跟随本教程，您需要很好地掌握JavaScript ES6。您还需要了解一些基本的React概念，比如钩子和功能组件。</p>
+
+<p>您需要在工作站上安装这些软件:</p>
+
+<ol>
+  <li>一个最新安装的<a href="https://nodejs.org/en/download/" target="_blank" rel="noreferrer noopener"> node.js </a>，还有一个类似<a href="https://www.npmjs.com/get-npm" target="_blank" rel="noreferrer noopener"> npm </a>或者<a href="https://yarnpkg.com/getting-started/install#" target="_blank" rel="noreferrer noopener"> yarn </a>的包管理器</li>
+  <li>您首选的代码编辑器</li>
+  <li>一个与你的CircleCI webhook通信的API。你可以在这里了解如何设置一个<a href="https://github.com/yemiwebby/circle_ci_webhook" target="_blank" rel="noreferrer noopener">。</a></li>
+  <li>确保<a href="https://circleci.com/blog/building-a-laravel-api-for-circleci-webhooks/">本教程</a>中涉及的<a href="https://github.com/CIRCLECI-GWP/laravel-api-circleci-webhook" target="_blank" rel="noreferrer noopener">Laravel API circle ci web hook</a>已经启动并运行。</li>
+</ol>
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<h2>入门指南</h2>
+
+<p>使用以下命令创建一个新的React应用程序:</p>
+
+<pre><code>yarn create react-app circleci_workflow_dashboard
+
+cd circleci_workflow_dashboard
+</code></pre>
+
+<p>对于这个项目，我们将使用<a href="https://ant.design/" target="_blank" rel="noreferrer noopener"> Ant Design </a>来布置UI，使用<a href="https://github.com/reactchartjs/react-chartjs-2" target="_blank" rel="noreferrer noopener"> react-chartjs-2 </a>来显示我们的图表。</p>
+
+<p>使用yarn添加项目依赖关系:</p>
+
+<pre><code>yarn add antd react-chartjs-2@3.3.0 chart.js
+</code></pre>
+
+<p>下一步是为ant design导入样式。用这个更新<code>src/App.css</code>:</p>
+
+<pre><code>@import '~antd/dist/antd.css';
+</code></pre>
+
+<h2>添加实用功能</h2>
+
+<p>接下来，我们需要一种与API通信的方式。在<code>src</code>文件夹中，创建一个名为<code>utility</code>的新文件夹。在<code>utility</code>文件夹中，创建一个名为<code>API.js</code>的新文件。在<code>src/utility/API.js</code>文件中，添加以下内容:</p>
+
+<pre><code>export const makeGETRequest = (url) =&gt; {
+  return fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  }).then((response) =&gt; response.json());
+};
+</code></pre>
+
+<p>使用这个函数，我们可以向API发出一个<code>GET</code>请求。该函数从API返回JSON响应。</p>
+
+<blockquote>
+  <p>为了简单起见，函数中不包括错误处理。</p>
+</blockquote>
+
+<p>为了以可读的格式表示日期，我们可以创建一个实用函数。在<code>utility</code>文件夹中，创建一个名为<code>Date.js</code>的新文件，并添加:</p>
+
+<pre><code>export const formatDate = (date) =&gt;
+  new Date(date).toLocaleString("en-GB", {
+    month: "long",
+    weekday: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+</code></pre>
+
+<h2>构建仪表板组件</h2>
+
+<p>我们的控制面板将显示一个事件表，您可以根据状态和事件类型进行筛选。您还可以在表格显示和图表显示之间切换仪表板。</p>
+
+<p>在<code>src</code>文件夹中，创建一个名为<code>components</code>的新文件夹。该文件夹将保存我们将创建的所有自定义组件。</p>
+
+<p>在<code>components</code>目录中，创建一个名为<code>StatusTag.jsx</code>的新文件。该组件将用于显示一个标签，标签的颜色由事件的状态决定。将此添加到<code>StatusTag.jsx</code>:</p>
+
+<pre><code>import React from "react";
+import { Tag } from "antd";
+
+const StatusTag = ({ status }) =&gt; {
+  const statusColours = {
+    success: "green",
+    failed: "volcano",
+    error: "red",
+    canceled: "orange",
+    unauthorized: "magenta",
+  };
+  return &lt;Tag color={statusColours[status]}&gt;{status}&lt;/Tag&gt;;
+};
+
+export default StatusTag;
+</code></pre>
+
+<p>接下来，在<code>components</code>目录中创建一个名为<code>TableView.jsx</code>的新文件。该组件将通知作为道具，并将其呈现在一个表格中，能够根据类型和状态进行过滤。将此代码添加到<code>TableView.jsx</code>:</p>
+
+<pre><code>import React from "react";
+import { Table } from "antd";
+import { formatDate } from "../utility/Date";
+import StatusTag from "./StatusTag";
+
+const TableView = ({ notifications }) =&gt; {
+  const filterHandler = (value, record, key) =&gt; record[key] === value;
+
+  const columns = [
+    {
+      title: "Subject",
+      dataIndex: "commit_subject",
+    },
+    {
+      title: "Commit Author",
+      dataIndex: "commit_author",
+    },
+    {
+      title: "Happened At",
+      dataIndex: "happened_at",
+      render: (text) =&gt; formatDate(text),
+    },
+    {
+      title: "Event Type",
+      dataIndex: "type",
+      filters: [
+        { text: "Job", value: "job-completed" },
+        { text: "Workflow", value: "workflow-completed" },
+      ],
+      onFilter: (value, record) =&gt; filterHandler(value, record, "type"),
+    },
+    {
+      title: "Event Status",
+      dataIndex: "event_status",
+      filters: [
+        { text: "Success", value: "success" },
+        { text: "Failed", value: "failed" },
+        { text: "Error", value: "error" },
+        { text: "Canceled", value: "canceled" },
+        { text: "Unauthorized", value: "unauthorized" },
+      ],
+      render: (text) =&gt; &lt;StatusTag status={text} /&gt;,
+      onFilter: (value, record) =&gt; filterHandler(value, record, "event_status"),
+    },
+    {
+      title: "Notification ID",
+      dataIndex: "notification_id",
+      render: (text, record) =&gt; (
+        &lt;a href={record["workflow_url"]} target="_blank" rel="noreferrer"&gt;
+          {text}
+        &lt;/a&gt;
+      ),
+    },
+  ];
+
+  return (
+    &lt;Table dataSource={notifications} columns={columns} rowKey="id" bordered /&gt;
+  );
+};
+
+export default TableView;
+</code></pre>
+
+<p>该表有六列:主题、提交作者、发生时间、事件类型、事件状态和通知ID。</p>
+
+<p>每一列由<code>columns</code>常量中的一个对象表示。在不需要特殊渲染的地方，<code>title</code>和<code>dataIndex</code>对于列声明就足够了。<code>title</code>用作列的标题，而<code>dataIndex</code>条目让antd知道该列填充了哪个属性。</p>
+
+<p>为了指定要在列中呈现的组件或JSX元素，我们向列的对象表示添加了一个<code>render</code>键。我们用它来呈现我们之前创建的<code>StatusTag</code>组件。我们还使用它为<code>Happened At</code>列呈现一个格式良好的日期，并将通知ID作为工作流的链接。</p>
+
+<h2>构建图表组件</h2>
+
+<p>对于本教程，我们将在三个图表中呈现数据:</p>
+
+<ol>
+  <li>按状态显示事件分布的饼图:成功、失败、错误、已取消或未授权。</li>
+  <li>按类型显示事件分布的条形图:工作流或作业</li>
+  <li>显示事件时间线的折线图</li>
+</ol>
+
+<p>要构建饼图，在<code>components</code>文件夹中创建一个名为<code>StatusDistribution.jsx</code>的新文件，并将以下代码添加到其中:</p>
+
+<pre><code>import React from "react";
+import { Pie } from "react-chartjs-2";
+
+const StatusDistribution = ({ notifications }) =&gt; {
+  const sortedNotifications = notifications.reduce(
+    (sortedNotifications, notification) =&gt; {
+      sortedNotifications[notification["event_status"]]++;
+      return sortedNotifications;
+    },
+    { error: 0, failed: 0, success: 0, unauthorized: 0, canceled: 0 }
+  );
+
+  const data = {
+    labels: ["Error", "Failed", "Success", "Unauthorized", "Canceled"],
+    datasets: [
+      {
+        data: Object.values(sortedNotifications),
+        backgroundColor: [
+          "rgba(255, 99, 132, 0.2)",
+          "rgba(255, 206, 86, 0.2)",
+          "rgba(75, 192, 192, 0.2)",
+          "rgba(153, 102, 255, 0.2)",
+          "rgba(255, 159, 64, 0.2)",
+        ],
+        borderColor: [
+          "rgba(255, 99, 132, 1)",
+          "rgba(255, 206, 86, 1)",
+          "rgba(75, 192, 192, 1)",
+          "rgba(153, 102, 255, 1)",
+          "rgba(255, 159, 64, 1)",
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  return (
+    &lt;&gt;
+      &lt;div className="header"&gt;
+        &lt;h1 className="title"&gt;Status Distribution&lt;/h1&gt;
+      &lt;/div&gt;
+      &lt;Pie data={data} height={50} /&gt;
+    &lt;/&gt;
+  );
+};
+
+export default StatusDistribution;
+</code></pre>
+
+<p>使用通知阵列上的<code>reduce</code>功能，根据状态对通知进行分类和计数。然后，这些值被传递给<code>datasets</code>配置中的<code>data</code>键，该键被传递给<code>Pie</code>组件。</p>
+
+<p>要构建条形图，在<code>components</code>目录中创建一个名为<code>TypeDistribution.jsx</code>的新文件，并将这段代码添加到其中。</p>
+
+<pre><code>import React from "react";
+import { Bar } from "react-chartjs-2";
+
+const TypeDistribution = ({ notifications }) =&gt; {
+  const sortedNotifications = notifications.reduce(
+    (sortedNotifications, notification) =&gt; {
+      sortedNotifications[notification["type"]]++;
+      return sortedNotifications;
+    },
+    { "job-completed": 0, "workflow-completed": 0 }
+  );
+
+  const data = {
+    labels: ["Job", "Workflow"],
+    datasets: [
+      {
+        label: "Event Type",
+        data: Object.values(sortedNotifications),
+        backgroundColor: ["rgba(54, 162, 235, 0.2)", "rgba(75, 192, 192, 0.2)"],
+        borderColor: ["rgba(54, 162, 235, 1)", "rgba(75, 192, 192, 1)"],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const options = {
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
+
+  return (
+    &lt;&gt;
+      &lt;div className="header"&gt;
+        &lt;h1 className="title"&gt;Type Distribution&lt;/h1&gt;
+      &lt;/div&gt;
+      &lt;Bar data={data} options={options} height={500} /&gt;
+    &lt;/&gt;
+  );
+};
+
+export default TypeDistribution;
+</code></pre>
+
+<p>正如我们对状态分布图所做的那样，我们根据通知类型对通知进行排序和计数。然后，这些值被传递给<code>datasets</code>配置中的<code>data</code>键，该键被传递给<code>Bar</code>组件。</p>
+
+<p>要构建通知的时间线，在<code>components</code>目录中创建一个名为<code>Timeline.jsx</code>的新文件，并向其中添加以下代码:</p>
+
+<pre><code>import React from "react";
+import { Line } from "react-chartjs-2";
+import { formatDate } from "../utility/Date";
+
+const Timeline = ({ notifications }) =&gt; {
+  const sortedNotifications = notifications.reduce(
+    (sortedNotifications, notification) =&gt; {
+      const notificationDate = formatDate(notification["happened_at"]);
+      if (notificationDate in sortedNotifications) {
+        sortedNotifications[notificationDate]++;
+      } else {
+        sortedNotifications[notificationDate] = 1;
+      }
+      return sortedNotifications;
+    },
+    {}
+  );
+
+  const data = {
+    labels: Object.keys(sortedNotifications),
+    datasets: [
+      {
+        label: "Number of events",
+        data: Object.values(sortedNotifications),
+        fill: false,
+        backgroundColor: "rgb(255, 99, 132)",
+        borderColor: "rgba(255, 99, 132, 0.2)",
+      },
+    ],
+  };
+
+  const options = {
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
+  return (
+    &lt;&gt;
+      &lt;div className="header"&gt;
+        &lt;h1 className="title"&gt;Event Timeline&lt;/h1&gt;
+      &lt;/div&gt;
+      &lt;Line data={data} options={options} height={500} width={1500} /&gt;
+    &lt;/&gt;
+  );
+};
+
+export default Timeline;
+</code></pre>
+
+<p>该组件的排序功能略有不同。因为我们不能在初始对象中指定所有可能的日期，所以我们从一个空对象开始。然后，对于每个通知，我们检查该日期是否已经存在一个键。如果是，我们增加计数，如果不是，我们把日期的值加1。</p>
+
+<p>接下来，我们需要构建一个组件来呈现网格中的所有图表。在<code>components</code>目录中创建一个名为<code>ChartView.jsx</code>的新文件，并将以下代码添加到其中:</p>
+
+<pre><code>import React from "react";
+import StatusDistribution from "./StatusDistribution";
+import { Col, Row } from "antd";
+import TypeDistribution from "./TypeDistribution";
+import Timeline from "./Timeline";
+
+const ChartView = ({ notifications }) =&gt; {
+  return (
+    &lt;&gt;
+      &lt;Timeline notifications={notifications} /&gt;
+      &lt;Row style={{ marginTop: "30px" }} gutter={96}&gt;
+        &lt;Col&gt;
+          &lt;StatusDistribution notifications={notifications} /&gt;
+        &lt;/Col&gt;
+        &lt;Col offset={6}&gt;
+          &lt;TypeDistribution notifications={notifications} /&gt;
+        &lt;/Col&gt;
+      &lt;/Row&gt;
+    &lt;/&gt;
+  );
+};
+
+export default ChartView;
+</code></pre>
+
+<p>在这个组件中，我们将状态分布和类型分布与上面的时间轴并排呈现。</p>
+
+<p>像我们在这里所做的那样传递通知被称为<a href="https://kentcdodds.com/blog/prop-drilling" target="_blank" rel="noreferrer noopener">道具演练</a>。虽然一般不提倡。我们这样做是为了简化教程。在生产应用程序中，您应该考虑适当的状态管理实现。</p>
+
+<h2>把所有的放在一起</h2>
+
+<p>所有子组件就位后，更新<code>src/App.js</code>以匹配:</p>
+
+<pre><code>import "./App.css";
+import { makeGETRequest } from "./utility/Api";
+import { useEffect, useState } from "react";
+import { Card, Col, Row, Switch } from "antd";
+import TableView from "./components/TableView";
+import ChartView from "./components/ChartView";
+
+const App = () =&gt; {
+  const [notifications, setNotifications] = useState([]);
+  const [showTableView, setShowTableView] = useState(false);
+
+  useEffect(() =&gt; {
+    makeGETRequest("http://127.0.0.1:8000/api/circleci").then((response) =&gt; {
+      setNotifications(response);
+      console.log(response);
+    });
+  }, []);
+
+  const handleSwitchValueChange = () =&gt; {
+    setShowTableView((showTableView) =&gt; !showTableView);
+  };
+
+  return (
+    &lt;Card style={{ margin: "2%" }}&gt;
+      &lt;Row style={{ marginBottom: "10px" }}&gt;
+        &lt;Col span={6} offset={18}&gt;
+          Show Data as Table
+          &lt;Switch checked={showTableView} onChange={handleSwitchValueChange} /&gt;
+        &lt;/Col&gt;
+      &lt;/Row&gt;
+      {showTableView ? (
+        &lt;TableView notifications={notifications} /&gt;
+      ) : (
+        &lt;ChartView notifications={notifications} /&gt;
+      )}
+    &lt;/Card&gt;
+  );
+};
+
+export default App;
+</code></pre>
+
+<p>在这个组件中，我们从API的<code>useEffect</code>钩子中检索通知，并使用<code>setNotifications</code>函数将其保存到state。然后我们声明一个函数来处理<code>showTableView</code>状态变量的切换，它决定数据是显示在表格中还是图表中。</p>
+
+<p>为了在视图之间切换，我们渲染一个<code>Switch</code>，并把<code>showTableView</code>和<code>handleSwitchValueChange</code>值作为道具传递给它。</p>
+
+<p>最后，根据<code>showTableView</code>的值，渲染<code>TableView</code>或<code>ChartView</code>组件。</p>
+
+<h3>表格视图</h3>
+
+<p><img src="../Images/d0d2c9155af95b3d3e7a4d0d409a7d80.png" alt="Dashboard displaying table view" srcset="https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-01-07-react-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-01-07-react-dashboard.png"/></p>
+
+<h3>图表视图</h3>
+
+<p><img src="../Images/96b81deca53e08b68e5c2ba9492a3bb1.png" alt="Dashboard displaying chart view" srcset="https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-01-07-table-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-01-07-table-view.png"/></p>
+
+<h2>结论</h2>
+
+<p>在本教程中，我们研究了如何使用API构建React仪表板来可视化管道事件。通过在图表中可视化数据，我们可以对我们的管道有一个高层次的了解，也可以理解数据集，不管它有多大。虽然我们没有实现这一功能，但您也可以将数据导出到电子表格中以供进一步分析。与您的团队分享这个示例项目并扩展您的学习！</p>
+
+<p>这篇文章的代码可以在<a href="https://github.com/yemiwebby/circleci_board" target="_blank" rel="noreferrer noopener"> GitHub </a>上找到，CircleCI webhooks的完整文档可以在<a href="https://circleci.com/docs/webhooks/">这里</a>找到。</p>
+
+<hr/>
+
+<p><a href="https://twitter.com/yemiwebby" target="_blank" rel="noreferrer noopener"> Oluyemi </a>是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他解决问题的技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。由于精通技术，他的爱好包括尝试新的编程语言和框架。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Oluyemi是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他的问题解决技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。作为技术专家，他的爱好包括尝试新的编程语言和框架。</p>
+
+            <p><a href="/blog/author/olususi-oluyemi/" class="arrow-link">阅读更多Olususi Oluyemi的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

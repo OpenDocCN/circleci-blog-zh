@@ -1,0 +1,347 @@
+<html>
+<head>
+<title>Continuously build, test, and deploy Golang applications | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>持续构建、测试和部署Golang应用程序| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/use-circleci-orbs-to-build-test-and-deploy-a-simple-go-application-to-aws-ecs/#2019-09-11T10:18:00-07:00">https://circleci.com/blog/use-circleci-orbs-to-build-test-and-deploy-a-simple-go-application-to-aws-ecs/#2019-09-11T10:18:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>在本教程示例中，我们将向Amazon EC2容器服务(ECS)部署一个简单的<a href="https://golang.org/" target="_blank" rel="noreferrer noopener"> Go </a>应用程序。然后，我们将使用CircleCI自动构建、测试和部署应用程序的后续版本。为了确保很好地掌握所使用的技术，我们将逐步做到这一点，主要步骤如下:</p>
+
+<ol>
+  <li>创建安全组</li>
+  <li>创建一个包含1个实例的ECS集群</li>
+  <li>创建ECS任务定义</li>
+  <li>创建运行任务定义的服务</li>
+  <li>创建并配置一个Amazon弹性负载平衡器(ELB)和目标组，它将与我们集群的ECS服务相关联</li>
+  <li>使用我们的ELB上的DNS名称来访问应用程序(测试它的工作)</li>
+  <li>使用<code>circleci/aws-ecr@6.2.0</code> orb配置CircleCI，以构建一个更新的映像并将其推送到Amazon弹性容器注册中心(ECR)</li>
+  <li>使用<code>circleci/aws-ecs@0.0.11</code> orb配置CircleCI，将更新后的映像部署到我们之前创建的集群中</li>
+</ol>
+
+<p>要充分体会亚马逊ECS的好处，首先需要了解<a href="https://opensource.com/resources/what-docker" target="_blank" rel="noreferrer noopener"> Docker </a>。在本教程中，我们假定您对码头和集装箱化有所了解。此外，您需要对持续集成和持续部署(CI/CD)有一个初步的了解。在下一节中，我们将介绍一些我们将使用的技术和术语。</p>
+
+<h2>使用的技术和术语概述</h2>
+<ul>
+  <li>
+    <p><strong> ECS概述</strong> : ECS是<a href="https://searchaws.techtarget.com/definition/Amazon-Web-Services" target="_blank" rel="noreferrer noopener">亚马逊网络服务</a> (AWS)中管理容器的云计算服务。它使开发人员能够通过应用程序编程接口(API)调用和任务定义来部署和管理运行在服务器组(称为集群)上的可伸缩应用程序。本质上，它是一个任务调度器。它创建的任务映射到正在运行的Docker容器。它根据可用的资源确定在集群中的资源上运行任务的位置。而其他集装箱技术存在(LXC，rkt等。)，因为Docker的大量采用，ECS被设计为本机使用Docker容器。</p>
+  </li>
+  <li>
+    <p><a href="https://docs.aws.amazon.com/AmazonECS/latest/userguide/task_definitions.html" target="_blank" rel="noreferrer noopener"> <strong>任务定义</strong> </a>:把它看作是描述如何运行你的容器的配方。它包含诸如要在容器上公开的端口、要分配的内存和CPU，以及从中启动容器的Docker映像等信息。在我们的例子中，它是一个容器、要使用的映像、要分配的CPU和内存以及要公开的端口。</p>
+  </li>
+  <li>
+    <p><strong>任务</strong>:ECS任务是从任务定义实例化的运行容器的单元。它们是在同一实例上一起运行的1到N个容器的逻辑分组，N由您在1到10之间定义。根据需要，一个任务定义可以创建多个任务。</p>
+  </li>
+  <li>
+    <p><strong>服务</strong>:ECS服务用于保证您始终有一些任务在运行。如果任务的容器由于错误而退出，或者底层EC2实例失败并被替换，ECS服务将替换失败的任务。我们创建集群，以便服务在CPU、内存和网络端口方面有足够的资源可以使用。对我们来说，任务在哪个实例上运行并不重要，只要它们能够运行。服务配置引用任务定义。服务负责创建任务。</p>
+  </li>
+  <li>
+    <p><strong>集群</strong>:一个<a href="http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_clusters.html" target="_blank" rel="noreferrer noopener"> ECS集群</a>是一组(容器)实例(或者Fargate中的任务)，它们位于一个区域内，但是可以跨越多个可用性区域。ECS处理调度、维护和处理对这些实例的扩展请求的逻辑。它还消除了根据您的CPU和内存需求寻找每个任务的最佳位置的工作。一个集群可以运行许多服务。如果您的产品中有多个应用程序，您可能希望将其中几个放在一个集群中。这有效地利用了可用资源，并最大限度地减少了设置时间。</p>
+  </li>
+  <li>
+    <p><strong>容器实例</strong>:这是一个运行Amazon ECS容器代理的Amazon弹性计算云(EC2)实例。它有一个明确定义的<a href="http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UsingIAM.html" target="_blank" rel="noreferrer noopener"> IAM策略</a>和<a href="http://docs.aws.amazon.com/AmazonECS/latest/developerguide/instance_IAM_role.html" target="_blank" rel="noreferrer noopener">角色</a>，并且已经注册到一个集群。当您使用Amazon ECS运行任务时，您的任务(使用EC2启动类型)被放置在您的活动容器实例中。</p>
+  </li>
+  <li>
+    <p>CircleCI orb:orb是circle ci配置的包，可以跨项目共享。orb允许您创建一个作业、命令和执行器的捆绑包，它们可以相互引用，可以导入到CircleCI构建配置中，并在它们自己的名称空间中调用。</p>
+  </li>
+</ul>
+
+<h2>一个简单的围棋程序</h2>
+
+<p>以下是我们项目的目录结构:</p>
+
+<pre><code>.
+├── .circleci
+│   └── config.yml
+├── Dockerfile
+├── README.md
+├── ecs-service.json
+├── main.go
+└── task-definition.json
+
+1 directory, 6 files
+</code></pre>
+<p>完整的申请可在本<a href="https://github.com/daumie/circleci-ecs" target="_blank" rel="noreferrer noopener">报告</a>中找到。要跟进，在您的终端中将它克隆到所需的位置:</p>
+<pre><code class="language-bash">$ git clone https://github.com/daumie/circleci-ecs.git
+</code></pre>
+<p>如果你只对Dockerfile感兴趣，你可以在这里找到<a href="https://gist.github.com/daumie/43317089caa48938fd6dab4fa2bc0193" target="_blank" rel="noreferrer noopener"/>。Go应用的<code>main.go</code>文件可以在这里<a href="https://gist.github.com/daumie/6a1ee46a99e31a3e1fceaaecd17ac352" target="_blank" rel="noreferrer noopener">找到。</a></p>
+
+<p>让我们把它们放在一起。首先，创建并激活一个<a href="https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/" target="_blank" rel="noreferrer noopener"> AWS账户</a>。然后，在本地机器上安装并配置<a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html" target="_blank" rel="noreferrer noopener"> AWS CLI </a>。我们将使用它从命令行界面与AWS进行交互。</p>
+
+<p>接下来，我们将使用创建AWS帐户时自动创建的默认虚拟私有云(VPC)。如果它不可用，您可以通过运行以下命令来创建默认VPC:</p>
+<pre><code class="language-bash">$ aws ec2 create-default-vpc
+</code></pre>
+<p>通过运行以下命令，确认我们有一个可以使用的VPC:</p>
+<pre><code class="language-bash">$ aws ec2 describe-vpcs
+</code></pre>
+<p>在确认我们有一个默认的VPC后，让我们创建一个稍后将使用的安全组:</p>
+<pre><code class="language-bash">$ aws ec2 create-security-group --group-name circleci-demo-sg --description "Circle CI Demo Security Group"
+</code></pre>
+<p>接下来，我们将<a href="https://docs.aws.amazon.com/AmazonECS/latest/userguide/create_cluster.html" target="_blank" rel="noreferrer noopener">创建一个ECS集群</a>和相关的EC2实例。我们将称这个集群为<code>circleci-demo-cluster</code>。我们需要附加我们在前面创建的<code>circleci-demo-sg</code>安全组。</p>
+<ul>
+  <li><strong>集群名称</strong> : <code>circleci-demo-cluster</code></li>
+  <li><strong> EC2实例类型</strong> : t2.medium</li>
+  <li><strong>联网</strong>:对其所有子网使用默认VPC</li>
+  <li>安全组 : (circleci-demo-sg)您将使用它的id</li>
+  <li><strong>容器实例IAM角色</strong> : ecsInstanceRole</li>
+</ul>
+
+<p><img src="../Images/ab602518d3f935f0e62d5acc5340a24b.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565095543505_image.png"/></p>
+
+<p>等待几分钟，然后确认容器实例已经成功注册到<code>circleci-demo-cluster</code>。您可以通过单击<strong> Clusters/my-cluster </strong>下的<strong> ECS Instances </strong>选项卡进行确认。<img src="../Images/d09f54d0c7d2e4d02056f1741c5865b3.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565095805445_image.png"/></p>
+
+<h3>创建应用程序映像并将其推送到AWS ECR</h3>
+
+<p>在本地创建Docker映像，并将其推送到ECR:</p>
+<pre><code class="language-bash">$ docker build -t circleci-ecs:v1 .
+
+Step 1/14 : FROM golang:latest as builder
+ ---&gt; be63d15101cb
+...
+</code></pre>
+
+<p>按照以下说明在ECR上创建一个图像存储库。将其命名为<code>circleci-demo</code>:</p>
+
+<p><img src="../Images/609f37b117eb6f5b849fa21dcc9bff04.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565096692867_image.png"/></p>
+
+<p>AWS帐户有唯一的ID。适当修改以下命令中的<strong> 634223907656 </strong>。获得存储库名称后，我们现在可以相应地标记图像:</p>
+<pre><code class="language-bash">$ docker tag circleci-ecs:v1 634223907656.dkr.ecr.eu-west-2.amazonaws.com/circleci-demo:latest
+</code></pre>
+<p>您可以使用credential helper对Docker CLI的AWS ECR存储库进行身份验证。让我们使用下面的命令进行身份验证(根据需要更改区域)。</p>
+<pre><code>$ aws ecr get-login --no-include-email --region eu-west-2 | bash
+</code></pre>
+<p>然后，将映像推送到ECR存储库:</p>
+
+<pre><code class="language-bash">$ docker push 634223907656.dkr.ecr.eu-west-2.amazonaws.com/circleci-demo:latest
+</code></pre>
+
+<p>现在我们在ECR注册中心有了一个映像，我们需要一个任务定义，它将成为我们启动Go应用程序的蓝图。项目根目录中的<code>task-definition.json</code>文件包含以下几行代码:</p>
+<pre><code class="language-json">{
+    "family": "circleci-demo-service",
+    "containerDefinitions": [
+        {
+            "name": "circleci-demo-service",
+            "image": "634223907656.dkr.ecr.eu-west-2.amazonaws.com/circleci-demo:latest",
+            "cpu": 128,
+            "memoryReservation": 128,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "command": [
+                "./main"
+            ],
+            "essential": true
+        }
+    ]
+}
+</code></pre>
+
+<p><strong>注意</strong> : <i>记得把<code>image</code>改成你推到ECR的那个。</i></p>
+
+<p>让我们从命令行界面使用以下命令注册任务定义:</p>
+
+<pre><code class="language-bash">$ aws ecs register-task-definition --cli-input-json file://task-definition.json
+</code></pre>
+<p>确认任务定义已在ECS控制台中成功注册:</p>
+
+<p><img src="../Images/e469eaea1d702fde6b61231135efa6da.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565101893486_image.png"/></p>
+
+<h3>创建一个ELB和一个目标组，以便以后与我们的ECS服务关联</h3>
+
+<p>我们正在创建一个ELB，因为我们最终想要跨多个容器负载平衡请求，并且我们还想要将我们的Go应用程序公开到互联网上进行测试。为此，我们将使用AWS控制台。进入<strong> EC2控制台</strong> &gt; <strong>负载均衡</strong> &gt; <strong>负载均衡器</strong>，点击<strong>创建负载均衡器</strong>，选择<strong>应用负载均衡器</strong>。</p>
+
+<h4>配置负载平衡器</h4>
+<ul>
+  <li>将其命名为<code>circleci-demo-elb</code>，选择面向互联网。</li>
+  <li>在侦听器下，使用带有HTTP协议和端口80的默认侦听器。</li>
+  <li>在“可用性区域”下，选择在群集创建期间使用的VPC，并选择所需的子网。</li>
+</ul>
+
+<h4>配置安全设置</h4>
+<ul>
+  <li>跳过警告，因为我们不会使用SSL。</li>
+</ul>
+
+<h4>配置安全组</h4>
+<ul>
+  <li>创建一个名为<code>circleci-demo-elb-sg</code>的新安全组，打开端口80和source <code>0.0.0.0/0</code>，这样外界的任何东西都可以通过端口80访问ELB。</li>
+</ul>
+
+<h4>配置路由</h4>
+<ul>
+  <li>使用端口80创建一个名为<code>circleci-demo-target-group</code>的新目标组。</li>
+</ul>
+
+<h4>注册目标</h4>
+<ul>
+  <li>通过选择ECS实例注册现有目标。<img src="../Images/bd30a1ab785b11b4d82277beae3e3969.png" alt="" srcset="https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/Screen-Shot-2019-09-11-at-2.17.01-PM.png"/></li>
+</ul>
+
+<h4>回顾</h4>
+<ul>
+  <li>查看负载平衡器的详细信息<img src="../Images/b22d216bd2a6bf86076432dfe6c487bf.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565102897955_image.png"/></li>
+</ul>
+
+<p><code>circleci-demo-elb-sg</code>安全组向外界开放<code>circleci-demo-elb</code>负载平衡器的端口80。现在，我们需要确保与ECS实例相关联的<code>circleci-demo-sg</code>安全组允许来自负载平衡器的流量。要允许所有ELB流量到达容器实例，请运行以下命令:</p>
+
+<pre><code class="language-bash">$ aws ec2 authorize-security-group-ingress --group-name circleci-demo-sg --protocol tcp --port 1-65535 --source-group circleci-demo-elb-sg
+</code></pre>
+<p>确认已通过EC2控制台将规则添加到安全组:</p>
+
+<p><img src="../Images/7e7daac8a0dba6f11cc3bede9545ab24.png" alt="inbound rules" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565103718064_image.png"/> <br/></p>
+
+<p><img src="../Images/2971b4d0ad1895d1871597896bacbe55.png" alt="outbound rules" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565103779907_image.png"/> <br/></p>
+
+<p>使用这些安全组规则:</p>
+
+<ul>
+  <li>只有ELB的80号港口对外界开放。</li>
+  <li>允许从ELB到带有<code>circleci-demo-target-group</code>组的容器实例的任何流量。</li>
+</ul>
+
+<h4>创建服务</h4>
+<p>下一步是创建一个运行<code>circleci-demo-service</code>任务定义(在<code>task-definition.json</code>文件中定义)的服务。我们的<code>ecs-service.json</code>文件在我们项目的根目录下有这几行代码:</p>
+
+<pre><code class="language-json">{
+    "cluster": "circleci-demo-cluster",
+    "serviceName": "circleci-demo-service",
+    "taskDefinition": "circleci-demo-service",
+    "loadBalancers": [
+        {
+            "targetGroupArn": "arn:aws:elasticloadbalancing:eu-west-2:634223907656:targetgroup/circleci-demo-target-group/a5a0f047c845fcbb",
+            "containerName": "circleci-demo-service",
+            "containerPort": 8080
+        }
+    ],
+    "desiredCount": 1,
+    "role": "ecsServiceRole"
+}
+</code></pre>
+
+<p>要找到创建<code>circleci-demo-elb</code>负载平衡器时创建的<code>targetGroupArn</code>，请转到<strong> EC2控制台</strong> &gt; <strong>负载平衡</strong> &gt; <strong>目标组</strong>并单击<code>circleci-demo-target-group</code>。复制并替换<code>ecs-service.json</code>文件中<code>targetGroupArn</code>的文件。</p>
+
+<p>现在，创建<code>circleci-demo-service</code> ECS服务:</p>
+<pre><code class="language-bash">$ aws ecs create-service --cli-input-json file://ecs-service.json
+</code></pre>
+<p>从ECS控制台进入<strong>集群</strong>&gt;<strong>circle ci-demo-cluster</strong>&gt;<strong>circle ci-demo-service</strong>并查看<strong>任务</strong>选项卡。确认容器正在运行:</p>
+
+<p><img src="../Images/a89824c6003d1c07b3f3eced43fbec94.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565105791673_image.png"/> <br/></p>
+
+<h4>测试一切是否正常</h4>
+<p>使用curl验证ELB公开可用的DNS端点:</p>
+
+<pre><code class="language-bash">$ curl circleci-demo-elb-129747675.eu-west-2.elb.amazonaws.com; echo
+    
+Hello World!
+</code></pre>
+<p><img src="../Images/fd5dc19ef14214c6b85e47fc61922e39.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565106080458_image.png"/> <br/></p>
+
+<p>同样可以通过浏览器确认:</p>
+
+<p><img src="../Images/54ee3cfabfc95d0de77bbe396237073a.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565108541834_image.png"/></p>
+
+<h2>配置CircleCI来构建、测试和部署</h2>
+
+<p>在成功地将我们的Go应用程序部署到ECS之后，我们现在想要在每次更新时重新部署该应用程序。通过使用<a href="https://circleci.com/developer/orbs/orb/circleci/aws-ecs"> CircleCi orbs </a>，我们将通过将预先构建的命令、作业和执行器导入到我们的配置文件中来节省大量时间。这也将通过消除AWS部署所需的大量bash脚本来大大减少我们配置中的代码行。我们将使用<code>orbs</code>键调用这个项目中的以下orb:</p>
+
+<ul>
+  <li><code>circleci/aws-ecr@6.2.0</code>:一个orb，用于与Amazon的ECR一起构建、推送和更新图像</li>
+  <li><code>circleci/aws-ecs@0.0.11</code>:一个orb，用于与Amazon的ECS一起工作，将更新后的映像部署到之前创建的集群中</li>
+</ul>
+
+<p>orb由以下元素组成:</p>
+<ul>
+  <li>命令</li>
+  <li>作业:一组可执行的命令或步骤</li>
+  <li>执行者:它们定义了一个作业的步骤将在其中运行的环境，例如Docker、Machine、macOS等。除了该环境的任何其他参数</li>
+</ul>
+
+<p>要使用CircleCI，我们需要一个配置文件，CircleCI将使用它来安排构建、测试和部署操作。对于这个项目，<code>config.yml</code>文件包含以下代码行:</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  aws-ecr: circleci/aws-ecr@6.2.0
+  aws-ecs: circleci/aws-ecs@0.0.11
+
+workflows:
+# Log into AWS, build and push image to Amazon ECR
+  build_and_push_image:
+    jobs:
+      - aws-ecr/build-and-push-image:
+          account-url: AWS_ECR_ACCOUNT_URL
+          aws-access-key-id: AWS_ACCESS_KEY_ID
+          aws-secret-access-key: AWS_SECRET_ACCESS_KEY
+          create-repo: true
+          # Name of dockerfile to use. Defaults to Dockerfile.
+          dockerfile: Dockerfile
+          # AWS_REGION_ENV_VAR_NAME
+          region: AWS_DEFAULT_REGION
+          # myECRRepository
+          repo: '${MY_APP_PREFIX}'
+          # myECRRepoTag
+          tag: "$CIRCLE_SHA1"
+      - aws-ecs/deploy-service-update:
+          requires:
+            - aws-ecr/build-and-push-image
+          aws-region: AWS_DEFAULT_REGION
+          family: '${MY_APP_PREFIX}-service'
+          cluster-name: '${MY_APP_PREFIX}-cluster'
+          container-image-name-updates: 'container=${MY_APP_PREFIX}-service,tag=${CIRCLE_SHA1}'
+</code></pre>
+
+<p>我们将使用GitHub和CircleCI。如果您没有CircleCI帐户，请创建一个circle ci帐户。注册GitHub。从CircleCI仪表板点击<strong>添加项目</strong>，从显示的列表中添加项目。</p>
+
+<p>添加以下环境变量:</p>
+<ul>
+  <li>AWS_ACCESS_KEY_ID</li>
+  <li>AWS_SECRET_ACCESS_KEY</li>
+  <li>AWS _默认_区域</li>
+  <li>AWS_ECR_ACCOUNT_URL(本例中为“634223907656 . dkr . ECR . eu-west-2 . Amazon AWS . com”)</li>
+  <li>MY_APP_PREFIX(本例中为“circle ci-demo”)<br/><img src="../Images/c980302325cf27aba0997f8fa6a20ca6.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565107368054_image.png"/><br/></li>
+</ul>
+
+<p>让我们在<code>main.go</code>文件中修改这一行:</p>
+
+<pre><code>html := "Hello World!" 
+</code></pre>
+<p>到</p>
+<pre><code>html := "Hello World! Now updated with CircleCI"
+</code></pre>
+<p>将您的更改提交并推送到GitHub。</p>
+
+<p>您可以通过运行以下命令来确认从终端应用了更改:</p>
+
+<pre><code>$ curl circleci-demo-elb-129747675.eu-west-2.elb.amazonaws.com ; echo
+    
+Hello World! Now updated with CircleCI
+</code></pre>
+<p>从浏览器中也可以确认这一点:</p>
+
+<p><img src="../Images/2a41a84a821fe10509a3d972b6ff2bb5.png" alt="" data-original-src="https://paper-attachments.dropbox.com/s_C36EAF43D7B0D010F217BC2B07B69848C659FC95376E80C6371BB2297FC32D63_1565108018104_image.png"/></p>
+
+<h2>结论</h2>
+
+<p>我们已经构建了一个简单的GO应用程序，并将其部署到ECR。现在，我们可以向应用程序添加测试，以确保在更新ECS实例之前通过这些测试。虽然本教程使用了一个基本的应用程序，但这是一个成熟的部署管道，适用于许多现实情况。</p>
+
+<p>此外，使用CircleCI orbs通过简化我们编写CircleCI配置的方式提高了生产率。orb也可以共享，这通过在我们的配置文件中反复使用预构建的命令、作业和执行器来节省时间。orb不限于CircleCI + ECS部署。您可以浏览<a href="https://circleci.com/developer/orbs" target="_blank" rel="noreferrer noopener"> Orb注册表</a>中可用Orb的完整列表，找到符合您选择的云平台、编程语言等的Orb。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Dominic Motuka是Andela 的DevOps工程师，在AWS和GCP支持、自动化和优化生产就绪部署方面拥有4年多的实践经验，利用配置管理、CI/CD和DevOps流程。</p>
+
+            <p><a href="/blog/author/dominic-motuka/" class="arrow-link">阅读多米尼克·莫图卡的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

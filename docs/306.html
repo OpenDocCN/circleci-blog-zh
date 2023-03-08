@@ -1,0 +1,73 @@
+<html>
+<head>
+<title>Getting Started with Cucumber on CircleCI - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CircleCI - CircleCI上的黄瓜入门</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/getting-started-with-cucumber-on-circleci/#2017-03-14T08:26:00-07:00">https://circleci.com/blog/getting-started-with-cucumber-on-circleci/#2017-03-14T08:26:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p><img src="../Images/0e00bac053a2f552019f301362a7e675.png" alt="cucumber-logo.png" target="_blank" rel="noreferrer noopener" srcset="https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/cucumber-logo.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/cucumber-logo.png"/></p>
+
+<p>Cucumber是一个行为驱动开发(BDD)工具，用于开发web应用程序的验收测试。出于本文的目的，我将假设您的CircleCI设置运行顺利，并将重点放在【Cucumber是什么，如何很好地使用它，以及如何将其与您的CircleCI设置集成。</p>
+
+
+
+<h2>黄瓜到底是什么？</h2>
+<p>Cucumber是一个BDD工具，你可以用它来验证你的应用程序的功能。cumber测试是用一种叫做“<a href="https://github.com/cucumber/cucumber/wiki/Gherkin" target="_blank" rel="noreferrer noopener"> Gherkin </a>的语言编写的，它用一种自然的、类似语言的语法来表达期望的行为和软件的预期结果。BDD不同于传统的自动化测试，因为测试既不是代码级的单元测试，也不是与UI交互的应用程序级脚本。BDD测试表达了测试的一组先决条件，然后表达了测试本身，然后是预期的结果。结合一些文档(可以很容易地以一种小黄瓜友好的方式格式化)，一组Cucumber BDD测试也可以作为一组全面的文档，供产品所有者或开发人员/QA人员在将来审查。对于主要语言不是英语的团队，小黄瓜支持<a href="https://docs.behat.org/en/v2.5/guides/1.gherkin.html#gherkin-in-many-languages/" target="_blank" rel="noreferrer noopener">多种语言</a>。</p>
+
+<h2>当时给定的</h2>
+<p>黄瓜测试的基本结构是“给定-何时-然后”格式。</p>
+
+<p>“给定”是测试的设置。您可以使用GIVEN来设置测试所需的数据类型。您使用GIVEN来设置状态。</p>
+
+<p>“何时”是测试的动作。WHEN描述了您希望针对在测试的给定部分中设置的状态执行的操作。</p>
+
+<p>“然后”是预期的结果。你用THEN来陈述你希望测试的结果是什么。</p>
+
+<p>请注意，GIVEN、WHEN和THEN都支持使用“and”关键字的多个步骤。这里有一个例子:</p>
+<ul>
+  <li>鉴于简有活跃的档案</li>
+  <li>她的资料显示萨姆是她的朋友</li>
+  <li>她的档案里没有朋友比尔</li>
+  <li>当她输入新的公共状态更新时</li>
+  <li>然后，Sam应该会看到她新的公共状态更新</li>
+  <li>比尔应该看不到她新的公开状态更新</li>
+</ul>
+
+<h2>功能和场景</h2>
+<p>一大堆“给定时间”的步骤很快就会变得笨拙。Gherkin提供了一种将测试组织成特性和场景的方法。一个特性是一个高层次的类别，它很好地映射到一个用户故事或者你的团队用于基本开发单元的任何东西。一个特性由一个或多个场景组成，一个场景由给定的When Then步骤组成。(上面的给定时间示例是一个场景。)你可以把一个场景想象成一个测试用例，把一个特性想象成一组逻辑测试用例。</p>
+
+<h2>步骤定义和挂钩</h2>
+<p>该工具需要一些后端编码，以便正确运行其测试。Given-When-Then中的每一步都需要一个步骤定义才能执行。您可以使用与您的步骤相匹配的正则表达式，以及当正则表达式匹配时要执行的Ruby代码块来设置步骤定义。步骤定义可以跨场景重用。</p>
+
+<p>钩子是您在测试运行之前和之后设置和拆除测试状态的方式，特别是为了保持测试数据库的良好状态。</p>
+
+<h2>与CircleCI集成</h2>
+<p>将您的黄瓜测试与CircleCI集成非常简单。Cucumber有一些用于测试结果输出的格式化程序插件。使用JUnit格式化程序并配置Cucumber输出到<code>$CIRCLE_TEST_REPORTS/cucumber</code>目录。<a href="https://circleci.com/docs/test-metadata/#cucumber" target="_blank" rel="noreferrer noopener"> CircleCI文档页面</a>建议将以下YAML添加到您的circle.yml:</p>
+
+<pre><code class="language-YAML">test:
+  override:
+    - mkdir -p $CIRCLE_TEST_REPORTS/cucumber
+    - bundle exec cucumber --format junit --out $CIRCLE_TEST_REPORTS/cucumber/junit.xml
+</code></pre>
+
+<p>很简单。如果您喜欢JSON格式化程序，文档页面还显示了如何配置circle.yml文件。</p>
+
+<p>这个配置允许CircleCI查看您的黄瓜测试是通过还是失败，并且您可以配置CircleCI如何响应失败的黄瓜测试。</p>
+
+<p>Cucumber是一个强大的工具，用来表达软件系统的期望行为，并将其集成到CircleCI构建中，可以为您的开发过程带来很多价值。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

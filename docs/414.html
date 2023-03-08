@@ -1,0 +1,87 @@
+<html>
+<head>
+<title>Level up go test with gotestsum - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>用gotestsum - CircleCI升级go测试</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/level-up-go-test-with-gotestsum/#2018-10-10T09:00:00-07:00">https://circleci.com/blog/level-up-go-test-with-gotestsum/#2018-10-10T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>嘿地鼠们！</p>
+
+<p>Go (Golang)的众多优点之一是运行测试非常简单。有了我们在Go v1.11 中看到的<a href="https://circleci.com/blog/go-v1.11-modules-and-circleci/">变化，运行测试就像:</a></p>
+
+<pre><code class="language-Bash"># To test only your current module
+go test ./...
+
+# To test your module as well as its direct and indirect dependencies
+go test all
+</code></pre>
+
+<p>在这篇文章中，我将向你展示如何让<code>go test</code>的输出对本地开发和CircleCI更有用。</p>
+
+
+
+<h2>gotestsum</h2>
+
+<p><code>gotestsum</code>是一个用Go编写的<a href="https://en.wikipedia.org/wiki/Command-line_interface"> CLI </a>工具，为你运行<code>go test</code>。它提高了产量，使它更可口。正如其<a href="https://github.com/gotestyourself/gotestsum"> GitHub库</a>上所描述的，它“运行测试，并打印友好的测试输出和测试运行的摘要。”</p>
+
+<p>它看起来是这样的:</p>
+
+<p><img src="../Images/b84945c75a80883d3ceebf61ce88dd50.png" alt="" data-original-src="https://circleci.com/blog/media/gotestsum-demo.gif"/></p>
+
+<p>这对于本地开发来说很酷，但是将它用于持续集成怎么样呢？</p>
+
+<h2>CircleCI / JUnit支持</h2>
+
+<p>大多数CI提供者支持以JUnit格式保存测试结果。CI提供者用它做什么可以有所不同，但是这通常意味着访问历史测试数据、很酷的图表等。CircleCI支持<a href="https://circleci.com/docs/collect-test-data/">收集测试元数据</a>，只要它是JUnit格式的。由于<code>go test</code>本身没有以JUnit格式输出，我们将使用<code>gotestsum</code>来完成这项工作。</p>
+
+<pre><code>gotestsum --junitfile unit-tests.xml
+</code></pre>
+
+<p>上面的命令将以JUnit格式输出您的测试结果。然后，您可以通过您的CircleCI <code>config.xml</code>文件告诉CircleCI使用该文件作为测试元数据。</p>
+
+<pre><code>    - store_test_results:
+        path: /tmp/test-results
+</code></pre>
+
+<h2>安装gotestsum</h2>
+
+<h3>要求</h3>
+
+
+
+<p><a name="installing-locally" class="deep-link-anchor"/></p>
+<h3>本地安装</h3>
+
+<p>与大多数Go应用程序一样，运行<code>gotestsum</code>可以像在<code>$PATH</code>上放置二进制文件一样简单:</p>
+
+<pre><code>curl -sSL "https://github.com/gotestyourself/gotestsum/releases/download/v0.3.1/gotestsum_0.3.1_linux_amd64.tar.gz" | sudo tar -xz -C /usr/local/bin gotestsum 
+</code></pre>
+
+<p>上面的命令安装了<code>gotestsum</code>的v0.3.1，这是本文撰写时的最新版本。如果有新版本，请更新URL中的版本号。对于macOS用户，您也可以将URL中的<code>linux</code>替换为<code>darwin</code>。可用的二进制包适用于64位x86系统。请参阅下一节来编译您自己的代码。</p>
+
+<h3>编译二进制文件</h3>
+
+<p>如果您有32位系统、ARM或其他需求，以下是编译和安装自定义二进制文件的方法:</p>
+
+<pre><code>go get -u gotest.tools/gotestsum
+</code></pre>
+
+<h3>安装在CircleCI上</h3>
+
+<p>如果你使用的是<a href="https://hub.docker.com/r/circleci/golang/"> Golang CircleCI Docker便利镜像</a> ( <code>circleci/golang</code>)，那么恭喜你，<code>gotestsum</code>已经为你预装了！如果没有，我建议遵循<a href="#installing-locally">本地安装</a>指令，并将其应用到您的CircleCI <code>config.yml</code>文件中，或者对于自定义映像，应用到docker文件中。</p>
+
+<p><code>gotestsum</code>是由CircleCI的工程师<a href="https://github.com/dnephin">丹尼尔·内芬</a>维护的项目。</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

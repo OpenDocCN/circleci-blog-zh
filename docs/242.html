@@ -1,0 +1,588 @@
+<html>
+<head>
+<title>Deploy a serverless workload on Kubernetes using Knative and ArgoCD | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用Knative和ArgoCD | CircleCI在Kubernetes上部署无服务器工作负载</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/deploy-serverless-workload-with-knative/#2022-10-14T09:00:00-07:00">https://circleci.com/blog/deploy-serverless-workload-with-knative/#2022-10-14T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>设置Knative和ArgoCD</li>
+    <li>监控和访问示例应用程序</li>
+    <li>创建一个管道，在Kubernetes集群上持续部署您的无服务器工作负载</li>
+  </ol>
+</blockquote>
+
+<p>容器和微服务彻底改变了应用程序在云上的部署方式。自2014年推出以来，<a href="https://kubernetes.io/" target="_blank" rel="noreferrer noopener"> Kubernetes </a>已经成为容器编排的标准工具。它提供了一组原语来运行弹性的分布式应用程序。</p>
+
+<p>开发人员面临的一个主要困难是能够更多地关注代码的细节，而不是代码的基础设施。无服务器的计算方法是解决这个问题的有效方法。</p>
+
+<p>无服务器允许通过抽象底层基础设施来运行事件驱动的功能。与传统的平台即服务(PaaS)相比，无服务器允许您的开发团队专注于服务的功能。基础设施问题，如扩展和容错，不再是一个障碍。</p>
+
+<p>Knative是一个开源的企业级解决方案，用于构建无服务器和事件驱动的应用程序。它的组件可以用来在Kubernetes上构建和部署无服务器应用程序。Knative最初由Google开发，现在有来自IBM、Red Hat和VMWare的贡献者。</p>
+
+<p>ArgoCD 是一个Kubernetes-native连续部署(CD)工具。它通过从Git存储库中提取代码更改，直接将代码更改部署到Kubernetes资源中。ArgoCD遵循GitOps模式，不像某些外部CD解决方案那样只能支持基于推送的部署。该工具使开发人员能够从一个统一的平台控制应用程序更新和基础架构设置。</p>
+
+<p>在本教程中，您将学习如何使用<a href="https://circleci.com/signup"> CircleCI </a>和<a href="https://argoproj.github.io/cd/" target="_blank" rel="noreferrer noopener"> ArgoCD </a>在<a href="https://azure.microsoft.com/en-us/services/kubernetes-service/#overview" target="_blank" rel="noreferrer noopener"> Azure Kubernetes服务</a> (AKS)上使用<a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/" target="_blank" rel="noreferrer noopener"> Knative </a>部署一个<a href="https://nodejs.org/" target="_blank" rel="noreferrer noopener"> Node.js </a>应用程序作为无服务器工作负载。您将使用<a href="https://circleci.com/orbs/"> CircleCI orbs </a>创建一个持续集成管道，这些orbs是YAML配置的可重用包，将重复的配置片段压缩到一行代码中。当您在<a href="https://github.com/" target="_blank" rel="noreferrer noopener"> GitHub </a>库中推送代码时，管道被触发。结果是一个自动管道，触发ArgoCD在Kubernetes集群上部署最新版本的应用程序。</p>
+
+<h2>先决条件</h2>
+
+<p>要完成本教程，您需要:</p>
+
+
+
+<p>在你准备好这些东西之后，你就可以进入下一部分了。</p>
+
+<h2>克隆Node.js应用程序</h2>
+
+<p>在本教程中，我们主要关注在Kubernetes上部署应用程序。为了节省时间，您可以直接<a href="https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository" target="_blank" rel="noreferrer noopener">将<a href="https://github.com/Lucifergene/nodejs-knative-argocd" target="_blank" rel="noreferrer noopener"> Node.js应用程序</a>克隆</a>到您的GitHub，并继续剩余的过程。</p>
+
+<p>要克隆项目，请运行:</p>
+
+<pre><code class="language-bash">git clone https://github.com/CIRCLECI-GWP/nodejs-knative-argocd.git
+</code></pre>
+
+<p>该存储库中有两个分支:</p>
+
+<ul>
+  <li><code>main</code>分支只包含Node.js应用程序代码。</li>
+  <li><code>circleci-project-setup</code>分支包含应用程序代码，以及您将在本教程中创建的所有YAML文件。</li>
+</ul>
+
+<p>检查到<code>main</code>分支。</p>
+
+<p>Node.js应用程序位于<code>app.js</code>文件中:</p>
+
+<pre><code class="language-js">const express = require("express");
+const path = require("path");
+const morgan = require("morgan");
+const bodyParser = require("body-parser");
+/* eslint-disable no-console */
+const port = process.env.PORT || 1337;
+const app = express();
+app.use(morgan("dev"));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: "true" }));
+app.use(bodyParser.json({ type: "application/vnd.api+json" }));
+app.use(express.static(path.join(__dirname, "./")));
+app.get("*", (req, res) =&gt; {
+  res.sendFile(path.join(__dirname, "./index.html"));
+});
+app.listen(port, (err) =&gt; {
+  if (err) {
+    console.log(err);
+  } else {
+    console.log(`App at: http://localhost:${port}`);
+  }
+});
+module.exports = app;
+</code></pre>
+
+<p>这段代码的关键是应用程序将要运行的<code>port number</code>。这种情况下就是<code>1337</code>。</p>
+
+<p>通过首先安装依赖项，您可以在本地运行应用程序。在项目的根目录中，键入:</p>
+
+<pre><code class="language-bash">npm install
+</code></pre>
+
+<p>然后使用以下命令运行应用程序:</p>
+
+<pre><code class="language-bash">node app.js
+</code></pre>
+
+<p>应用程序现在应该在地址<code>http://localhost:1337</code>启动并运行。</p>
+
+<h2>容器化Node.js应用程序</h2>
+
+<p>将应用程序部署到Kubernetes的第一步是将其容器化。使用Docker作为容器运行时工具的容器化应用程序要求您创建一个<a href="https://docs.docker.com/engine/reference/builder/" target="_blank" rel="noreferrer noopener"> Dockerfile </a>。Dockerfile是一个文本文档，它包含用户可以在命令行上调用的所有命令来组合一个图像。</p>
+
+<p>在项目的根目录下创建一个新文件，命名为<code>Dockerfile</code>。将此内容复制到文件:</p>
+
+<pre><code class="language-Dockerfile"># Set the base image to use for subsequent instructions
+FROM node:alpine
+# Set the working directory for any subsequent ADD, COPY, CMD, ENTRYPOINT,
+# or RUN instructions that follow it in the Dockerfile
+WORKDIR /usr/src/app
+# Copy files or folders from source to the dest path in the image's filesystem.
+COPY package.json /usr/src/app/
+COPY . /usr/src/app/
+# Execute any commands on top of the current image as a new layer and commit the results.
+RUN npm install --production
+# Define the network ports that this container will listen to at runtime.
+EXPOSE 1337
+# Configure the container to be run as an executable.
+ENTRYPOINT ["npm", "start"]
+</code></pre>
+
+<p>如果您已经安装了<a href="https://docs.docker.com/get-docker/" target="_blank" rel="noreferrer noopener"> Docker </a>，那么您可以在本地构建并运行容器进行测试。在本教程的后面，你将学习如何使用CircleCI orbs来自动化这个过程。</p>
+
+<p>要构建和标记容器，您可以键入:</p>
+
+<pre><code class="language-bash">docker build -t nodejs-knative-argocd:latest .
+</code></pre>
+
+<p>通过从终端运行以下命令，确认映像已成功创建:</p>
+
+<pre><code class="language-bash">docker images
+</code></pre>
+
+<p>然后使用以下命令运行容器:</p>
+
+<pre><code class="language-bash">docker run -it -p 1337:1337 nodejs-knative-argocd:latest
+</code></pre>
+
+<p>应用程序现在应该在地址<code>http://127.0.0.1:1337</code>启动并运行。</p>
+
+<p>提交并<a href="https://circleci.com/blog/pushing-a-project-to-github/">推送</a>对GitHub库的更改。</p>
+
+<h2>配置Knative服务清单</h2>
+
+<p>在Knative中，<a href="https://knative.dev/docs/serving/services/" target="_blank" rel="noreferrer noopener">服务</a>用于部署应用程序。要使用Knative创建应用程序，您必须创建一个定义服务的<a href="https://yaml.org/" target="_blank" rel="noreferrer noopener"> YAML </a>文件。该YAML文件指定关于应用程序的元数据，指向应用程序的托管图像，并允许配置服务。</p>
+
+<p>在项目的根目录下创建一个名为<code>knative</code>的目录。然后，在新目录下创建一个新文件，并将其命名为<code>service.yaml</code>。</p>
+
+<p><code>service.yaml</code>的内容是:</p>
+
+<pre><code class="language-yaml">apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  name: nodejs-knative-argocd
+spec:
+  template:
+    metadata:
+      creationTimestamp: null
+      name: nodejs-knative-argocd
+    spec:
+      containerConcurrency: 0
+      containers:
+        - image: docker.io/avik6028/nodejs-knative-argocd:latest
+          name: user-container
+          ports:
+            - containerPort: 1337
+              protocol: TCP
+          readinessProbe:
+            successThreshold: 1
+            tcpSocket:
+              port: 0
+          resources: {}
+      enableServiceLinks: false
+      timeoutSeconds: 300
+status: {}
+</code></pre>
+
+<p>这个代码块的关键是<code>spec.template.metadata.name</code>和<code>spec.template.spec.containers[0].image</code>。它们表示模板和容器映像的名称，将使用Knative在Kubernetes集群上进行提取和部署。在持续集成过程中，这些值将使用最新的容器图像信息进行更新。</p>
+
+<p>将这些文件提交并推入您之前克隆的GitHub存储库的<code>main</code>分支。</p>
+
+<h2>启动Azure Kubernetes服务(AKS)群集</h2>
+
+<p>在本教程中，您将学习在<a href="https://azure.microsoft.com/en-us/services/kubernetes-service/#overview" target="_blank" rel="noreferrer noopener"> AKS </a>集群上部署应用程序。要创建AKS群集，您应该在计算机上安装Microsoft Azure帐户和Azure CLI。<a href="https://docs.microsoft.com/en-us/cli/azure/authenticate-azure-cli">将CLI连接到你的Azure账户</a>。</p>
+
+<p>现在，您可以在Azure CLI的帮助下启动AKS集群。</p>
+
+<p>使用以下命令创建资源组:</p>
+
+<pre><code class="language-bash">az group create --name NodeRG --location eastus
+</code></pre>
+
+<p>启动双节点集群:</p>
+
+<pre><code class="language-bash">az aks create --resource-group NodeRG --name NodeCluster --node-count 2 --enable-addons http_application_routing
+</code></pre>
+
+<p><strong>注意:</strong> <i>如果您之前在系统中生成了任何SSH密钥，您需要在命令中添加可选参数<code>--generate-ssh-keys</code>。如果缺少SSH公钥和私钥文件，该参数将自动生成它们。密钥将存储在<code>~/.ssh</code>目录中。</i></p>
+
+<p>AKS群集将需要10到15分钟才能启动。</p>
+
+<h2>在Kubernetes集群中安装Knative</h2>
+
+<p>一旦集群启动并运行，您需要在集群内部安装Knative，使用它来部署您的无服务器工作负载。</p>
+
+<p>要安装该应用程序，请再次使用Azure CLI。</p>
+
+<p>使用以下命令配置<code>kubectl</code>连接到AKS:</p>
+
+<pre><code class="language-bash">az aks get-credentials --resource-group NodeRG --name NodeCluster
+</code></pre>
+<p>要安装Knative核心组件和自定义资源，请执行以下命令:</p>
+
+<pre><code class="language-bash">kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.7.1/serving-crds.yaml
+kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.7.1/serving-core.yaml
+</code></pre>
+
+<p>Knative还需要一个网络层来对外公开其服务。你需要安装<a href="https://github.com/knative-sandbox/net-kourier" target="_blank" rel="noreferrer noopener"> Kourier </a>，一个轻量级的Knative服务入口。</p>
+
+<pre><code class="language-bash">kubectl apply -f https://github.com/knative/net-kourier/releases/download/knative-v1.7.0/kourier.yaml
+</code></pre>
+
+<p>通过运行以下命令，将Knative Serving配置为默认使用Kourier:</p>
+
+<pre><code class="language-bash">kubectl patch configmap/config-network \
+  --namespace knative-serving \
+  --type merge \
+  --patch '{"data":{"ingress-class":"kourier.ingress.networking.knative.dev"}}'
+</code></pre>
+
+<p>您可以配置DNS，这样就不需要运行带有主机头的curl命令。Knative提供了一个名为<code>default-domain</code>的Kubernetes作业，该作业将Knative服务配置为使用<code>sslip.io</code>作为默认DNS后缀。</p>
+
+<pre><code class="language-bash">kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.7.1/serving-default-domain.yaml
+</code></pre>
+
+<p>一旦执行了这些命令，Knative将被安装在<code>knative-serving</code>名称空间中。要将所有资源放入命名空间:</p>
+
+<pre><code class="language-bash">kubectl get all --namespace knative-serving
+</code></pre>
+
+<h2>在AKS集群中安装ArgoCD</h2>
+
+<p>一旦集群启动并运行，您需要在集群内部安装ArgoCD，以使用它来部署您的应用程序。</p>
+
+<p>要安装ArgoCD，请输入:</p>
+<pre><code class="language-bash">kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+</code></pre>
+<p>当您执行这些命令时，argocd将安装在“ArgoCD”命名空间中。要将所有资源放入命名空间:</p>
+
+<pre><code class="language-bash">kubectl get all --namespace argocd
+</code></pre>
+<h3>公开ArgoCD API服务器</h3>
+
+<p>默认情况下，ArgoCD API服务器不会向外部IP公开。因为在本教程中您将从internet访问应用程序，所以您需要通过服务类型负载平衡器向ArgoCD服务器提供外部IP。</p>
+
+<p>将argocd-server服务类型更改为LoadBalancer:</p>
+
+<pre><code class="language-bash">kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+</code></pre>
+
+<p><strong>注意:</strong> <i>你也可以使用Kubectl端口转发来连接API服务器而不暴露服务。使用此命令:<code>kubectl port-forward svc/argocd-server -n argocd 8080:443</code> </i></p>
+
+<p>您现在可以使用<code>https://localhost:8080</code>访问API服务器。</p>
+
+<h2>访问ArgoCD门户网站</h2>
+
+<p>一旦使用外部IP公开了ArgoCD API服务器，就可以使用生成的外部IP地址访问门户。</p>
+
+<p>因为您在<code>argocd</code>名称空间中安装了ArgoCD，所以使用这个命令来获取该名称空间的所有资源:</p>
+
+<pre><code class="language-bash">kubectl get all --namespace argocd
+</code></pre>
+
+<p>复制<code>service/argocd-server</code>对应的<code>External-IP</code>。</p>
+
+<p><img src="../Images/867e92024f316048e302c83cd503752f.png" alt="External-IP" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-external-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-external-ip.png"/></p>
+
+<p>您可以在<code>http://&lt;EXTERNAL-IP&gt;</code>访问应用程序。<br/>我用了<code>http://52.146.29.61/</code>。</p>
+
+<p><img src="../Images/9c91623e8415f15d578f943263a432d0.png" alt="ArgoCD Application" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-argocd-application.png"/></p>
+
+<p>要登录门户，您需要用户名和密码。用户名默认设置为<code>admin</code>。</p>
+
+<p>要获取密码，请执行以下命令:</p>
+
+<pre><code class="language-bash">kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+</code></pre>
+<p>使用此用户名和密码组合登录ArgoCD门户网站。</p>
+
+<h2>为ArgoCD配置Kubernetes清单</h2>
+
+<p>要配置ArgoCD在Kubernetes上部署您的应用程序，您必须设置ArgoCD，使用<a href="https://yaml.org/" target="_blank" rel="noreferrer noopener"> YAML </a>进行配置，以声明的方式连接Git存储库和Kubernetes。</p>
+
+<p>除此之外，您还可以从Web门户或使用ArgoCD CLI设置ArgoCD。但是在本文中，我们试图遵循GitOps原则，Git存储库应该作为唯一的事实来源，通过YAML文件的声明性方法效果最好。</p>
+
+<p>ArgoCD的关键特性和功能之一是通过手动或自动策略将应用程序部署到Kubernetes集群。</p>
+
+<p>首先，在项目的根目录下创建一个名为<code>argocd</code>的目录。在新目录下创建一个新文件，命名为<code>config.yaml</code>。</p>
+
+<h3>手动同步策略</h3>
+<p>顾名思义，通过这个策略，您将能够通过CI/CD管道手动同步您的应用程序。无论何时进行代码更改，CI/CD管道都会被触发，并调用ArgoCD服务器API，根据您将提交的更改启动同步过程。要与ArgoCD服务器API通信，可以使用ArgoCD CLI。您也可以使用适用于各种编程语言的SDK之一。</p>
+
+<p>为ArgoCD设置手动同步策略，将其粘贴到<code>config.yaml</code>:</p>
+
+<pre><code class="language-yaml">apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nodejs-knative-argocd
+  namespace: argocd
+spec:
+  destination:
+    namespace: nodejs
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: knative
+    repoURL: 'https://github.com/CIRCLECI-GWP/nodejs-knative-argocd'
+    targetRevision: circleci-project-setup
+  project: default
+</code></pre>
+
+<h3>自动同步策略</h3>
+<p>ArgoCD能够在检测到Git中所需清单与集群中实时状态之间的差异时，自动同步应用程序。</p>
+
+<p>自动同步的一个好处是CI/CD管道不再需要直接访问ArgoCD API服务器来执行部署。取而代之的是，管道使用跟踪Git repo中的清单更改来提交和推送Git存储库。</p>
+
+<p>如果您想设置为自动同步策略，您需要将其粘贴到<code>config.yaml</code>中。</p>
+<pre><code class="language-yaml">apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nodejs-knative-argocd
+  namespace: argocd
+spec:
+  destination:
+    namespace: nodejs
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: knative
+    repoURL: 'https://github.com/CIRCLECI-GWP/nodejs-knative-argocd'
+    targetRevision: circleci-project-setup
+  project: default
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+</code></pre>
+<p>提交并<a href="https://circleci.com/blog/pushing-a-project-to-github/">推送</a>这些文件到您之前克隆的GitHub库的<code>main</code>分支。</p>
+
+<h2>创建持续集成管道</h2>
+
+<p>本教程的目的是展示如何通过CircleCI的<a href="https://circleci.com/continuous-integration/">持续集成</a> (CI)和ArgoCD的<a href="https://circleci.com/blog/a-brief-history-of-devops-part-iv-continuous-delivery-and-continuous-deployment/">持续部署</a> (CD)在Kubernetes上部署无服务器工作负载。</p>
+
+<p>为了创建CI渠道，我们将使用CircleCI与您的GitHub帐户集成。CircleCI配置以<code>config.yml</code>文件的形式存在于项目根文件夹的<code>.circleci</code>目录下，即配置的路径为<code>.circleci/config.yml</code>。</p>
+
+<p><code>config.yml</code>的内容是:</p>
+
+<pre><code class="language-yaml">version: 2.1
+
+orbs:
+  docker: circleci/docker@2.1.1
+  azure-aks: circleci/azure-aks@0.3.0
+  kubernetes: circleci/kubernetes@1.3.0
+
+jobs:
+  argocd-manual-sync:
+    docker:
+      - image: cimg/base:stable
+    parameters:
+      server:
+        description: |
+          Server IP of of ArgoCD
+        type: string
+      username:
+        description: |
+          Username for ArgoCD
+        type: string
+      password:
+        description: |
+          Password for ArgoCD
+        type: string
+    steps:
+      - run:
+          name: Install ArgoCD CLI
+          command: |
+            URL=https://&lt;&lt; parameters.server &gt;&gt;/download/argocd-linux-amd64
+            [ -w /usr/local/bin ] &amp;&amp; SUDO="" || SUDO=sudo
+            $SUDO curl --insecure -sSL -o /usr/local/bin/argocd $URL
+            $SUDO chmod +x /usr/local/bin/argocd
+      - run:
+          name: ArgoCD CLI login
+          command: argocd login &lt;&lt; parameters.server &gt;&gt; --insecure --username &lt;&lt; parameters.username &gt;&gt; --password &lt;&lt; parameters.password &gt;&gt;
+      - run:
+          name: Manual sync
+          command: argocd app sync $APP_NAME
+      - run:
+          name: Wait for application to reach a synced and healthy state
+          command: argocd app wait $APP_NAME
+
+  argocd-configure:
+    docker:
+      - image: cimg/base:stable
+    parameters:
+      cluster-name:
+        description: |
+          Name of the AKS cluster
+        type: string
+      resource-group:
+        description: |
+          Resource group that the cluster is in
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Pull Updated code from repo
+          command: git pull origin $CIRCLE_BRANCH
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: &lt;&lt; parameters.cluster-name &gt;&gt;
+          install-kubectl: true
+          perform-login: true
+          resource-group: &lt;&lt; parameters.resource-group &gt;&gt;
+      - kubernetes/create-or-update-resource:
+          resource-file-path: argocd/config.yaml
+
+  bump-docker-tag:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: Install yq - portable yaml processor 
+          command: |
+            URL=https://github.com/mikefarah/yq/releases/download/3.3.4/yq_linux_amd64
+            [ -w /usr/local/bin ] &amp;&amp; SUDO="" || SUDO=sudo
+            $SUDO wget $URL
+            $SUDO mv ./yq_linux_amd64 /usr/local/bin/yq
+            $SUDO chmod +x /usr/local/bin/yq
+      - checkout
+      - run:
+          name: Update Knative Service manifest
+          command: |
+            yq w -i knative/service.yaml spec.template.metadata.name "$APP_NAME-$CIRCLE_BUILD_NUM"
+            yq w -i knative/service.yaml spec.template.spec.containers[0].image "docker.io/$DOCKER_LOGIN/$APP_NAME:$CIRCLE_SHA1"
+      - add_ssh_keys:
+          fingerprints:
+            - "$SSH_FINGERPRINT"
+      - run:
+          name: Commit &amp; Push to GitHub
+          command: |
+            git config user.email "$GITHUB_EMAIL"
+            git config user.name "CircleCI User"
+            git checkout $CIRCLE_BRANCH           
+            git commit -am "Bumps docker tag [skip ci]"
+            git push origin $CIRCLE_BRANCH
+
+workflows:
+  Deploy-App-on-AKS:
+    jobs:
+      - docker/publish:
+          image: $DOCKER_LOGIN/$APP_NAME
+          tag: $CIRCLE_SHA1,latest
+      - bump-docker-tag:
+          requires:
+            - docker/publish
+      - argocd-configure:
+          cluster-name: $CLUSTER_NAME
+          resource-group: $RESOURCE_GROUP
+          requires:
+            - bump-docker-tag
+# Paste the following only when you opt for the ArgoCD manual-sync-policy:
+      - argocd-manual-sync:
+          server: $ARGOCD_SERVER
+          username: $ARGOCD_USERNAME
+          password: $ARGOCD_PASSWORD
+          requires:
+            - argocd-configure       
+</code></pre>
+
+<p>CI工作流由3项工作组成:</p>
+
+<ul>
+  <li><code>docker/publish</code>作业构建容器并将其推送到Dockerhub</li>
+  <li><code>bump-docker-tag</code>作业用最新的容器图像标签更新Knative服务YAML</li>
+  <li><code>argocd-configure</code>作业在AKS集群上应用ArgoCD配置</li>
+  <li>只有当你选择<code>manual-sync-policy</code>时，才需要<code>argocd-manual-sync</code>工作。对于<code>automatic-sync</code>，你可以从文件中省略这项工作。</li>
+</ul>
+
+<p>在这个工作流中，我们广泛使用了<a href="https://circleci.com/orbs/"> CircleCI orbs </a>，它们是开源的、可共享的可参数化可重用配置元素包，包括作业、命令和执行器。orb可以直接使用，也可以用于创建自定义作业。</p>
+
+<p>提交并<a href="https://circleci.com/blog/pushing-a-project-to-github/">推送</a>对GitHub库的更改。</p>
+
+<h2>在CircleCI建立项目</h2>
+
+<p>将应用程序部署到AKS的下一步是将GitHub存储库中的应用程序连接到CircleCI。</p>
+
+<p>进入你的<a href="https://app.circleci.com/"> CircleCI仪表盘</a>，选择左边面板的项目选项卡。现在，您必须点击与包含代码的GitHub存储库(nodejs-knative-argocd)相对应的<code>Set Up Project</code>按钮。</p>
+
+<p><img src="../Images/ea0deea68ef7a0f5ca219e0407ae7ab8.png" alt="CircleCI dashboard" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-circleci-dashboard.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-circleci-dashboard.png"/></p>
+
+<p>在<strong>选择您的config.yml文件</strong>屏幕上，选择<strong>最快</strong>选项并键入<code>main</code>作为分支名称。CircleCI会自动定位<code>config.yml</code>文件。点击<strong>设置项目</strong>。</p>
+
+<p>工作流将自动开始运行。但过一段时间后，它会将<code>status</code>显示为<code>Failed</code>。这是因为您必须设置一个<strong>用户密钥</strong>，并从CircleCI中的<strong>项目设置</strong>中配置<strong>环境变量</strong>。</p>
+
+<p>要设置用户密钥，从<strong>项目设置</strong>的左侧面板中选择<strong> SSH密钥</strong>选项。在<strong>用户密钥</strong>部分，点击<strong>用GitHub </strong>授权。在工作流执行期间，CircleCI需要用户密钥来代表存储库所有者将更改推送到您的GitHub帐户。</p>
+
+<p><img src="../Images/d0b218efd26c5cd97685abdd32f2164a.png" alt="User Key" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-user-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-user-key.png"/></p>
+
+<p>要配置环境变量，从<strong>项目设置</strong>的左侧面板中选择<strong>环境变量</strong>选项。选择<strong>添加环境变量</strong>选项。在下一个屏幕上，键入环境变量和您希望为其分配的值。</p>
+
+<p><img src="../Images/dd630565c3146c6a3f28effda6e1c491.png" alt="Environment Variables" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-env-vars.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-env-vars.png"/></p>
+
+<p>文件中使用的环境变量如下所示:</p>
+
+<ul>
+  <li><code>APP_NAME</code>:容器镜像名(nodejs-knative-argocd)</li>
+  <li><code>ARGOCD_PASSWORD</code> : ArgoCD门户密码</li>
+  <li><code>ARGOCD_SERVER</code> : ArgoCD服务器IP地址</li>
+  <li><code>ARGOCD_USERNAME</code> : ArgoCD门户用户名(管理员)</li>
+  <li><code>AZURE_PASSWORD</code> : Azure账号密码</li>
+  <li><code>AZURE_USERNAME</code> : Azure账号用户名</li>
+  <li><code>CLUSTER_NAME</code> : AKS集群名(NodeCluster)</li>
+  <li><code>DOCKER_LOGIN</code> : Dockerhub用户名</li>
+  <li><code>DOCKER_PASSWORD</code> : Dockerhub密码</li>
+  <li><code>GITHUB_EMAIL</code> : GitHub账号邮箱</li>
+  <li><code>RESOURCE_GROUP</code> : AKS资源组(NodeRG)</li>
+  <li><code>SSH_FINGERPRINT</code>:用于将更新的Docker标签推送到GitHub的用户密钥的SSH指纹</li>
+</ul>
+
+<p>要定位<strong> SSH指纹</strong>，进入<strong>项目设置</strong>，从侧边栏选择<strong> SSH密钥</strong>。向下滚动到<strong>用户密钥</strong>部分并复制密钥。</p>
+
+<p>重新运行工作流。这次<code>status</code>会显示<code>Success</code>。</p>
+
+<p><img src="../Images/886f18050824e2b0812444ca77cfad38.png" alt="Success Workflow" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-passed-workflow.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-passed-workflow.png"/></p>
+
+<p>您还会发现另一条管道，其<code>status</code>为<code>Not Run</code>。这是因为您已经通过在提交消息中包含<code>[skip ci]</code>明确指示CircleCI跳过管道。当CircleCI向GitHub提交更新后的配置文件时，<code>[skip ci]</code>防止了工作流的自触发循环。</p>
+
+<h2>在ArgoCD仪表板上监控应用程序</h2>
+
+<p>当工作流重新运行时，显示<code>Success</code>的<code>status</code>表示应用程序已经部署在AKS集群上。</p>
+
+<p>要观察和监视当前在AKS集群上运行的资源，请登录ArgoCD门户网站。</p>
+
+<p>在本教程的前面部分，您学习了如何获取ArgoCD服务器IP、用户名和密码以登录门户。登录后，您将进入应用程序页面。</p>
+
+<p><img src="../Images/d88936f2af3eeec663ba37d8eb51ae92.png" alt="ArgoCD Application" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-application-page.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-argocd-application-page.png"/></p>
+
+<p>单击应用程序名称。您将被重定向到一个页面，该页面包含AKS集群上运行的所有资源及其实时状态的树视图。</p>
+
+<p><img src="../Images/1539dd99542f5c76748ce5747862fc68.png" alt="ArgoCD App Tree View" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-argocd-app-tree-view.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-argocd-app-tree-view.png"/></p>
+
+<h2>在AKS上访问应用程序</h2>
+
+<p>要访问该应用程序，您需要Knative服务创建的<code>route</code>的DNS名称。</p>
+
+<p>您在<code>nodejs</code>名称空间中创建了所有的资源。要获取该命名空间中的所有资源，请使用以下命令:</p>
+
+<pre><code class="language-bash">kubectl get all --namespace nodejs
+</code></pre>
+
+<p>将<code>URL</code>复制为<code>service.serving.knative.dev/nodejs-knative-argocd</code>。</p>
+
+<p><img src="../Images/44511e9c04bded44f2a2f4fa57b3ad60.png" alt="DNS Name" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-external-app-ip.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-external-app-ip.png"/></p>
+
+<p>使用此URL访问应用程序。对我来说，网址是<code>http://nodejs-knative-argocd.nodejs.52.146.24.47.sslip.io/</code>。</p>
+
+<p><img src="../Images/681333ed875de438b3214a01b3a1d303.png" alt="Final Application" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-10-14-final-application.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-10-14-final-application.png"/></p>
+
+<h2>结论</h2>
+
+<p>本教程到此结束。通过遵循本指南，您学习了如何开发一个自动化的CI管道，用于在Kubernetes集群上持续部署您的无服务器工作负载，遵循Knative和ArgoCD的GitOps实践。一旦正确配置了管道，对应用程序代码所做的任何更改都会立即反映在工作负载URL上。不再需要在Kubernetes上手动配置和部署应用程序。您可以更改环境变量的值，以便将CircleCI配置文件用于类似的应用程序。</p>
+
+<p>本教程的完整源代码也可以在GitHub 上找到<a href="https://github.com/CIRCLECI-GWP/nodejs-knative-argocd">。</a></p>
+
+<hr/>
+
+
+        
+          
+          
+            <hr/>
+            
+<p>Avik Kundu是Red Hat的一名软件工程师。他是全栈开发人员、开源贡献者和精通DevOps和云的技术内容创建者。他是AWS社区构建者和Microsoft Learn学生大使。他写过关于媒体、开发和Opensource.com的各种工具和技术的文章和教程。他喜欢学习新技术，并在公共场合分享他的知识。</p>
+
+            <p><a href="/blog/author/avik-kundu/" class="arrow-link">阅读更多Avik Kundu的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

@@ -1,0 +1,49 @@
+<html>
+<head>
+<title>CircleCI 2.0 is Now Available Behind Your Firewall - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CircleCI 2.0现在可以在您的防火墙后使用</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-2-0-is-now-available-behind-your-firewall/#2017-09-07T09:00:00-07:00">https://circleci.com/blog/circleci-2-0-is-now-available-behind-your-firewall/#2017-09-07T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>从今天开始，在防火墙后使用CircleCI的客户现在可以访问CircleCI 2.0提供的所有功能和性能，包括工作流、完整的Docker支持和基于虚拟机的作业。CircleCI 2.0已于7月初<a href="https://circleci.com/blog/launching-today-circleci-2-0-reaches-general-availability/">面向我们的云客户</a>正式发布，而<a href="https://twitter.com/i/moments/877210697834184704">对于那些已经切换到2.0的客户来说，结果</a>令人印象深刻。</p>
+<h2>2.0中的新功能</h2>
+<p><strong>工作流</strong> <br/>使用灵活的规则来协调任意数量的作业的执行，包括基于git分支或标签的作业过滤器，并行、串行或以更复杂的扇入和扇出配置系列运行作业的流量控制，以及需要人工批准的作业的手动门。</p>
+
+<p><strong>Docker完全支持</strong> <br/>当我们决定<a href="https://circleci.com/blog/why-we-broke-our-philosophical-vows-to-bring-you-circleci-2-0/">重新搭建平台</a>我们的构建系统时，我们的口号之一是:如果某个东西在Docker上有效，它也应该在CircleCI上有效。团队现在可以使用他们自己的定制Docker映像作为他们的执行环境，并且可以从他们的工作中完全访问<code>docker</code>命令。我们还增加了Docker层缓存和其他优化，为您的团队提供他们想要的按需、Docker友好的CI/CD系统。如果您的团队还没有使用Docker，我们提供了一整套现成的图像，使用所有主要语言，他们可以开箱即用。</p>
+
+<p><strong>强大的调优选项</strong> <br/>借助我们全新的定制缓存、针对CPU和RAM的按作业选项、高级并行性和跨作业工作空间，您的团队可以比以前更加精确地优化总构建时间。</p>
+
+<p><strong>情境</strong> <br/>利用<a href="https://circleci.com/docs/contexts/">情境</a>，在组织内跨项目共享环境变量很容易。开发人员可以在其工作流配置中通过一行请求在组织范围的上下文中运行作业。</p>
+
+<h2>将连续性与版本化版本相协调</h2>
+<p>作为一家以持续为核心的公司，我们相信快速迭代、频繁投入生产以及保持我们的整体高吞吐量。虽然每次我们合并到master时，我们的云托管客户都会看到新的更新，但我们知道，大多数运行自己的CircleCI安装的客户无法以这种方式运行。</p>
+
+<p>为了确保我们提供一个强大的平台，并让您了解我们最新的功能和修复，我们将定期发布一个稳定的分支。我们不会为1.x.y版本发布单独的修补程序版本，因此使用1.48.x之前任何版本的客户下次升级时都会迁移到2.x.y版本。</p>
+
+<p>此外，我们现在将为那些希望更频繁升级的人提供更多版本节奏选项。如果您的团队对更频繁的发布感兴趣，请联系您的客户团队。</p>
+
+<h2>CircleCI入门</h2>
+<p>如果你是CircleCI的新用户，我们鼓励你<a href="https://circleci.com/signup/">注册</a>并尝试一下。如果你准备好开始运行测试<a href="https://circleci.com/contact-us/">，联系我们在你的防火墙后安装CircleCI的试用版</a>。</p>
+
+<p>那些已经安装了CircleCI的用户应该确保阅读<a href="https://circleci.com/server/changelog/">发行说明</a>，因为需要运行一些重要的迁移，这将需要一个很短的维护窗口。您还需要与您的客户团队讨论新的发布渠道，并需要在您的管理控制台中设置一些新的设置。</p>
+
+<h2>“CircleCI企业”怎么了？</h2>
+<p>CircleCI的长期客户会注意到，我们不再使用“CircleCI企业”这个术语来描述我们的软件。我们发现，企业这个词更适合用来描述那些规模足够大的公司的一般需求，这些公司拥有跨不同业务部门的内部团队生态系统。虽然我们从名称中去掉了“企业”一词，但我们仍然致力于为大型企业提供他们成功所需的全套产品，无论他们如何部署CircleCI。这包括我们的核心产品、我们的专业客户管理团队以及我们的<a href="https://circleci.com/support/plans/">高级支持层</a>。</p>
+
+<p>我们希望CircleCI对任何规模的团队来说都是同样伟大的产品。无论您是在云中使用CircleCI，还是在您控制的服务器上安装circle ci，我们都致力于帮助各种规模的软件组织以可预测性更快地交付价值。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

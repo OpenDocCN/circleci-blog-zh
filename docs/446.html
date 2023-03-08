@@ -1,0 +1,43 @@
+<html>
+<head>
+<title>Predict the cost of IP ranges with new enhancements to the Resources tab | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>通过对资源选项卡| CircleCI的新增强功能，预测IP范围的成本</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/network-transfer-ip-ranges/#2022-03-11T06:00:00-08:00">https://circleci.com/blog/network-transfer-ip-ranges/#2022-03-11T06:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>我们请求最多、最受欢迎的功能之一是Docker executor 的<a href="https://circleci.com/blog/ip-ranges-better-security/"> IP范围，该功能最近对所有执行或规模计划的客户开放。使用IP范围，您可以通过与CircleCI可验证关联的IP地址路由作业流量。这使您的团队能够通过限制与基础架构通信的连接来满足法规遵从性要求。</a></p>
+
+<p>对于任何新特性，你都想知道它会给你的团队带来多少成本。今天，我们在CircleCI web应用程序的工作详细信息页面的资源选项卡中引入了一个简单(但功能强大)的附加功能，以帮助您更好地预测使用新IP范围功能的成本。</p>
+
+<h2>在用户界面中查看网络传输数据</h2>
+
+<p>当作业启用IP范围功能时，每传输GB数据，该功能会消耗<a href="https://discuss.circleci.com/t/ip-ranges-pricing-model/42464"> 450个配额。我们已经将网络传输数据(进出容器的所有流量)添加到资源选项卡(显示在下面的绿框中),以便让您<i>更加</i>了解您的工作正在执行时发生的情况，并帮助IP范围用户做出明智的决策。</a></p>
+
+<p><img src="../Images/13ef8ea999a01c6de3ecb681afe9f28a.png" alt="Resources tab" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-03-16-network-transfer-screenshot.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-03-16-network-transfer-screenshot.png"/></p>
+
+<p><strong>这些数据使您能够:</strong></p>
+<ul>
+  <li>得出在给定作业上启用IP范围的估计成本</li>
+  <li>优化具有已启用IP范围的作业的项目的信用消耗</li>
+</ul>
+
+<p>如果您考虑在作业上启用IP范围，您可以通过获取网络传输数据(转换为GB)并乘以450配额来估算成本。如果您已经在项目中的几个作业上启用了IP范围，此特定于作业的数据将允许您了解项目中每个作业产生的成本，并相应地进行优化。</p>
+
+<p>我们从客户那里听到了大量的反馈，资源选项卡中的<a href="https://circleci.com/blog/optimize-resources-dashboard/">资源利用率图表</a>帮助他们无缝地调整计算规模，以利用我们平台上的多种资源规模。我们致力于发展这一势头，并将继续增强“资源”选项卡，让您进一步了解在您的工作执行过程中会发生什么，同时对IP范围等新功能进行无摩擦的成本预测。</p>
+
+<p><strong>您对资源选项卡中还包括什么有什么想法吗？</strong>通过<a href="https://circleci.canny.io/cloud-feature-requests"> Canny </a>分享它们，让我们知道您在工作执行过程中发现了哪些有价值的资源可见性。</p>
+
+<p><i>资源选项卡上的数据使用量是近似值。出于计费目的，计划使用页面应始终用作事实的来源。</i></p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

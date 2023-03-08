@@ -1,0 +1,62 @@
+<html>
+<head>
+<title>Continuous Delivery vs. Continuous Deployment</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>持续交付与持续部署</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/a-brief-history-of-devops-part-iv-continuous-delivery-and-continuous-deployment/#2020-12-18T10:00:00-08:00">https://circleci.com/blog/a-brief-history-of-devops-part-iv-continuous-delivery-and-continuous-deployment/#2020-12-18T10:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <h2>持续交付与持续部署</h2>
+<p>持续交付与持续部署的<a href="https://circleci.com/continuous-integration/#what-is-the-difference-between-continuous-integration-continuous-delivery-and-continuous-deployment">区别是什么？最大的区别是连续交付需要手动部署，而连续部署不需要。</a></p>
+
+<p>(<em>要听我们对DevOps 的历史和未来的最新见解，请听我们来自自信承诺的播客。</em>)</p>
+
+<h2>什么是持续交付？</h2>
+<p>连续交付是确保软件总是准备好被部署的实践。保险的一部分是测试你所做的每一个改变。此外，您还努力将将要部署的实际工件打包——也许您已经将这些工件部署到了一个阶段环境中。</p>
+
+<p>持续交付需要<a href="https://circleci.com/continuous-integration/#what-is-continuous-integration">持续集成</a>。它依赖于同样的基本原则:将工作分成小的增量。</p>
+
+<p>回想一下我们解释持续集成是什么的时候。我们谈了很多关于不断合并代码的好处——都是为了避免开发周期结束时巨大的代码冲突。人们兴奋地收获这种方法的回报。</p>
+
+<p>在这种快速采用中发现的困难是，开发人员对他们推向生产的代码洗手不干，安全地知道这是“别人的问题”。运营商开始害怕来自另一边的变化。</p>
+
+<p>在开发方面，合作达到了前所未有的高度:开发人员在发布代码之前会聚在一起合并他们的代码；然而，持续交付的运营端并没有以同样的方式实现现代化。开发者所做的和“真实世界”之间仍然有距离，如果一个产品没有发布，客户就不能使用它。</p>
+
+<h2>开发者+运营商= DevOps</h2>
+<p>DevOps是开发和运营的协同。这是一种思想，即代码在交付之前没有达到它的目的。这是开发商和运营商都能认同的。他们同意的另一件事是，代码没有交付的原因通常是因为恐惧。如果我们做了一个大的改变，却打破了一些关键的东西，那该怎么办？</p>
+
+<p>巨大的变化意味着巨大的风险，这可能会扰乱运营稳定性。</p>
+
+<p>如果没有持续交付，开发人员和操作人员会受到同样的压力——部署大量代码的行为。而持续投放的目的就是让部署的行为不那么恐怖。</p>
+
+<h2>什么是持续部署？</h2>
+<p>持续部署是创建健壮的测试框架并在测试通过时自动推出代码的方法。</p>
+
+<p>记住，大的改变需要小的改变。因此，如果开发人员真的致力于提交小的更改，那么自动部署通过所有测试的更改应该不会有太大的危害。</p>
+
+<p>正确的连续部署是困难的，因为很难知道你是否有详尽的测试覆盖。在开发和部署之间，团队通常需要一些喘息的空间，特别是对于像数据库迁移这样敏感的变化。</p>
+
+<p>持续部署还鼓励其他种类的持续行动，如分析、错误报告和测试。<a href="https://rollbar.com/">滚动条</a>将代码变更与错误频率和关键组织指标联系起来。<a href="https://www.pagerduty.com/">page duty</a>在整个团队中分担操作负载，使错误解决变得不那么忙乱。</p>
+
+<h2>与DevOps一起前进</h2>
+<p>有两种方法来应对这个不断变化的世界:你可以加倍努力创造一个“完美的”不变的计划。或者你可以增量地构建，在过程中获得有价值的反馈，并且知道你永远不会偏离太远。随着开发人员和操作人员继续合作，更频繁地发布更好的代码，这些团队将相互学习:开发人员将考虑高性能的代码，而操作人员将推动部署。</p>
+
+<p>预测未来是不可能的，所以专注于理解现在。这是DevOps运动、服务监控和持续运输背后的信念。这已经成为实现有意义的改变的方式。</p>
+
+<h2>建立你的软件交付团队</h2>
+
+<p>高绩效的软件交付团队是什么样的？在CircleCI，我们分析了来自CircleCI上44，000多个组织和160，000个项目的5，500多万个数据点，以了解团队如何制定有意义的目标，并为工程团队分享了有史以来第一个数据支持的基准。下载我们的数据报告，<a href="https://circleci.com/resources/2020-state-of-software-delivery/"><em>2020年软件交付状态</em> </a>了解更多。</p>
+
+<p>(这篇博客是一个四部分系列的第四部分。阅读部分<a href="https://circleci.com/blog/a-brief-history-of-devops-part-i-waterfall/">第一部分:瀑布</a>，<a href="https://circleci.com/blog/a-brief-history-of-devops-part-ii-agile-development/">第二部分:敏捷开发</a>，以及<a href="https://circleci.com/blog/a-brief-history-of-devops-part-iii-automated-testing-and-continuous-integration/">第三部分:自动化测试</a>。)</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

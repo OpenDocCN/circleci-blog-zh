@@ -1,0 +1,327 @@
+<html>
+<head>
+<title>Automating deployment of a Dockerized Python app to Docker Hub | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将Docker化的Python应用程序自动部署到Docker Hub | CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/automating-deployment-dockerized-python-app/#2022-06-23T09:00:00-07:00">https://circleci.com/blog/automating-deployment-dockerized-python-app/#2022-06-23T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>将Python应用程序“Dockerizing化”</li>
+    <li>设置管道以构建和测试映像</li>
+    <li>将Docker映像部署到Docker Hub</li>
+  </ol>
+</blockquote>
+
+<p>CI/CD系统遵循多层环境模式:开发、测试、登台和产品发布都是这个过程的一部分。这个循环中的每个设置可以有多种设置和配置。因此，不得不为不同的环境设置单独的配置可能会带来不便和负担。</p>
+
+<p>在本教程中，我们将看看Docker是什么，以及它如何将开发人员从设置问题和端口冲突中解放出来。我将介绍如何“Dockerize”一个Python应用程序。然后，我将指导您建立一个管道来构建一个映像，并在测试通过后将其推送到Docker Hub。</p>
+
+<h2>先决条件</h2>
+
+<p>完成本教程需要以下内容:</p>
+
+<ul>
+  <li><a href="https://www.python.org/doc/" target="_blank" rel="noreferrer noopener"> Python </a>安装在你的系统上。</li>
+  <li>一个<a href="https://circleci.com/signup/"> CircleCI </a>账户。</li>
+  <li>一个<a href="https://github.com/" target="_blank" rel="noreferrer noopener"> GitHub </a>的账号，了解一些GitHub的动作比如<code>commit</code>和<code>push</code>。</li>
+  <li>A <a href="https://hub.docker.com/" target="_blank" rel="noreferrer noopener">坞站枢纽</a>账号。</li>
+  <li>对管道工作原理的基本理解。有了这些，你就可以开始了。</li>
+</ul>
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<h2>为什么要用Docker？</h2>
+
+<p>假设你是一个测试项目的开发人员。当您在项目中工作时，您正在使用<code>Python 2.7</code>,但是由于某种原因，您将在生产中使用<code>Python 3.9</code>。此外，Devops团队目前正在使用<code>Python 3.6</code>为组织托管应用程序。</p>
+
+<p>这些版本不一致可能会使开发过程有些痛苦。他们还可能让Devops团队头疼，因为他们要努力跟上需要托管的每个应用程序的不同版本。幸运的是，<a href="https://www.docker.com/"> Docker </a>提供了一个解决方案。首先，让我澄清一些与Docker的使用相关的概念。</p>
+
+<p><strong> <code>Docker</code> </strong>是一个使用容器化技术的平台，允许开发者快速创建、共享和运行处于创建状态的应用程序。</p>
+
+<p>一个<strong> <code>Docker container</code> </strong>是一个应用程序的运行时环境，由打包的代码及其所有依赖项组成。要旋转Docker容器，可以使用Docker图像。</p>
+
+<p>一个<strong> <code>Docker image</code> </strong>是一个可执行文件(模板),它包含了应用程序正常运行所需的一切，包括代码、依赖关系和虚拟环境。</p>
+
+<p>Docker图像是使用一个名为<code>Dockerfile</code>的特殊文件创建的。Docker文件是包含Docker在创建图像时要遵循的一组说明的文档。</p>
+
+<p><img src="../Images/a91f20d0a7b40e2925fb6dbdf0caaa59.png" alt="Docker process" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-process.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-docker-process.png"/></p>
+
+<p>Docker消除了担心机器配置的需要，因为它在容器本身中引导所有的配置。这确保了应用程序在所有安装了Docker的机器上一致地运行。</p>
+
+<p>与虚拟机不同，使用Docker可以轻松管理微服务架构的开发和部署。这不仅导致了精益组织，也导致了系统的分离。解耦系统最小化了故障发生的机会，使它们比单一的应用程序风险更小。</p>
+
+<p>Docker促进了跨平台的兼容性和可维护性，以及简单性、快速部署和安全性。</p>
+
+<h2>将您的Python应用程序归档</h2>
+
+<p>“归档”应用程序包括以下步骤:</p>
+<ul>
+  <li>设置一个API来构建一个映像</li>
+  <li>创建Dockerfile文件</li>
+</ul>
+
+<h3>设置API以构建映像</h3>
+<p>要在本节教程中演示Docker过程，请在本地使用FastAPI RestAPI。已经为您创建了API。使用以下命令克隆存储库:</p>
+
+<pre><code>git clone https://github.com/CIRCLECI-GWP/dockerhub-automated-circleci-deployments.git;
+
+cd dockerhub-automated-circleci-deployments;
+</code></pre>
+
+<p>这将GitHub存储库克隆到一个名为<code>dockerhub-automated-circleci-deployments</code>的目录中，然后访问它。</p>
+
+<p>在<code>dockerhub-automated-circleci-deployments</code>目录中，创建一个虚拟环境，并使用为您的操作系统提供的命令激活它。</p>
+
+<pre><code>##  Windows OS ##
+
+# create a venv
+python -m venv venv
+# activate venv
+venv\Scripts\activate
+</code></pre>
+
+<pre><code>##  Linux/Mac OS ##
+
+#create a venv
+python3 -m venv venv
+# activate venv
+source venv/bin/activate
+</code></pre>
+
+<p>创建虚拟环境后，您可以使用以下命令安装依赖项:</p>
+
+<pre><code>pip install -r requirements.txt
+</code></pre>
+
+<p>运行应用程序:</p>
+
+<pre><code>uvicorn app.main:app --reload
+</code></pre>
+
+<p>现在您已经验证了您的API运行成功，接下来为您的应用程序创建一个<code>Dockerfile</code>。</p>
+
+<h3>创建Dockerfile文件</h3>
+
+<p>如前所述，<code>Dockerfile</code>是一本创建图像的食谱。当您运行命令<code>docker build</code>时，Docker将从docker文件中读取指令并构造一个映像。</p>
+
+<p>在这种情况下，您需要Docker文件来:</p>
+<ul>
+  <li>下载<code>Python 3.10.2</code>版本</li>
+  <li>在应用程序中查找您的包</li>
+  <li>安装成功后，您需要这个映像来启动容器中的应用程序。</li>
+</ul>
+
+<p>将此添加到您的docker文件中:</p>
+
+<pre><code>FROM python:3.10.2
+
+WORKDIR /usr/src/app
+
+COPY requirements.txt ./
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+</code></pre>
+
+<p>在这个Docker配置中，<code>WORKDIR</code>命令指定了工作目录，这是到您的目录的绝对路径。<code>COPY</code>命令将<code>requirements.txt</code>文件复制到应用程序所在的目录中。<code>RUN</code>命令安装运行应用程序所需的包。最后，<code>CMD</code>指定了运行映像时将执行的命令。</p>
+
+<p>您可能想知道主机和端口在应用程序<code>RUN</code>命令中的用途。Docker将使用<code>uvicorn</code>作为服务器和您的应用程序入口。主机和端口将确保您可以访问容器外部的应用程序。</p>
+
+<p>如果您想在本地构建映像来验证docker文件是否正常工作，您可以运行以下命令:</p>
+
+<pre><code>docker build -t fastapi-app .
+</code></pre>
+
+<p>接下来，您将需要在GitHub上创建一个新的存储库，提交并首先将所有更改推送到存储库。然后，您可以开始使用CircleCI将Docker容器部署到Docker Hub的过程。</p>
+
+<h2>使用CircleCI将Docker映像部署到Docker Hub</h2>
+
+<p><a href="https://hub.docker.com/" target="_blank" rel="noreferrer noopener"> Docker Hub </a>是Docker图片的储存库，类似于GitHub。它使得搜索和与其他开发者共享Docker图像变得更加容易。</p>
+
+<h3>设置CircleCI</h3>
+
+<p>为了确保您的应用程序与CircleCI的集成，创建一个配置文件，告诉CircleCI如何初始化您的存储库和运行测试。从根目录中，创建一个名为<code>.circleci/</code>的新目录。在这个新目录中，创建一个名为<code>config.yml</code>的新文件。将此添加到您的<code>config.yml</code>文件中:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    docker:
+      - image: cimg/python:3.10.2
+    steps:
+      - checkout
+      - run:
+          name: Install pip packages
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r requirements.txt
+
+      - run:
+          name: Test with pytest
+          command: |
+            . venv/bin/activate
+            pytest
+
+workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build
+</code></pre>
+
+<p>这个配置定义了Python <code>3.10.2</code>图像。然后，一旦下载了映像，配置将设置虚拟环境，安装所有的应用程序依赖项，然后运行您的测试。</p>
+
+<p>添加CircleCI配置文件后，提交并<a href="https://docs.github.com/en/get-started/using-git/pushing-commits-to-a-remote-repository" target="_blank" rel="noreferrer noopener">将您的更改</a>推送到您的远程GitHub存储库。</p>
+
+<p>现在您可以从<a href="https://app.circleci.com/dashboard">仪表板</a>中创建一个CircleCI项目。</p>
+
+<p><img src="../Images/106b4ce16f8d49a15ff62d8e346f3af8.png" alt="Setting up project on CircleCI" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-setting-up-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-setting-up-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>开始建造。系统将提示您使用项目存储库中的配置文件。输入配置文件所在分支的名称。在本例中，它是<code>main</code>分支。</p>
+
+<p><img src="../Images/fafabcc98ff7599ec7d763f1bef5c0cc.png" alt="Existing configuration file" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-existing-circleci-configuration.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-existing-circleci-configuration.png"/></p>
+
+<p>点击<strong>设置项目</strong>完成该过程。</p>
+
+<p><img src="../Images/0d9954c8d59cc718bdc35462a62fca37.png" alt="First build" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-first-build.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-first-build.png"/></p>
+
+<p>现在您已经在CircleCI上运行了测试，您的工作已经完成了一半！接下来，您需要将应用程序部署到Docker Hub。您需要添加一个选项，首先登录Docker Hub，然后在每次测试通过时构建一个映像。</p>
+
+<p>将任何图像推送到Docker Hub总是需要认证。您首先需要在CirclecI仪表板上配置Docker Hub <code>USER_ID</code>、<code>PASSWORD</code>和图像名称。转到CircleCI仪表板。从<strong>设置</strong>部分，选择<strong>环境变量</strong>。</p>
+
+<p>使用以下格式添加环境变量:</p>
+<ul>
+  <li><code>DOCKER_HUB_USER_ID</code>是您的Docker Hub ID。</li>
+  <li><code>DOCKER_HUB_PASSWORD</code>是您的Docker Hub密码。</li>
+</ul>
+
+<p>用环境名<code>IMAGE_NAME</code>添加Docker图像名作为环境变量。为其指定一个唯一的名称作为值。</p>
+
+<p><img src="../Images/17bc903f58809548ed33978e990d4cf2.png" alt=" Docker hub configuration variables" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-dockerhub-configuration-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-dockerhub-configuration-variables.png"/></p>
+
+<p>目前，您的CircleCI配置只运行您的测试。您需要修改它，以便它首先运行测试，然后构建一个Docker映像，如果所有测试都通过了，就把它推送到Docker Hub。</p>
+
+<p>向您的<code>config.yml</code>文件添加一个<code>deploy</code>任务，如下所示:</p>
+
+<pre><code>version: 2
+jobs:
+  build:
+    docker:
+      - image: cimg/python:3.10.2
+    steps:
+      - checkout
+      - run:
+          name: Install pip packages
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r requirements.txt
+
+      - run:
+          name: Test with pytest
+          command: |
+            . venv/bin/activate
+            pytest
+
+  deploy:
+    docker:
+      - image: cimg/base:2022.06
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and push to Docker Hub
+          command: |
+            docker build -t $DOCKER_HUB_USER_ID/$IMAGE_NAME:latest .
+            echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER_ID" --password-stdin
+            docker push $DOCKER_HUB_USER_ID/$IMAGE_NAME:latest
+
+workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+</code></pre>
+
+<p>该配置文件包含一个带有两个任务的<code>workflow</code>:</p>
+<ul>
+  <li><code>build</code>任务构建并测试代码。</li>
+  <li><code>deploy</code>作业构建并把你的Docker映像推送到Docker Hub。</li>
+</ul>
+
+<p>在添加的配置部署步骤中，<code>deploy</code>作业在启动远程Docker引擎之前检索代码。当创建Docker映像进行部署时，您必须使用<code>setup_remote_docker</code>选项。出于安全目的，该选项为每个构建创建一个单独的远程环境。这个环境是专门为运行Docker命令而设置的。</p>
+
+<p>完成后，您可以开始运行Docker命令来构建和标记您的图像:</p>
+
+<pre><code>docker build -t $DOCKER_HUB_USER_ID/$IMAGE_NAME:latest .
+</code></pre>
+
+<p>该命令构建了一个Docker图像，并用<code>:latest</code>标签对其进行标记。图像名称的前缀是您在CircleCI仪表板中设置为环境变量的Docker Hub用户名，后面是图像的实际名称(也是您设置的环境变量)。</p>
+
+<p>一旦您有了构建的映像，使用CircleCI和存储的环境变量登录到您的Docker Hub帐户。</p>
+
+<pre><code>echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER_ID" --password-stdin
+</code></pre>
+
+<p>这就是配置文件中的命令的作用。现在您有了一个映像并登录到Docker Hub，您的映像将使用配置文件中定义的以下命令被推送到Docker Hub:</p>
+
+<pre><code>docker push $DOCKER_HUB_USER_ID/$IMAGE_NAME:latest
+</code></pre>
+
+<p>为了确保管道的完整性，有一个条件要求您的构建和测试作业在部署到Docker Hub之前通过。这发生在<code>workflow</code>下的最终配置块中:</p>
+
+<pre><code>workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+</code></pre>
+
+<p>最后，我们需要将所有的更改提交到GitHub。一旦我们这样做了，我们就可以继续检查CircleCI仪表板，以查看我们的测试和部署的进度。</p>
+
+<p>瞧啊。我们的<code>deploy</code>和<code>build</code>步骤都是绿色的，并且检查<code>deploy</code>作业，我们的映像被成功构建并被推送到Docker hub。</p>
+
+<p><img src="../Images/b5b2516efe7d7aebb56cf6182543b619.png" alt=" Successful Docker hub push " class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-successful-dockerhub-push.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-successful-dockerhub-push.png"/></p>
+
+<p>为了验证我们的图像被推送到Docker Hub，我们可以访问Docker Hub网站并检查图像的状态。在我们的例子中，我们的图像被命名为<code>circleci-automated-dockerhub-image</code>，我们可以在Docker hub仪表板上看到它，如下所示:</p>
+
+<p><img src="../Images/233bc806dbea3b5d92be44830d2e4d99.png" alt=" Pushed Docker hub image " class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-06-22-docker-hub-image.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-06-22-docker-hub-image.png"/></p>
+
+<p>这样，我们不仅验证了我们的CircleCI配置工作正常，还验证了我们的映像被成功地推送到Docker Hub。虽然感觉很多，但我们已经能够使用CircleCI和Docker Hub创建CI/CD流程，从而节省了大量时间，否则这些时间将花费在手工部署Docker Hub上。</p>
+
+<h2>结论</h2>
+
+<p>在本教程中，我们学习了如何使用CirclecI构建Docker映像并将其部署到Docker Hub。我们还学习了如何在项目中使用定义的Docker文件构建Docker映像。</p>
+
+<p>在本教程的最后一节，我们还介绍了如何创建一个管道来构建一个映像，并仅在测试通过时将它推送到Docker Hub。我希望你喜欢阅读本教程，因为我们创造了它。直到下一个，保持敏锐，不断学习！</p>
+
+
+
+        
+          
+          
+            <hr/>
+            <p>Waweru Mwaura是一名软件工程师，也是一名专门研究质量工程的终身学习者。他是Packt的作者，喜欢阅读工程、金融和技术方面的书籍。你可以在<a href="https://waweruh.github.io/" target="_blank" rel="noreferrer noopener">他的网页简介</a>上了解更多关于他的信息。</p>
+
+            <p><a href="/blog/author/waweru-mwaura/" class="arrow-link">阅读更多Waweru Mwaura的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

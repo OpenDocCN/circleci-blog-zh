@@ -1,0 +1,288 @@
+<html>
+<head>
+<title>Continuous deployment for Azure functions | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Azure功能的持续部署| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/azure-functions-cd/#2021-05-18T13:00:00-07:00">https://circleci.com/blog/azure-functions-cd/#2021-05-18T13:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p><a href="https://en.wikipedia.org/wiki/Serverless_computing">无服务器计算</a>，一种由提供商管理服务器的模式，让开发者专注于编写专用的应用程序逻辑。无服务器计算已经被许多开发团队采用，因为它可以自动伸缩。自动伸缩将开发人员从分配管理任务中解放出来，因此他们不必担心服务器资源的分配，也不必为他们没有消耗的资源付费。另一个巨大的好处是，无服务器计算非常适合传统和<a href="https://en.wikipedia.org/wiki/Microservices">微服务</a>架构。</p>
+
+<p>几乎每个大型云计算服务提供商都有自己版本的无服务器产品。几个例子是:</p>
+
+
+<h2>先决条件</h2>
+
+<p>要遵循本教程，需要做一些事情:</p>
+
+<ol>
+  <li>安装在您系统上的<a href="https://nodejs.org"> Node.js </a>(版本&gt; = 12)</li>
+  <li>一个蓝色的账户</li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+  <li>安装了Azure CLI </li>
+  <li><a href="https://docs.microsoft.com/en-us/azure/azure-functions/functions-run-local"> Azure功能核心工具</a>已安装</li>
+</ol>
+
+<p>安装并设置好所有这些之后，您就可以开始本教程了。</p>
+
+<h2>创建Azure服务主体帐户</h2>
+
+<p>首先，您需要创建一个<a href="https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli"> Azure服务主帐户</a>。这种类型的账户是Azure专门为自动化流程设计的，比如<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/">连续部署管道</a>。您将需要在本教程稍后构建的管道中访问您的Azure帐户，因此这是必需的。</p>
+
+<p>在确保您登录到您的控制台后，(如果没有，运行<code>az login</code>)，使用Azure CLI创建一个服务主体帐户，并给它一个唯一的名称。运行命令:</p>
+
+<pre><code>az ad sp create-for-rbac --name [ServicePrincipalName]
+</code></pre>
+
+<p>用您想要使用的名称替换占位符<code>ServicePrincipalName</code>。例如:</p>
+
+<pre><code>az ad sp create-for-rbac --name MyServicePrincipal
+</code></pre>
+
+<p>这个命令的输出是一个带有<code>name</code>键的<code>json</code>字符串。管道脚本中的身份验证需要这三(3)个详细信息。</p>
+<ul>
+  <li>该名称的格式为<code>http://[ServicePrincipalName]</code></li>
+  <li>租户id为<code>tenant</code></li>
+  <li><code>password</code>是自动生成的账户密码</li>
+</ul>
+
+<h2>创建函数项目</h2>
+
+<p>下一步是使用Azure core tools CLI实用程序在本地创建Azure functions项目。运行以下命令创建一个基于JavaScript的Azure functions项目。</p>
+
+<pre><code>func init MySampleFunctionProject --javascript
+</code></pre>
+
+<p>该命令在<code>MySampleFunctionProject</code>文件夹中创建一个新项目。该项目将包含两个文件，<code>host.json</code>和<code>local.settings.json</code>。这些文件包含全局和本地环境的配置。</p>
+
+<p>进入新创建项目的根目录。输入:</p>
+
+<pre><code>cd MySampleFunctionProject
+</code></pre>
+
+<h2>向项目中添加新函数</h2>
+
+<p>接下来，您将向您的项目添加一个新函数。我们将在本教程中使用的函数将由一个简单响应请求客户端的<a href="https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol"> HTTP </a>调用触发。</p>
+
+<p>通过运行以下命令，将函数<code>MyHttpExample</code>添加到您的项目中:</p>
+
+<pre><code>func new --name MyHttpExample --template "HTTP trigger" --authlevel "anonymous"
+</code></pre>
+
+<p>该函数使用<code>HTTP trigger</code>模板来搭建一个基本的<code>index.js</code>入口点。</p>
+
+<pre><code>module.exports = async function (context, req) {
+  context.log("JavaScript HTTP trigger function processed a request.");
+
+  const name = req.query.name || (req.body &amp;&amp; req.body.name);
+  const responseMessage = name
+    ? "Hello, " + name + ". This HTTP triggered function executed successfully."
+    : "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response.";
+
+  context.res = {
+    // status: 200, /* Defaults to 200 */
+    body: responseMessage
+  };
+};
+</code></pre>
+
+<p>这段代码导出一个接收Node.js请求对象(<code>req</code>)和一个函数(<code>context</code>)的函数。然后检查请求中是否设置了一个<code>name</code>查询字符串参数。如果设置了该参数，代码将在响应体中用字符串<code>Hello [name]. This HTTP triggered function executed successfully.</code>进行响应。否则，响应正文中将返回一条默认消息。</p>
+
+<p>这个<code>function.json</code>文件也被创建:</p>
+
+<pre><code>{
+  "bindings": [
+    {
+      "authLevel": "Anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["get", "post"]
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}
+</code></pre>
+
+<p>这将功能配置为响应<code>HTTP</code>触发，并允许<code>GET</code>和<code>POST</code>请求。该函数的输出被路由到<code>HTTP</code>请求的响应流。<code>authLevel</code>键被设置为<code>Anonymous</code>，允许对功能端点的非认证访问。</p>
+
+<p>现在，通过运行以下命令，在项目(非函数)文件夹的根目录下本地启动函数:</p>
+
+<pre><code>func start
+</code></pre>
+
+<p><strong>注意:</strong>T3】如果第一次没有运行或者返回一个关于丢失参数的错误，重新运行该命令。确保您位于项目文件夹的根目录:<code>MySampleFunctionProject</code>。</p>
+
+<p>该功能将在本地启动，并在您的CLI中显示端点。请耐心等待，显示<code>localhost</code> URL可能需要一段时间。</p>
+
+<pre><code>Azure Functions Core Tools
+Core Tools Version:       3.0.3388 Commit hash: fb42a4e0b7fdc85fbd0bcfc8d743ff7d509122ae 
+Function Runtime Version: 3.0.15371.0
+
+
+Functions:
+
+        MyHttpExample: [GET,POST] http://localhost:7071/api/MyHttpExample
+
+For detailed output, run func with --verbose flag.
+[2021-03-18T08:45:44.954Z] Worker process started and initialized.
+[2021-03-18T08:45:49.427Z] Host lock lease acquired by instance ID '0000000000000000000000003EA6BE15'.
+</code></pre>
+
+<p>通过在浏览器中向其传递查询参数<code>name</code>来访问该端点。</p>
+
+<p><img src="../Images/a64138c3db1dc63c6a5e860cdc8a96e2.png" alt="Function Run - Browser" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-browser-func-run-local.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-browser-func-run-local.png"/></p>
+
+<h2>创建存储帐户</h2>
+
+<p>Azure函数需要一个<a href="https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview">存储帐户</a>来维护项目的状态和其他信息。</p>
+
+<p>如果没有创建资源组，请使用Azure CLI工具创建一个。使用您喜欢的<code>resource_group_name</code>和<code>region</code>并运行:</p>
+
+<pre><code>az group create --name &lt;resource_group_name&gt; --location &lt;region&gt;
+</code></pre>
+
+<p>例如，我在本教程中使用了以下命令:</p>
+
+<pre><code>az group create --name Demos-Group --location westeurope
+</code></pre>
+
+<p>接下来，使用您的资源组创建一个通用存储帐户。您需要为您的<code>storage_account_name</code>取一个全球唯一的名称。该名称只能包含数字和小写字母。使用以下命令创建存储帐户:</p>
+
+<pre><code>az storage account create --name &lt;storage_account_name&gt; --location &lt;region&gt; --resource-group &lt;resource_group_name&gt; --sku Standard_LRS
+</code></pre>
+
+<p>例如，我在本教程中使用了以下命令:</p>
+
+<pre><code>az storage account create --name &lt;storage_account_name&gt; --location westeurope --resource-group Demos-Group --sku Standard_LRS
+</code></pre>
+
+<p><code>Standard_LRS</code>指定通用账户，由函数支持。</p>
+
+<h2>创建Azure函数应用程序</h2>
+
+<p>您当前使用的函数项目仅存在于您的本地计算机上。现在是时候在Azure上创建函数了。通过运行以下命令创建新的Azure函数:</p>
+
+<pre><code>az functionapp create --resource-group &lt;resource_group_name&gt; --consumption-plan-location &lt;region&gt; --runtime node --runtime-version 12 --functions-version 3 --name &lt;app_name&gt; --storage-account &lt;storage_name&gt;
+</code></pre>
+<p>您需要用之前选择的信息替换占位符。将<code>resource_group_name</code>替换为您的资源组，将<code>region</code>替换为您目前使用的区域(在本例中为<code>westeurope</code>)，将<code>app_name</code>替换为您的函数的全局唯一名称，将<code>storage_name</code>替换为您刚刚在最后一个CLI命令中创建的存储帐户的名称(<code>&lt;storage_account_name&gt;</code>)。</p>
+
+<p>这个命令基于Node.js版本12在Azure上创建一个函数。如果您使用的是不同的Node.js版本(也支持版本10 ),请使用<code>--runtime-version</code>参数切换版本。</p>
+
+<p><code>app_name</code>将是您的功能应用的默认DNS域，因此它必须是全球唯一的。还将为此功能自动创建一个<a href="https://docs.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview">应用洞察</a>资源，用于监控。</p>
+
+<h2>在CircleCI建立项目</h2>
+
+<p>在这一步中，我们将自动化部署过程。从项目文件夹的根目录，<a href="https://circleci.com/blog/pushing-a-project-to-github/">将项目推送到GitHub </a>。</p>
+
+<p>现在，进入<a href="https://app.circleci.com/projects"> CircleCI仪表板</a>上的<strong>项目</strong>页面。选择关联的GitHub帐户以添加项目。</p>
+
+<p><img src="../Images/6dc55b2b3f6a17b7b59856dd31b66f06.png" alt="Add Project - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-add-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>按钮开始设置项目。</p>
+
+<p><img src="../Images/ae85b56a635ee36b040d99e9d88b49ed.png" alt="Add Config - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-add-config.png"/></p>
+
+<p>在setup页面上，点击<strong> Use Existing Config </strong>以指示CircleCI您正在手动添加一个配置文件，而不是使用显示的示例。接下来，系统会提示您下载管道的配置文件或开始构建。</p>
+
+<p><img src="../Images/67907f8b636f4f19ff3aa05e7f0b0b0d.png" alt="Build Prompt - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-start-build-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-start-build-prompt.png"/></p>
+
+<p>点击<strong>开始建造</strong>。此构建将失败，因为您尚未设置配置文件。我们将在教程的后面完成这一步。</p>
+
+<p>您将需要从部署脚本访问您的Azure帐户，这就是我们在教程开始时创建Azure服务主体帐户的原因。我们可以使用<a href="https://circleci.com/developer/orbs/orb/circleci/azure-cli"> azure-cli </a> orb登录并在部署脚本中使用Azure CLI。这个orb需要在项目上设置一些环境变量。</p>
+
+<p>这些是:</p>
+
+<ul>
+  <li>AZURE_SP，这是您的服务主体名称(格式为<code>http://[ServicePrincipalName]</code>)</li>
+  <li>AZURE_SP_PASSWORD是您的服务主体帐户创建响应中的<code>password</code>密钥</li>
+  <li>AZURE_SP_TENANT是您的服务主体帐户创建响应中的<code>tenant</code>键</li>
+  <li>FUNCTION_APP_NAME是使用Azure CLI创建的Azure function应用的名称</li>
+</ul>
+
+<p><strong>注意:</strong> <i> FUNCTION_APP_NAME不是<code>azure-cli</code> orb所必需的，但最好将其设置为一个环境变量。</i></p>
+
+<p>转到CircleCI项目上的<code>Project Settings</code>然后<code>Environment Variables</code>，点击<strong>添加环境变量</strong>。</p>
+
+<p><img src="../Images/87de63e9c7d8585521ce3ee8261cd071.png" alt="Add Environment Variable - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-add-variable.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-add-variable.png"/></p>
+
+<p>使用该对话框，添加前面描述的环境变量。</p>
+
+<p><img src="../Images/e198d6eb42c7d523d01701de66f53953.png" alt="Environment Variables - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-env-variables.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-env-variables.png"/></p>
+
+<h2>编写部署配置</h2>
+
+<p>该过程的最后一步是编写持续部署管道脚本，该脚本将部署function app，并在更新被推送到GitHub存储库时持续部署它。</p>
+
+<p>在项目的根目录下，创建一个名为<code>.circleci</code>的文件夹，并在其中创建一个名为<code>config.yml</code>的文件。在<code>config.yml</code>里面，输入这个代码:</p>
+
+<pre><code>jobs:
+  deploy:
+    working_directory: ~/repo
+    executor: node/default
+    steps:
+      - checkout
+      - azure-cli/install
+      - azure-cli/login-with-service-principal
+      - run:
+          name: Install Azure functions tools
+          command: sudo npm i -g azure-functions-core-tools@3 --unsafe-perm true
+      - run:
+          name: Deploy to Azure function App
+          command: func azure functionapp publish $FUNCTION_APP_NAME --javascript
+
+orbs:
+  azure-cli: circleci/azure-cli@1.0.0
+  node: circleci/node@4.1.0
+version: 2.1
+workflows:
+  login-workflow:
+    jobs:
+      - deploy
+</code></pre>
+
+<p>在该文件中，定义了一个<code>deploy</code>任务。这个文件使用了两个圆球，<code>azure-cli</code>圆球和<code>node</code>圆球。<code>node/default</code>用作<code>executor</code>提供Node.js环境，而<code>azure-cli</code>用于安装Azure CLI并使用服务主体帐户登录。接下来，使用<code>npm</code>安装<code>azure-functions-core-tools</code>。它用于使用<code>func azure functionapp publish</code>命令以及函数应用程序名称和将项目定义为Node.js/JavaScript项目的<code>--javascript</code>标志来部署函数应用程序。</p>
+
+<p>提交您的更改并推送到GitHub存储库。你会有一个成功的部署。</p>
+
+<p><img src="../Images/40c63f3c611a659fb9093202244ed4ee.png" alt="Deploy Successful - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-deploy-successful.png"/></p>
+
+<p>点击进入<code>deploy</code>工单查看详情。</p>
+
+<p><img src="../Images/73753170ade4ca44fa0da0da1b9f463a.png" alt="Deploy Details - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-deploy-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-deploy-details.png"/></p>
+
+<p>功能终点显示在<code>Deploy to Azure function App</code>步骤细节中。如果URL的一部分被屏蔽，从Azure获取链接。用查询参数<code>name</code>在您的浏览器中加载这个端点来测试它。</p>
+
+<p><img src="../Images/48de671d1cb0f330d0ce1d8b54cc1eb3.png" alt="Function Live - Browser" srcset="https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2020-12-18-function-deploy.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2020-12-18-function-deploy.png"/></p>
+
+<p>厉害！</p>
+
+<h2>结论</h2>
+
+<p>无服务器架构提供了许多可扩展性和成本节约优势。您可以轻松地将这些无服务器功能插入到您的应用程序流程中，并通过存储服务、邮件服务和发布/订阅系统等服务来触发它们。这些优点使得无服务器功能成为一种在每个应用程序架构中都有用的技术。</p>
+
+<p>在本教程中，您已经使用CircleCI创建并部署了一个Azure函数，以建立一个连续的部署管道来无缝地部署对该函数的更新。</p>
+
+<p>编码快乐！</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

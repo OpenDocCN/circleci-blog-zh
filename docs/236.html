@@ -1,0 +1,206 @@
+<html>
+<head>
+<title>Building and deploying Flutter apps with Fastlane | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用浪子| CircleCI构建和部署Flutter应用程序</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/deploy-flutter-android/#2020-04-29T10:00:00-07:00">https://circleci.com/blog/deploy-flutter-android/#2020-04-29T10:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p><a href="https://flutter.dev/"> Flutter </a>是Google提供的一个工具包，用于构建跨平台应用，包括Android、iOS和web应用。随着越来越多的应用程序使用it和Dart(底层语言)编写，考虑开发人员如何将他们的代码打包并交付给用户变得越来越重要。利用CircleCI和浪子，这是一个相对简单的过程，可以自动化。</p>
+
+<p>按照以下指南，可以安装并创建您的第一个应用程序:</p>
+
+
+<p>默认的“hello world”应用程序就足够了。我们不会过多地处理应用程序本身。将其推送到GitHub上的一个存储库中。</p>
+
+<p>确保您已设置好使用Google Play或Apple App Store发布应用程序，每个应用程序的步骤会有所不同，因此请务必遵循各个提供商概述的步骤。</p>
+
+<p><br/>阅读更多关于<a href="https://circleci.com/blog/ci-for-mobile-app-development/">移动应用开发持续集成</a>的信息。<br/></p>
+
+<h2>机器人</h2>
+
+<p>当发布Android应用时，在实现浪子之前有一些要求需要满足。需要一个“上传密钥”,这样谷歌才能在接受应用之前验证其真实性。设置的步骤可以在<a href="https://flutter.dev/docs/deployment/android">这里</a>找到。建议在构建Android应用程序时使用AppBundles，因为它允许Google为不同的平台构建单独的apk，同时保持文件大小不变。记下您保存<code>key.jks</code>文件的位置。虽然它可以存在于您的主目录中，但是在配置<code>key.properties</code>文件时，将它保存到项目中一个被g it忽略的目录中会很方便。</p>
+
+<p>本指南中的两个东西需要作为<a href="https://circleci.com/docs/env-vars/">环境变量</a>添加到CircleCI中:<code>key.properties</code>文件和<code>key.jks</code>文件。这将允许<a href="https://circleci.com/continuous-integration/">持续集成</a>管道正确构建和签署应用程序。因为一个文件需要换行，而另一个文件是二进制文件，所以建议在将它们作为环境变量添加之前对它们进行base64编码，以保留数据。</p>
+
+<p>您可以通过运行以下命令对它们进行编码:</p>
+
+<pre><code>cat &lt;file&gt; | base64 -w 0 # -w 0 will ensure no newlines are present.
+</code></pre>
+
+<p>然后，可以在作业过程中使用以下命令重新添加这些文件:</p>
+
+<pre><code>echo "$ENV_VARIABLE_NAME" | base64 --decode &gt; &lt;file&gt;
+</code></pre>
+
+<p>在创建Android设置时，您还需要设置一个浪子服务帐户。你可以在这里阅读更多关于<a href="https://docs.fastlane.tools/getting-started/android/setup/">的内容。请务必将您的服务帐户JSON文件放在手边。我们将很快将其添加到管道中。还要注意，命令应该从您的Flutter项目下的<code>android</code>目录中运行。</a></p>
+
+<p>添加浪子所需的服务帐户可以通过添加服务帐户JSON文件内容作为<code>SUPPLY_JSON_KEY_DATA</code>环境变量来完成。这不要与<code>SUPPLY_JSON_KEY</code>混淆，后者应该是文件的文件路径。</p>
+
+<h2>Fastlane</h2>
+
+<p>现在我们的环境变量已经就位，我们可以使用Flutter构建一个签名的<code>.aab</code>文件，是时候告诉浪子如何为我们做这件事了。我们从安卓开始。打开<code>android/fastlane/Fastfile</code>会显示一些构建Android应用的默认设置，但它们对我们的用例不起作用。我们在用颤动建造。</p>
+
+<p>首先，我们来定义一个新的“车道”。这是浪子被调用时将执行的一组指令。目前，我们将把我们的应用推向“测试”频道，而不是生产。</p>
+
+<pre><code>desc "Deploy a new beta build to Google Play"
+lane :beta do
+
+end
+</code></pre>
+
+<p>这是一个车道的基本结构。接下来，我们要获取一个内部版本号，这是一个递增的数字，用作应用程序版本的参考(不同于面向用户的semver)。</p>
+
+<p>将以下内容添加到车道:</p>
+
+<pre><code>  build_number = number_of_commits()
+</code></pre>
+
+<p>这确保了<code>build_number</code>是对Git存储库进行提交的次数。这也可以在Flutter用来构建包的<code>pubspec.yaml</code>文件中手动递增。</p>
+
+<p>接下来，我们将做建筑。我们需要转到父目录，运行几个shell命令来获取我们的包，清理以前的构建(如果有的话)，然后用我们的构建号构建appbundle。</p>
+
+<pre><code>  Dir.chdir "../.." do
+    sh("flutter", "packages", "get")
+    sh("flutter", "clean")
+    sh("flutter", "build", "appbundle", "--build-number=#{build_number}")
+  end
+</code></pre>
+
+<p>最后，我们可以发送到测试版频道的应用商店。</p>
+
+<pre><code>  upload_to_play_store(track: 'beta', aab: '../build/app/outputs/bundle/release/app.aab')
+</code></pre>
+
+<p>最后，你的车道看起来会像这样:</p>
+
+<pre><code>desc "Deploy a new beta build to Google Play"
+lane :beta do
+  build_number = number_of_commits()
+  Dir.chdir "../.." do
+    sh("flutter", "packages", "get")
+    sh("flutter", "clean")
+    sh("flutter", "build", "appbundle", "--build-number=#{build_number}")
+  end
+  upload_to_play_store(track: 'beta', aab: '../build/app/outputs/bundle/release/app.aab')
+end
+</code></pre>
+
+<p>继续保存文件，然后运行<code>fastlane beta</code>。它将逐步运行，为您构建应用程序并推送应用程序。</p>
+
+<p>现在，我们将对iOS做同样的事情，但是将一些命令替换为它们各自的iOS命令。这应该在<code>ios/Fastlane</code>目录中完成。</p>
+
+<pre><code>desc "Deploy a new build to Testflight"
+lane :beta do
+  Dir.chdir "../.." do
+    sh("flutter", "packages", "get")
+    sh("flutter", "clean")
+    sh("flutter", "build", "ios", "--release", "--no-codesign")
+  end
+  build_ios_app(scheme: "MyApp")
+  upload_to_testflight
+end
+</code></pre>
+
+<p><strong>注:</strong>app是两次搭建。第一个构建基于最新的Flutter工具链，而第二个构建构建将上传到Testflight的实际的<code>.ipa</code>文件。</p>
+
+<h2>现在，有了CircleCI</h2>
+
+<p>现在我们已经准备好了一切，是时候编写CircleCI配置了，这样分支的推送就可以转化为新的部署。</p>
+
+<h3>ios</h3>
+
+<p>对于iOS的部署，CircleCI已经有相关文档了！设置带颤振的浪子展开的步骤类似于此处<a href="https://circleci.com/docs/ios-codesigning/">和此处</a>和<a href="https://circleci.com/docs/deploying-ios/#app-store-connect">概述的步骤。</a></p>
+
+<h3>机器人</h3>
+
+<p>谈到要选择的Docker图像，有两个选项。你可以构建并推送Flutter项目使用的Docker镜像，在这里找到<a href="https://github.com/flutter/flutter/blob/master/dev/ci/docker_linux/Dockerfile">，或者你可以拉<code>gmemstr/flutter-fastlane-android:29.0</code>，它构建在一个现有的CircleCI Android Docker镜像之上并安装Flutter和浪子，避免在运行时安装它的额外开销。</a></p>
+
+<p>还要确保前面提到的环境变量被添加到您的项目中。即:</p>
+
+<ul>
+  <li><code>PLAY_STORE_UPLOAD_KEY</code>-base64编码的<code>key.jks</code>文件</li>
+  <li><code>PLAY_STORE_UPLOAD_KEY_INFO</code>-base64编码的文件，包含密码和其他关于上传签名密钥的信息</li>
+  <li><code>SUPPLY_JSON_KEY_DATA</code> -您的Google服务帐户用于验证的JSON字符串</li>
+</ul>
+
+<p>在您的项目根目录中，添加一个<code>.circleci</code>文件夹，并在该文件夹中添加一个<code>circleci.yml</code>文件。将以下配置添加到新创建的文件中:</p>
+<pre><code>version: 2.1
+
+executors:
+  android-flutter:
+    docker:
+      - image: gmemstr/flutter-fastlane-android:29.0
+    environment:
+      TERM: dumb
+      _JAVA_OPTIONS: "-Xmx2048m -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx2048m"'
+  
+</code></pre>
+
+<p>上面的代码片段定义了一个执行器，由于CircleCI 2.1中使用了可重用配置和<a href="https://circleci.com/orbs/"> orbs </a>，我们可以在以后的配置中重用这个执行器。它还包括一些环境变量，以确保Java在构建应用程序时不会消耗我们所有的内存。接下来，我们将定义希望运行命令的作业。</p>
+
+<pre><code>jobs:
+  beta_deploy:
+    executor: android-flutter
+    steps:
+      - checkout
+      - run: echo "$PLAY_STORE_UPLOAD_KEY" | base64 --decode &gt; key.jks
+      - run: echo "$PLAY_STORE_UPLOAD_KEY_INFO" | base64 --decode &gt; android/key.properties
+      - run: cd android &amp;&amp; fastlane beta
+</code></pre>
+
+<p>最后，我们将定义我们的工作流，它将只在新代码被推送到<code>beta</code>分支时运行作业。</p>
+
+<pre><code>workflows:
+  deploy:
+    jobs:
+      - beta_deploy:
+          filters:
+            branches:
+              only: beta
+</code></pre>
+
+<p>最终，您的配置将如下所示:</p>
+
+<pre><code>version: 2.1
+
+executors:
+  android-flutter:
+    docker:
+      - image: gmemstr/flutter-fastlane:latest
+    environment:
+      TERM: dumb
+      _JAVA_OPTIONS: "-Xmx2048m -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx2048m"'
+jobs:
+  beta_deploy:
+    executor: android-flutter
+    steps:
+      - checkout
+      - run: echo "$PLAY_STORE_UPLOAD_KEY" | base64 --decode &gt; key.jks
+      - run: echo "$PLAY_STORE_UPLOAD_KEY_INFO" | base64 --decode &gt; android/key.properties
+      - run: cd android &amp;&amp; fastlane beta
+
+workflows:
+  deploy:
+    jobs:
+      - beta_deploy:
+          filters:
+            branches:
+              only: beta
+</code></pre>
+
+<p><a href="https://circleci.com/docs/projects/">在CircleCI </a>上设置您的项目。一旦你点击<strong>设置项目</strong>，你将被带到一个文本编辑器，允许你从上面复制配置。点击<strong>开始建造</strong>。现在，对beta分支的每个新提交都将导致部署。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

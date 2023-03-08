@@ -1,0 +1,143 @@
+<html>
+<head>
+<title>Trigger your CircleCI pipelines from a GitHub Actions workflow | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>从GitHub操作工作流| CircleCI触发您的CircleCI管道</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/trigger-circleci-pipeline-github-action/#2021-12-17T09:30:00-08:00">https://circleci.com/blog/trigger-circleci-pipeline-github-action/#2021-12-17T09:30:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>如果您已经是GitHub用户，您可能知道GitHub Actions为您提供了强大的工具来提高软件交付生命周期的效率。行动可以对团队协作和流程简化产生影响。例如，您可以自动完成构建容器、欢迎新用户加入您的开源项目、管理分支或对问题进行分类等工作。</p>
+
+<p>对正确的工作使用正确的工具很重要。将GitHub动作与CircleCI一起使用，可以让您自动化版本控制系统的各个方面，同时还可以受益于只有在CircleCI管道中才有的特性。想象一下，扩展你的VCS工作流，使之包括高级功能，如<a href="/blog/debugging-ci-cd-pipelines-with-ssh-access/"> SSH调试</a>、<a href="/blog/a-guide-to-test-splitting/">测试分割</a>、健壮的<a href="https://circleci.com/docs/configuration-reference/#resourceclass"> CPU和RAM选项</a>以及GPU和<a href="/blog/managing-ci-cd-pipelines-with-arm-compute-resource-classes/"> Arm支持</a>。</p>
+
+<p>例如，您可以使用动作进行团队协作和流程简化，同时使用CircleCI加速构建、测试和部署阶段。</p>
+
+<p><img src="../Images/af24f83ac9a2c9cae497a6498129c514.png" alt="A Workflow using both GitHub Actions and CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-12-17-github-actions-with-circleci.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-12-17-github-actions-with-circleci.png"/></p>
+
+<p>为了让GitHub上的任何事件都能更容易地启动CircleCI Pipeline，我们的团队构建了Trigger CircleCI Pipeline action，它现在<a href="https://github.com/marketplace/actions/trigger-circleci-pipeline" target="_blank" rel="noreferrer noopener">可以在GitHub Marketplace </a>上获得。</p>
+
+<p><br/></p>
+
+<p><img src="../Images/8916ead653d9c34b41dd75c42d6b65aa.png" alt="Trigger CircleCI Pipeline action listing in GitHub Marketplace" srcset="https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-12-17-trigger-circleci-pipeline-marketplace.png"/></p>
+
+<p>在本文中，我们将介绍几种方法，您可以将触发CircleCI管道操作合并到您的工作流中，以充分利用您的GitHub automation信用，同时受益于CircleCI世界级的持续集成能力。</p>
+
+<h2>触发CircleCI管道:一个GitHub动作，用于触发CircleCI中的工作流</h2>
+
+<p>使用Trigger CircleCI Pipeline操作，可以从给定分支或标记上的任何事件启动CircleCI管道。该操作会传递一组包含元数据的管道参数，这些元数据可用于控制CircleCI管道和工作流的流动。</p>
+
+<p>触发CircleCI管道操作的一个潜在用例是每当开发人员打开一个pull请求时触发CircleCI管道。在pull请求上触发允许您测试PR中的更改，即使最后一次提交是在PR打开之前进行的(或者在任何时候将更改推送到打开PR的分支时触发构建和测试循环)。</p>
+
+<p>Trigger CircleCI Pipeline动作的另一个用例是每当在GitHub中创建、编辑或发布一个<a href="https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases" target="_blank" rel="noreferrer noopener">版本</a>时，从CircleCI触发一个构建和部署。当repo所有者指定应用程序的新发布版本时，触发发布允许您构建和部署应用程序，例如将Dockerized微服务部署到Kubernetes集群或将二进制文件发布到app store。</p>
+
+<p>您可以在触发器CircleCI管道库的<a href="https://github.com/CircleCI-Public/trigger-circleci-pipeline-action/tree/main/examples" target="_blank" rel="noreferrer noopener">示例目录中查看这两个用例的完整实现，包括您的CircleCI和GitHub操作配置文件的模板。接下来，我们将探索一个使用触发器CircleCI管道操作在发布新版本时启动CircleCI工作流的示例。</a></p>
+
+<h2>如何使用Trigger CircleCI Pipeline操作从新版本中触发管道</h2>
+
+<p>设置GitHub操作以使用CircleCI的第一步是为所需的CircleCI管道创建GitHub操作工作流。您可以通过向<code>./.github/workflows</code>添加一个工作流YAML文件(我们将使用<code>main.yml</code>)来做到这一点。</p>
+
+<p>在下面的例子中，您使用<code>on</code>和<code>types</code>语法来指定在发布新版本时触发<code>trigger-circleci</code>动作。为该步骤选择一个定制的<code>name</code>和<code>id</code>，以便在CircleCI管道中提供额外的上下文元数据:</p>
+
+<pre><code>on:
+  release:
+    types: [published]
+jobs:
+  trigger-circleci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: &lt;customize name&gt;
+        id: &lt;customize id&gt;
+        uses: circleci/trigger_circleci_pipeline@v1.0
+        env:
+          CCI_TOKEN: $
+</code></pre>
+
+<p>接下来，创建一个名为<code>CCI_TOKEN</code>的<a href="https://docs.github.com/en/actions/security-guides/encrypted-secrets#creating-encrypted-secrets-for-a-repository" target="_blank" rel="noreferrer noopener">加密秘密</a>，其中包含将用于触发管道的<a href="https://circleci.com/docs/managing-api-tokens/">个人API令牌</a>。我们建议将此设为<a href="https://docs.github.com/en/developers/overview/managing-deploy-keys#machine-users" target="_blank" rel="noreferrer noopener">机器用户</a>。</p>
+
+<p>现在您已经设置了GitHub工作流，您可以修改CircleCI配置文件，以便在GitHub动作启动时运行。首先将<a href="https://circleci.com/docs/pipeline-variables/">管道参数</a>定义添加到您的CircleCI配置中。当GitHub动作被触发时，该数据将被输入。</p>
+
+<p>将以下内容添加到您的<code>.circleci/config.yml</code>文件的顶部。确保您指定了版本2.1:</p>
+
+<pre><code>version: 2.1
+parameters:
+  GHA_Event:
+    type: string
+    default: ""
+  GHA_Actor:
+    type: string
+    default: ""
+  GHA_Action:
+    type: string
+    default: ""
+  GHA_Meta:
+    type: string
+    default: ""
+</code></pre>
+
+<p>该操作会生成几个管道参数:</p>
+
+<ul>
+  <li><code>GHA_Actor</code>表示哪个用户触发了管道。</li>
+  <li><code>GHA_Action</code>是工作流配置中分配的<code>id</code>。</li>
+  <li><code>GHA_Event</code>是触发管道的GitHub事件的类型。</li>
+  <li><code>GHA_Meta</code>是可选的附加元数据参数，允许您使用<a href="https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#inputs" target="_blank" rel="noreferrer noopener">输入参数</a>指定附加元数据。</li>
+</ul>
+
+<p>您可以使用此管道参数数据来<a href="https://circleci.com/docs/pipeline-variables/#conditional-workflows">有条件地运行工作流</a>。在本例中，<code>GHA_Event</code>参数将用值<code>release</code>填充，您可以在CircleCI配置中使用一个<a href="https://circleci.com/docs/configuration-reference/#using-when-in-workflows"> <code>when</code>子句</a>来指定仅在GitHub工作流触发时运行的工作流:</p>
+
+<pre><code>jobs:
+  release:
+    docker:
+      - image: cimg/node:lts
+    steps:
+      - run: npm install
+      - run: npm build
+      - run: npm publish
+
+workflows:
+  release:
+    when:
+      equal: [ "release", &lt;&lt; pipeline.parameters.GHA_Event &gt;&gt;]
+    jobs:
+      - release
+</code></pre>
+
+<p>这个配置片段指定了一个发布npm包的<code>release</code>作业和一个调用<code>release</code>作业的<code>release</code>工作流。在<code>when</code>子句中，您指定<code>release</code>工作流仅在GitHub工作流运行时运行，并用值<code>release</code>填充<code>GHA_Event</code>参数。</p>
+
+<p>虽然这个例子演示了如何设置释放触发器，但是您可以使用相同的技术从任何可用的<a href="https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows" target="_blank" rel="noreferrer noopener"> GitHub事件中启动CircleCI管道来触发工作流</a>。要查看从pull请求的事件中触发CircleCI的完整设置，请访问<a href="https://github.com/CircleCI-Public/trigger-circleci-pipeline-action/tree/main/examples/01-Trigger-Workflow-On-Pull_Request" target="_blank" rel="noreferrer noopener">示例GitHub repo </a>。</p>
+
+<h2>如何防止GitHub和CircleCI中的作业重复执行</h2>
+
+<p>需要强调的是，GitHub Actions与本地CircleCI集成并行运行。默认情况下，当存储库连接到CircleCI时，如果该项目配置中的工作流没有指定任何会阻止执行的条件或过滤器，则默认情况下工作流将在每个推送事件时执行。这意味着一个作业可能会意外运行两次，一次是在CircleCI的push事件上，另一次是在GitHub动作触发的其他事件上。</p>
+
+<p>如果您依赖GitHub操作来提供所有API触发器，请确保您的每个CircleCI配置工作流都包含一个条件，限制其仅执行GitHub操作触发器，如下例所示:</p>
+
+<pre><code>workflows:
+  # This workflow is set to be triggered conditionally, only when
+  # the GitHub Action is triggered.
+  # With no other workflows, normal push events will be ignored.
+  when: &lt;&lt; pipeline.parameters.GHA_Action &gt;&gt;
+  test:
+    jobs:
+      - test
+</code></pre>
+
+<p>在您的工作流声明中使用<code>when</code>子句允许您指定CircleCI应该只在指定的<code>GHA_Action</code>被触发时运行工作流，而不是在正常的推送事件之后。</p>
+
+<h2>结论</h2>
+
+<p>GitHub Actions是一个非常有用的工具，可以自动执行各种版本控制过程，从检查特定版本的Git存储库到自动创建或合并pull请求，再到根据代码的更改更新README文件。在Trigger CircleCI Pipeline操作的帮助下，您可以将版本控制自动化节省时间的优势与只有最快、最安全、功能最丰富的持续集成平台才能提供的强大工作流加速相结合。</p>
+
+<p>要将触发CircleCI管道操作添加到您的存储库中，请访问<a href="https://github.com/marketplace/actions/trigger-circleci-pipeline" target="_blank" rel="noreferrer noopener"> GitHub Marketplace </a>，并将工作流语法复制到您的<code>workflow.yml</code>文件中。如果你的团队还没有使用CircleCI来快速自信地验证并向你的用户发布变更，<a href="https://circleci.com/signup/">今天就注册一个免费账户</a>。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

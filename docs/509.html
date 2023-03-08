@@ -1,0 +1,180 @@
+<html>
+<head>
+<title>Continuous integration for Rust applications | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>Rust应用的持续集成| CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/rust-ci/#2021-07-30T09:00:00-07:00">https://circleci.com/blog/rust-ci/#2021-07-30T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <h2>介绍</h2>
+
+<p>Rust是一种强大的语言，建立在对性能和可靠性的承诺之上。由于没有运行时或垃圾收集器，它很容易在任何环境中运行，并且可以集成到任何现有的语言或框架中。随着<a href="https://developer.mozilla.org/en-US/docs/WebAssembly"> WebAssembly </a>的出现。Rust在web开发领域变得更加重要。Rust与Node.js无缝对等，以构建高性能的功能，这让web开发人员欣喜不已。许多web开发人员宁愿编写Rust，也不愿学习/编写用于WebAssembly集成的C++或C。</p>
+
+<p>在本教程中，您将学习并演示如何在将Rust应用程序中的更新和升级推送到远程存储库时自动测试Rust应用程序。</p>
+
+<h2>先决条件</h2>
+
+<p>要按照教程进行操作，需要做一些事情:</p>
+
+<ol>
+  <li>铁锈的基本知识</li>
+  <li><a href="https://www.rust-lang.org/"> Rust </a>安装在你的系统上(在这里找到安装说明<a href="https://www.rust-lang.org/learn/get-started"/></li>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+</ol>
+
+<p>安装并设置好所有这些之后，是时候开始本教程了。</p>
+
+<h2>创建新的Rust项目</h2>
+
+<p>如果你在开始这个项目之前已经安装了Rust，确保你运行<code>rustup update</code>以便你当前的安装是兼容的。首先，通过运行以下命令创建一个新的Rust应用程序:</p>
+
+<pre><code>cargo new rust-testing
+</code></pre>
+
+<p>这个命令在<code>rust-testing</code>文件夹中快速搭建一个准系统Rust应用程序。您将构建一个简单的CLI应用程序，提示用户输入名称，并将问候消息打印回CLI。</p>
+
+<p>找到文件<code>src/main.rs</code>并用以下代码替换其内容:</p>
+
+<pre><code>fn main() {
+    let mut line = String::new();
+    println!("Please enter your name: ");
+    std::io::stdin().read_line(&amp;mut line).unwrap();
+    println!("{}", build_message(line));
+}
+
+fn build_message(name: String) -&gt; String{
+    let message = "You are welcome ".to_owned() + &amp;name;
+    return message;
+}
+</code></pre>
+
+<p>在上面的代码中，定义了一个<code>build_message</code>函数，它接受一个<code>String</code>类型的<code>name</code>参数，并返回一个使用<code>name</code>参数构造的问候消息。</p>
+
+<p><code>main</code>功能提示用户输入名称。然后，该名称被传递给<code>build_message</code>函数，其返回值被打印到CLI输出。</p>
+
+<p>通过在项目文件夹的根目录下运行下面的命令来运行该程序。</p>
+
+<pre><code>cargo run
+</code></pre>
+
+<p>应用程序将提示您输入姓名。输入您的姓名并按下<code>Enter</code>键，以查看打印到CLI屏幕的问候消息，如下所示。</p>
+
+<pre><code>Finished dev [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/rust-testing`
+Please enter your name: 
+Fikayo Adepoju
+You are welcome Fikayo Adepoju
+</code></pre>
+
+<h2>为Rust应用程序添加测试</h2>
+
+<p>Rust的一个优点是它捆绑了自己的测试框架，不需要额外的设置。您将为<code>build_message</code>函数编写一个单元测试来断言它的输出。与其他大多数将测试放在单独文件中的语言和框架不同，Rust实际上鼓励您将单元测试放在与被测试代码相同的文件中。</p>
+
+<p>在Rust应用程序中运行测试的<code>cargo test</code>命令将定位项目中任何具有<code>#[test]</code>属性的函数，并将其作为测试用例运行。</p>
+
+<p>在<code>build_message</code>函数下面添加这个测试用例:</p>
+
+<pre><code>#[test]
+fn test_build_message(){
+    let name = String::from("Fikayo");
+
+    assert_eq!(build_message(name), "You are welcome Fikayo")
+}
+</code></pre>
+
+<p>在这个测试中，声明了一个<code>name</code>变量，并赋予了一个<code>Fikayo</code>的<code>String</code>值。下一行检查<code>build_message</code>函数是否为传入的参数返回预期的消息。</p>
+
+<p>要运行此测试，请运行:</p>
+
+<pre><code>cargo test
+</code></pre>
+
+<p>测试应该会成功运行。这是将出现在您的CLI上的输出:</p>
+
+<pre><code>Compiling rust-testing v0.1.0 (/Users/stanmd/Projects/CCI/rust-testing)
+    Finished test [unoptimized + debuginfo] target(s) in 0.63s
+     Running target/debug/deps/rust_testing-5cffbb684dbc6899
+
+running 1 test
+test test_build_message ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+</code></pre>
+
+<h2>将Rust应用程序连接到CircleCI</h2>
+
+<p>要开始Rust项目的测试自动化过程，您需要<a href="https://circleci.com/blog/pushing-a-project-to-github/">将项目推送到GitHub </a>。</p>
+
+<p>接下来，转到<a href="https://app.circleci.com/projects"> CircleCI仪表板</a>上的项目页面。选择适当的GitHub帐户并添加项目。</p>
+
+<p><img src="../Images/b778d38bf7a3eb553ff65caf98d43f53.png" alt="Add Project - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-03-17-add-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-03-17-add-project.png"/></p>
+
+<p>点击<strong>设置项目</strong>。</p>
+
+<p><img src="../Images/7cdc9179e06eb9a059adb18f15d04254.png" alt="Add Config - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-03-17-add-config.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-03-17-add-config.png"/></p>
+
+<p>在设置页面上，点击<strong> Use Existing Config </strong>以指示您正在手动设置配置文件，并且不使用显示的示例。接下来，您会得到提示，要么下载管道的配置文件，要么开始构建。</p>
+
+<p><img src="../Images/a5a2f36b0f91cf8f3ab2b9b27e0cd991.png" alt="Build Prompt - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-03-17-start-building-prompt.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-03-17-start-building-prompt.png"/></p>
+
+<p>点击<strong>开始建造</strong>。此构建将失败，因为您尚未设置配置文件。我们将在下一步构建这个文件。</p>
+
+<h2>Rust应用程序的自动化测试</h2>
+
+<p>是时候编写持续集成脚本了，该脚本将在更新被推送到远程代码存储库时自动运行项目中的测试。</p>
+
+<p>在项目的根目录下，创建一个名为<code>.circleci</code>的文件夹，并向其中添加一个名为<code>config.yml</code>的文件。在<code>config.yml</code>里面，输入这个代码:</p>
+
+<pre><code>version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/rust:1.50.0
+    steps:
+      - checkout
+      - run: cargo --version
+      - run:
+          name: Run Tests
+          command: "cargo test"
+</code></pre>
+
+<p>这段代码拉入<a href="https://circleci.com/developer/images/image/cimg/rust"> CircleCI铁锈图像</a> <code>cimg/rust:1.50.0</code>。通过此图像，您可以访问Rust安装可用的所有CLI命令。</p>
+
+<p>然后从远程存储库中提取代码，标记为<code>Run Tests</code>的步骤使用<code>cargo test</code>命令运行项目中包含的测试。</p>
+
+<p>提交对项目的所有更改，并推送到您的远程GitHub存储库。集成管道被触发，您应该有一个成功的构建。</p>
+
+<p><img src="../Images/e062a7a692d0481a51cac428f506d0a3.png" alt="Build Successful - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-03-17-build-successful.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-03-17-build-successful.png"/></p>
+
+<p>有关部署的详细信息，请单击构建作业。</p>
+
+<p><img src="../Images/11a76d97f911a813dda33aa59d0fbf8c.png" alt="Build Details - CircleCI" srcset="https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-07-30-rust-test-details.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-07-30-rust-test-details.png"/></p>
+
+<p>现在，每当您更改代码时，无论是通过添加更多的特性还是更多的测试，然后推送到您的远程存储库，您的测试都会自动运行。如果您的构建由于一段代码损坏而失败，您将收到警告。</p>
+
+<p>平稳！</p>
+
+<h2>结论</h2>
+
+<p>在本教程中，您已经学习并演示了如何使用持续集成管道在Rust项目中自动化测试。为了扩展您的知识，请学习如何<a href="https://circleci.com/blog/rust-cd/">持续部署Rust应用程序</a>。从开始到结束，你可以为你的团队增加Rust的价值，这样你就可以更快地构建更好的应用。</p>
+
+<p>编码快乐！</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Fikayo Adepoju是LinkedIn Learning(Lynda.com)的作者、全栈开发人员、技术作者和技术内容创建者，精通Web和移动技术以及DevOps，拥有10多年开发可扩展分布式应用程序的经验。他为CircleCI、Twilio、Auth0和New Stack博客撰写了40多篇文章，并且在他的个人媒体页面上，他喜欢与尽可能多的从中受益的开发人员分享他的知识。你也可以在Udemy上查看他的视频课程。</p>
+
+            <p><a href="/blog/author/fikayo-adepoju/" class="arrow-link">阅读Fikayo Adepoju的更多帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

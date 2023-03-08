@@ -1,0 +1,536 @@
+<html>
+<head>
+<title>Run private cloud and on-premises jobs with CircleCI runner | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用CircleCI runner | CircleCI运行私有云及内部作业</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/run-private-cloud-and-on-premises-jobs-with-circleci-runner/#2021-02-23T12:00:00-08:00">https://circleci.com/blog/run-private-cloud-and-on-premises-jobs-with-circleci-runner/#2021-02-23T12:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>CircleCI发布了一个名为<a href="https://circleci.com/docs/runner-overview/"> CircleCI runner </a>的新功能。runner特性增强并扩展了CircleCI平台的功能，使开发人员能够多样化他们的构建/工作负载环境。多样化的执行环境满足了我们在<a href="https://circleci.com/blog/our-cloud-platform-your-compute-introducing-the-circleci-runner/"> CircleCI runner公告</a>中提到的一些特定的边缘情况。例如，我们在金融和医疗保健等高度监管行业的一些较大客户必须满足合规性要求，以防止他们在云中运行一些工作负载。其他从事嵌入式系统或物联网工作的人需要在云中根本不存在的硬件上构建。我们构建了runner，以便即使是具有最严格的安全性和合规性要求的客户也可以使用CircleCI满足其100%的软件交付需求。在这篇文章中，我将介绍CircleCI流道，并演示如何在管道中使用流道。</p>
+
+<h2>先决条件</h2>
+
+<p>在开始使用跑步者之前，您需要完成一些任务:</p>
+
+
+
+<h2>运行节点平台</h2>
+
+<p>CircleCI runner <a href="https://circleci.com/docs/runner-installation/index.html/#installation">的当前产品在这些平台和操作系统上安装和运行</a>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>安装目标</th>
+      <th>目标值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Linux x86_64</td>
+      <td>平台=linux/amd64</td>
+    </tr>
+    <tr>
+      <td>Linux ARM64</td>
+      <td>平台=linux/arm64</td>
+    </tr>
+    <tr>
+      <td>macOS x86_64</td>
+      <td>平台=达尔文/amd64</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>在本教程中，我们将使用<a href="https://releases.ubuntu.com/20.04/"> Ubuntu 20.04 </a>和<code>platform=linux/amd64</code>平台。</p>
+
+<h2>供应CircleCI流道配置</h2>
+
+<p>在部署runner节点和处理作业之前，您需要创建名称空间和资源类，并生成runner令牌。这些操作在本教程的先决条件部分提到过，但是我将在这里更详细地介绍它们。</p>
+
+<h3>创建CircleCI命名空间</h3>
+
+<p>CircleCI要求您在平台上创建一个<a href="https://circleci.com/docs/runner-installation/index.html/#authentication">名称空间</a>，定义您在CircleCI平台中的唯一身份。这个名称空间也用于其他功能，如CircleCI Orbs registry。如果您已经创建了一个名称空间，那么您可以前进到下一节。</p>
+
+<p>使用<a href="https://www.terraform.io/docs/cli-index.html"> CircleCI CLI工具</a>创建新的名称空间:</p>
+
+<pre><code>circleci namespace create &lt;your namespace&gt; &lt;vcs-type&gt; &lt;org-name&gt;
+</code></pre>
+
+<p>指定您的名称空间名称/值和您的VCS/版本控制类型(github等..).然后指定您的组织名称(通常是您的GitHub用户/组织名称)。</p>
+
+<h3>创建新的资源类</h3>
+
+<p>创建名称空间之后，您需要为您的跑步者创建一个新的资源类。资源类别允许您对相似的跑步者资源进行分组，并可用于对跑步者进行分类。例如，如果您希望使用macOS和Linux运行程序，您应该创建两个资源类，一个用于macOS资源，一个用于Linux资源。您还可以根据计算节点硬件资源(如CPU、RAM、磁盘和网络功能)对资源类进行分类。运行以下命令创建新的runner资源类:</p>
+
+<pre><code>circleci runner resource-class create &lt;my-namespace/resource-class&gt; &lt;description&gt;
+</code></pre>
+
+<p>第<code>&lt;my-namespace/resource-class&gt;</code>节要求您指定您的CircleCI名称空间，然后创建一个资源类名。在这个例子中:<code>punkdata/do-ub-linux-cpu4-16gbram</code>，名称空间是<code>punkdata</code>，<code>do-ub-linux-cpu4-16gbram</code>是资源类名。<code>do-ub-linux-cpu4-16gbram</code>是一个描述性的名称，代表使用DigitalOcean计算节点的Ubuntu Linux平台，该节点具有4个CPU和16 GB RAM。如果需要，您可以通过填充<code>&lt;description&gt;</code>参数来给出关于资源类的更多细节。</p>
+
+<h3>创建跑步者令牌</h3>
+
+<p>使用CLI工具完成的最后一项任务是生成运行者令牌，运行者节点使用该令牌根据CircleCI平台进行身份验证。</p>
+
+<p><strong>注意:</strong> <i>令牌无法再次检索，因此请确保在创建后安全存放。</i></p>
+
+<p>通过运行以下命令生成运行者令牌:</p>
+
+<pre><code>circleci runner token create &lt;my-namespace/resource-class&gt; &lt;nickname&gt;
+</code></pre>
+<p>和前面一样，指定您的<code>&lt;my-namespace/resource-class&gt;</code>参数值，然后为您的令牌指定一个描述性的、容易记忆的<code>&lt;nickname&gt;</code>值。</p>
+
+<h2>CircleCI转轮手动安装</h2>
+
+<p>CircleCI运行人员使用手动安装过程，该过程详细说明了如何在相应的计算节点上安装和配置所需的软件。我鼓励您熟悉这个<a href="https://circleci.com/docs/runner-installation/index.html/#installation">手动流程</a>。不过，在本教程中，我们将使用Terraform在DigitalOcean平台上提供CircleCI跑步者。</p>
+
+<h2>CircleCI转轮提供自动化</h2>
+
+<p>接下来，我将介绍我使用Terraform构建的自动化跑步者供应流程。从这个回购中获得的代码<a href="https://github.com/CircleCI-Public/blog-runner">是我们将用来提供CircleCI跑步者的代码。我希望您已经完成了先决条件一节中的步骤。您现在需要完成它们，以便完成本教程。</a></p>
+
+<p>此<a href="https://github.com/CircleCI-Public/blog-runner">项目回购</a>结构中的相关代码位于以下目录中:</p>
+
+<pre><code>runner-scripts/
+  |_runner-agent-install
+  |_runner-provisioner
+terraform/
+  |_do/
+      |_main.tf
+      |_variables.tf
+</code></pre>
+
+<p>在下一节中，我将讨论runner-agent_install和runner-provisioner文件的内容。这些文件使一些手动转轮安装过程自动化。</p>
+
+<h3>跑步者脚本</h3>
+
+<p><code>runner-scripts/</code>目录包含脚本文件，这些文件自动安装和提供运行器节点。这些脚本由代码和命令组成，封装了手动转轮安装过程中定义的各种脚本和命令。这些脚本无需修改即可用于安装和供应运行程序节点。在本教程中，我们将在Terraform代码中利用它们。这是这些文件的快速分类。</p>
+
+<p><code>runner-agent-install</code>脚本有一个“平台”参数，必须为其分配以下值之一:</p>
+
+<ul>
+  <li>平台=linux/amd64</li>
+  <li>平台=linux/arm64</li>
+  <li>平台=达尔文/amd64</li>
+</ul>
+
+<p>必须首先执行该脚本来安装适当的运行程序代理。</p>
+
+<p><code>runner-provisioner</code>脚本提供并配置运行程序代理和底层操作系统服务。此脚本具有必须分配的参数:</p>
+
+<ul>
+  <li><code>PLATFORM</code>需要是上面列出的受支持平台值之一</li>
+  <li><code>RUNNER_NAME</code>标识跑步者节点；我建议使用节点的主机名</li>
+  <li><code>RUNNER_TOKEN</code>是您在本教程中前几步生成的跑步者令牌</li>
+</ul>
+
+<p>这个脚本自动执行运行器配置和操作系统级操作，比如用户配置和运行器相关的服务实现。在计算节点上运行这些脚本将产生一个功能完整的CircleCI runner节点，它可以在您的CircleCI配置中用作执行器。</p>
+
+<p>接下来，我将讨论Terraform代码，它利用这些脚本将基础设施作为代码来提供runner节点。</p>
+
+<h3>Terraform runner供应器代码</h3>
+
+<p>让我花点时间浏览一下提供runner节点的Terraform代码。看看<code>terraform/do/</code>目录中的文件，从<code>variables.tf</code>文件开始。</p>
+
+<p><code>variables.tf</code>文件保存了Terraform项目使用的所有变量。该文件中指定的变量定义允许使用Terraform CLI传递值。下面是一个<code>variables.tf</code>文件的例子:</p>
+
+<pre><code>variable "do_token" {
+  type        = string
+  description = "Your DigitalOcean API token. See https://cloud.digitalocean.com/account/api/tokens to generate a token."
+}
+
+variable ssh_key_file {
+  type        = string
+  description = "The private ssh certificate in the user's .ssh/ dir -&gt; $HOME/.ssh/id_rsa. Terrform uses this to access &amp; run commands on node."
+}
+
+variable do_ssh_key {
+  type        = string
+  default     = "ariv3ra-ssh"
+  description = "Specifies a Public SSH cert that exists in the DO Account Security section. See https://www.digitalocean.com/docs/droplets/how-to/add-ssh-keys/to-account/"
+}
+
+variable file_agent_install {
+  type        = string
+  default     = "../../runner-scripts/runner-agent-install"
+  description = "Specifies the runner-agent-install script file path"
+}
+
+variable file_provisioner {
+  type        = string
+  default     = "../../runner-scripts/runner-provisioner"
+  description = "Specifies the runner-provisioner script file path"
+}
+
+variable runner_platform {
+  type        = string
+  default     = "linux/amd64"
+  description = "Defines the runner architecture platform choose one: [linux/amd64, linux/arm64, darwin/amd64]"
+}
+
+variable runner_name {
+  type        = string
+  description = "The host name of the CircleCI Runner which is also the Droplet name."
+}
+
+variable runner_token {
+  type        = string
+  description = "The CircleCI Runner token from the CLI"
+}
+
+variable "region" {
+  type        = string
+  description = "The region where the assets should be assigned to"
+  default     = "nyc3"
+}
+
+variable "node_size" {
+  type        = string
+  description = "defines the size of the compute node"
+  default     = "s-4vcpu-8gb"
+}
+
+variable "image_name" {
+  type        = string
+  description = "defines the DigitalOcean image name to install to compute node"
+  default     = "ubuntu-20-04-x64"
+}
+
+variable droplet_count {
+  type        = number
+  default     = 2
+  description = "The number of Droplet nodes you want to create"
+}
+
+</code></pre>
+
+<p>本例中列出的变量有<code>description</code>字段，告诉您每个变量指定的内容。使用这些变量，您可以为运行者节点计数、计算节点大小、运行者平台以及任何其他关于运行者或云提供商的相关数据赋值。在这种情况下，Terraform代码适用于以数字海洋水滴的形式提供runner节点，这些节点本质上是计算节点。</p>
+
+<p>接下来，看一下<code>main.tf</code>文件，它包含了这个项目的核心Terraform功能。下面是一个<code>main.tf</code>文件的例子:</p>
+
+<pre><code>terraform {
+
+  required_version = "&gt;= 0.13"
+
+  required_providers {
+    digitalocean = {
+      source = "digitalocean/digitalocean"
+    }
+    local = {
+      source = "hashicorp/local"
+    }
+  }
+  # This backend uses the terraform cloud for state.
+  backend "remote" {
+    organization = "datapunks"
+    workspaces {
+      name = "dorunner"
+    }
+  }
+}
+
+provider "digitalocean" {
+  token = var.do_token
+}
+
+data "digitalocean_ssh_key" "terraform" {
+  name = var.do_ssh_key
+}
+
+resource "digitalocean_droplet" "dorunner" {
+  count              = var.droplet_count
+  image              = var.image_name
+  name               = "${var.runner_name}-${count.index}"
+  region             = var.region
+  size               = var.node_size
+  private_networking = true
+  ssh_keys = [
+    data.digitalocean_ssh_key.terraform.id
+  ]
+  connection {
+    host        = self.ipv4_address
+    user        = "root"
+    type        = "ssh"
+    private_key = file(var.ssh_key_file)
+    timeout     = "3m"
+  }
+
+  #Upload runner agent install script
+  provisioner "file" {
+    source      = var.file_agent_install
+    destination = "/tmp/runner-agent-install"
+  }
+
+  #Upload runner provisioner script
+  provisioner "file" {
+    source      = var.file_provisioner
+    destination = "/tmp/runner-provisioner"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "export PATH=$PATH:/usr/bin",
+      "sudo apt update",
+      "sudo apt -y upgrade",
+      "curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -",
+      "sudo apt install -y nodejs",
+      "cd /tmp",
+      "chmod +x /tmp/runner-agent-install",
+      "chmod +x /tmp/runner-provisioner",
+      "/tmp/runner-agent-install ${var.runner_platform}",
+      "/tmp/runner-provisioner ${var.runner_platform} ${var.runner_name} ${var.runner_token}",
+    ]
+  }
+}
+
+output "runner_hosts and ip_addresses" {
+  value = {
+    for instance in digitalocean_droplet.dorunner :
+    instance.name =&gt; instance.ipv4_address
+  }
+}
+</code></pre>
+
+<p>这个文件由多个元素组成。我将把它们分开，并在每个代码片段后提供一个描述。</p>
+
+<pre><code>terraform {
+
+  required_version = "&gt;= 0.13"
+
+  required_providers {
+    digitalocean = {
+      source = "digitalocean/digitalocean"
+    }
+    local = {
+      source = "hashicorp/local"
+    }
+  }
+  # This backend uses the terraform cloud for state.
+  backend "remote" {
+    organization = "datapunks"
+    workspaces {
+      name = "dorunner"
+    }
+  }
+}
+</code></pre>
+
+<p>这个片段指定了我们的目标平台提供商(DigitalOcean)。它还指定了维护项目状态的位置。在这种情况下，它位于您在先决条件部分创建的<code>dorunner</code> Terraform Cloud工作空间中。</p>
+
+<pre><code>provider "digitalocean" {
+  token = var.do_token
+}
+
+data "digitalocean_ssh_key" "terraform" {
+  name = var.do_ssh_key
+}
+</code></pre>
+
+<p>这个片段指定了在DigitalOcean平台中配置的DigitalOcean API令牌和SSH密钥。使用在<code>variables.tf</code>文件中声明的变量指定这些值。</p>
+
+<pre><code>resource "digitalocean_droplet" "dorunner" {
+  count              = var.droplet_count
+  image              = var.image_name
+  name               = "${var.runner_name}-${count.index}"
+  region             = var.region
+  size               = var.node_size
+  private_networking = true
+  ssh_keys = [
+    data.digitalocean_ssh_key.terraform.id
+  ]
+  connection {
+    host        = self.ipv4_address
+    user        = "root"
+    type        = "ssh"
+    private_key = file(var.ssh_key_file)
+    timeout     = "3m"
+  }
+</code></pre>
+
+<p>这个代码片段代表了实际创建和提供runner节点的自动化。您需要了解的主要因素:</p>
+
+<ul>
+  <li><code>name</code>是现有变量的插值，生成唯一的运行节点主机名</li>
+  <li><code>ssh_keys</code>使用data.digitalocean_ssh_key块从DO中检索公共ssh密钥</li>
+  <li>Terraform需要访问权限才能在新创建的节点上执行命令。<code>private_key</code>指定与在<code>var.do_ssh_key</code>变量中指定的公共ssh密钥相对应的私有ssh密钥</li>
+</ul>
+
+<pre><code>  #Upload runner agent install script
+  provisioner "file" {
+    source      = var.file_agent_install
+    destination = "/tmp/runner-agent-install"
+  }
+
+  #Upload runner provisioner script
+  provisioner "file" {
+    source      = var.file_provisioner
+    destination = "/tmp/runner-provisioner"
+  }
+</code></pre>
+
+<p>这个代码片段将<code>runner_agent_install</code>和<code>runner_provisioner</code>上传到新创建的计算节点。这些文件将安装CircleCI runner代理，并将节点设置为CircleCI runner节点。</p>
+
+<pre><code>  provisioner "remote-exec" {
+    inline = [
+      "export PATH=$PATH:/usr/bin",
+      "sudo apt update",
+      "sudo apt -y upgrade",
+      "curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -",
+      "sudo apt install -y nodejs",
+      "cd /tmp",
+      "chmod +x /tmp/runner-agent-install",
+      "chmod +x /tmp/runner-provisioner",
+      "/tmp/runner-agent-install ${var.runner_platform}",
+      "/tmp/runner-provisioner ${var.runner_platform} ${var.runner_name} ${var.runner_token}",
+    ]
+  }
+}
+</code></pre>
+
+<p>这个代码片段在计算节点上远程执行命令。<code>inline</code>参数是要在计算节点上执行的命令列表。这些命令构成了CircleCI runner节点的配置过程。我想指出的是，这个模块有一些重要的命令:</p>
+
+<ul>
+  <li><code>curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -</code>下载Node.js版本14</li>
+  <li><code>/tmp/runner-agent-install ${var.runner_platform}</code>使用<code>var.runner_platform</code>值执行转轮安装脚本</li>
+  <li><code>/tmp/runner-provisioner ${var.runner_platform} ${var.runner_name} ${var.runner_token}</code>使用多个变量(如平台、运行程序名称和令牌)执行运行程序配置脚本</li>
+</ul>
+
+<pre><code>output "runner_hosts_and_ip_addresses" {
+  value = {
+    for instance in digitalocean_droplet.dorunner :
+    instance.name =&gt; instance.ipv4_address
+  }
+}
+</code></pre>
+
+<p>最后，这个片段是Terraform输出，它遍历所有节点并打印主机名和相应的IP地址。当Terraform执行完成时，您将拥有功能齐全的CircleCI runner节点，可以开始处理您的runner管道工作负载。</p>
+
+<h2>创建CircleCI转轮节点</h2>
+
+<p>我将使用<a href="https://github.com/CircleCI-Public/blog-runner">示例代码repo </a>来演示在DigitalOcean中创建runner节点。</p>
+
+<p>在终端类型中:</p>
+
+<pre><code>cd terraform/do
+
+terraform init
+</code></pre>
+
+<p>前面的命令将初始化Terraform项目。下一个命令将执行Terraform创建过程:</p>
+
+<pre><code>terraform apply \
+  -var "do_token=${DIGITAL_OCEAN_TOKEN}" \
+  -var "runner_token=${RUNNER_TOKEN}" \
+  -var "runner_name=dorunner" \
+  -var "ssh_key_file=${HOME}/.ssh/id_rsa" \
+  -auto-approve
+</code></pre>
+
+<p>此Terraform命令指定Terraform变量的值。我建议将敏感数据分配给本地系统环境变量，以防止暴露，并在终端中工作时保持一致的行为。如果Terraform变量分配了<code>default</code>值，则这些值将被使用，而不是必需的。您可以通过简单地指定您想要覆盖的变量并提供要使用的新值来覆盖<code>default</code>变量值。</p>
+
+<p>运行此命令后，您应该会看到类似如下的结果:</p>
+
+<pre><code>Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+runner_hosts_and_ip_addresses = {
+  "dorunner-0" = "68.183.55.75"
+  "dorunner-1" = "68.183.61.144"
+}
+</code></pre>
+
+<p>正如您在这里看到的，已经创建了两个单独的DigitalOcean Droplet节点，并将其配置为CircleCI runner节点。这些节点已经准备好开始处理管道工作负载。结果显示了节点的“主机名”和相应的IP地址，如果需要，您可以使用SSH来访问它们。</p>
+
+<h2>修改流道节点</h2>
+
+<p>现在您已经使用Terraform创建了runner节点，您还可以使用Terraform来管理这些节点。例如，我最初创建了两个runner节点来处理管道工作负载。如果事实证明两个节点不足以处理所有工作负载，您可以添加更多节点。如果需要，可以添加三个额外的runner节点来帮助处理工作负载。在这种情况下，您可以将<code>var.droplet_count</code>值调整为您需要的节点数量。为什么不将数量增加一倍，达到4个活动运行程序，这样我们就有足够的节点来处理工作负载了？下面是一个示例命令，您可以使用它来添加两个新的跑步者节点:</p>
+
+<pre><code>terraform apply \
+  -var "do_token=${DIGITAL_OCEAN_TOKEN}" \
+  -var "runner_token=${RUNNER_TOKEN}" \
+  -var "runner_name=dorunner" \
+  -var "ssh_key_file=${HOME}/.ssh/id_rsa" \
+  -var "droplet_count=4" \
+  -auto-approve
+</code></pre>
+
+<p>我使用这个命令，通过在apply命令中将新的数量分配给Terraform变量<code>-var "droplet_count=4"</code>，将现有的流道节点数从2更改为4。运行该命令后，您应该会看到如下结果:</p>
+
+<pre><code>Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+runner_hosts_and_ip_addresses = {
+  "dorunner-0" = "68.183.55.75"
+  "dorunner-1" = "68.183.61.144"
+  "dorunner-2" = "64.225.21.96"
+  "dorunner-3" = "64.225.21.95"
+}
+</code></pre>
+
+<p>在这些结果中，您可以看到添加了两个新的跑步者节点。现在总共有四个runner节点准备好处理工作负载。您可以使用这种方法减少所需的节点总数。在任何情况下，<code>droplet-count</code>变量都是节点总数的控制点。</p>
+
+<h2>CircleCI runner示例config.yml</h2>
+
+<p>现在我们已经有了一些CircleCI runner节点，可以开始使用它们来处理CI/CD管道中的工作负载。我创建了一个示例config.yml，演示了如何在管道作业中使用CircelCI runner节点:</p>
+
+<pre><code>version: 2.1
+
+jobs:
+
+  runner_build_test:
+    machine: true
+    resource_class: datapunks/dorunner
+    steps:
+      - checkout
+      - run:
+          name: Install npm dependencies
+          command: |
+            npm install
+      - run:
+          name: Run Unit Tests
+          command: |
+            ./node_modules/mocha/bin/mocha test/ --reporter mochawesome --reporter-options reportDir=test-results,reportFilename=test-results
+      - store_artifacts:
+          path: test-results
+
+workflows:
+  build_test_deploy:
+    jobs:
+      - runner_build_test
+</code></pre>
+
+<p>这个示例显示了一个在runner节点上执行的简单作业。<code>runner_build_test:</code>任务展示了如何使用<code>machine:</code>和<code>resource_class:</code>键定义跑步者执行者。使用<code>namespace/resource_class_name</code>组合键分配<code>resource_class:</code>键。当指定<code>resource_class:</code>键的值时，必须使用该组合。该示例来自Node.js项目，要求Node.js安装在runner节点上，这发生在Terraform供应过程中。</p>
+
+<p>既然我已经演示了如何在config.yml文件中实现和使用runner，那么您应该很清楚如何在您选择的平台和云提供商上使用Terraform轻松地启动和运行CircleCI runner节点。作为奖励，我将在下一部分描述一些你可以用来帮助跑步者做好准备的技巧。</p>
+
+<h2>CircleCI跑步提示</h2>
+
+<p>CircleCI跑步器仍然非常新，所以我想分享一些建议，你可能会发现在使用跑步器时有帮助:</p>
+
+<ul>
+  <li><strong>在转轮节点上安装软件</strong>。Runner必须在本地安装您的构建所依赖的所有软件:Node.js、git、gcc、python、Docker client以及其他任何需要的软件。</li>
+  <li><strong>了解跑步者安全政策</strong>。如果您在云提供商中运行节点，请确保您完全理解各个提供商内部安全性的复杂性。理解诸如安全组、基于角色的访问和防火墙配置之类的东西对于运行runner节点是至关重要的。</li>
+  <li><strong>给你的跑步者贴上补丁</strong>。运行器本质上是计算节点，可以增强您当前的CircleCI管道。这些节点的管理完全由您的组织负责。这包括更新适当的软件/依赖项以及操作系统安全和漏洞补丁。维护最新的软件和安全的runner节点对于保护您的工作负载至关重要。</li>
+  <li><strong>了解跑步者的局限性</strong>。在这里熟悉一下<a href="https://circleci.com/docs/runner-overview/#circleci-runner-limitations">目前跑步者的局限性</a>，这样你就明白跑步者能做什么，不能做什么。</li>
+</ul>
+
+<h2>结论</h2>
+
+<p>CircleCI平台处理所有的CI/CD处理，但是CircleCI runners是扩充您的CI/CD管道的一个好方法。如果您需要执行专门的处理，或者如果您有定制或规定的要求，流道会特别有用。仅在特定的用例中使用runners，比如在本地运行作业的需求。当存在由于更严格的隔离而限制访问的基础设施时，或者如果您使用CircleCI不作为资源类提供的独特计算架构时，运行者可以提供帮助。</p>
+
+<p>在这篇文章中，我简单介绍并演示了如何使用脚本和Terraform自动创建和提供CircleCI runners。我还演示了如何定义管道中的<code>runner</code>作业。我很想听听你的反馈、想法和意见，所以请发推特给我<a href="https://circleci.com/blog/our-cloud-platform-your-compute-introducing-the-circleci-runner/"> @punkdata </a>加入讨论。</p>
+
+<p>感谢阅读！</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

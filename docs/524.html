@@ -1,0 +1,193 @@
+<html>
+<head>
+<title>Security with Snyk in CircleCI workflows | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CircleCI工作流程| CircleCI中的Snyk安全性</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/security-with-snyk-in-the-circleci-workflow/#2021-07-29T04:20:00-07:00">https://circleci.com/blog/security-with-snyk-in-the-circleci-workflow/#2021-07-29T04:20:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>今天的应用程序是使用现代DevOps流程构建的，每天都要进行几次频繁的集成和部署。为了实现速度和规模，应用程序安全性必须从开发人员开始，安全团队从审核和把关职能转变为授权和治理角色。</p>
+
+<h2>保护云原生应用</h2>
+
+<p>随着容器、Kubernetes和Terraform等云原生技术用代码取代了基础设施，应用程序也发生了变化。这些元素现在由开发人员构建和定制，并存在于他们的存储库中。</p>
+
+<p>保护云原生应用需要将这些应用组件的所有权(传统上是IT安全性的一部分)转移到应用安全模型中。随着开发人员掌握安全性的第一步，集成到他们的工作流中并以开发人员友好的方式呈现信息的安全测试工具对他们的工作效率变得至关重要。</p>
+
+<h2>Snyk入门</h2>
+<p>Snyk orb使得DevSecOps团队很容易将测试集成到CircleCI工作流中。使用Snyk orb，您可以安装、运行测试，并使用Snyk监控项目。根据您的风险承受能力，您还可以为失败的构建设置一个阈值。扫描结果提供清晰的信息，帮助开发人员快速了解问题和任何可用的修复。</p>
+
+<p>在本教程中，我们使用Snyk orb来演示如何通过将自动化Snyk测试添加到CircleCI工作流中来防止漏洞通过构建过程。</p>
+
+<h3>先决条件</h3>
+
+<p>要学习本教程，您需要:</p>
+<ol>
+  <li>一个<a href="https://circleci.com/signup/">圆</a>的账户</li>
+  <li>GitHub的一个账户</li>
+  <li>一个帐户</li>
+</ol>
+
+<p>您需要一个Snyk API令牌来使用Snyk orb。<a href="https://docs.snyk.io/features/snyk-api-info/revoking-and-regenerating-snyk-api-tokens" target="_blank" rel="noreferrer noopener">创建一个Snyk令牌</a>，然后<a href="https://circleci.com/docs/env-vars/#setting-an-environment-variable-in-a-project">用它的值在CircleCI </a>中设置一个名为<code>SNYK_TOKEN</code>的环境变量。</p>
+
+<p>当你在<a href="https://academy.circleci.com"> CircleCI Academy </a>中完成基础设施代码模块后，本教程最有意义。您可以在不完成本模块的情况下完成本教程，但是Terraform工作流将会失败。</p>
+
+<h3>分叉演示项目</h3>
+
+<p>在本教程中，您将使用CircleCI学院模块中的存储库。在这里，您将创建一个工作流，该工作流使用Terraform创建一个GKE集群，并在其中部署一个应用程序，作为连续交付管道的一部分。</p>
+
+<p>如果您没有完成该模块，请导航到<a href="https://github.com/datapunkz/learn_iac" target="_blank" rel="noreferrer noopener">Learn infra structure as Code repo</a>并分叉。然后，进入<a href="https://app.circleci.com/"> CircleCI项目</a>页面，点击<strong>设置项目</strong>，然后选择<strong>使用现有配置</strong>。</p>
+
+<h3>确保依赖关系是安全的，并且符合Snyk开源</h3>
+
+<p>如果您完成了Academy模块，那么您部署了一个具有开源组件的应用程序，但是您没有检查它们的漏洞。将Snyk开源集成到CI工作流中，使安全性和合规性测试成为流水线的一部分，使您能够防止具有易受攻击的依赖关系的应用程序进入生产环境。</p>
+
+<p>要添加Snyk开源，在编辑器中打开<code>.circleci/config.yml</code>文件，然后将Snyk orb添加到顶部，在orbs注册表中用最新版本的<a href="https://circleci.com/developer/orbs/orb/snyk/snyk"> Snyk orb替换<code>@x.y.z</code>:</a></p>
+
+<pre><code>version: 2.1
+
+orbs:
+  snyk: snyk/snyk@1.0.1
+  
+jobs:
+  run_tests:
+    docker:
+      - image: circleci/node:12
+</code></pre>
+
+<p>添加orb会向您的工作流公开Snyk命令和作业。在选择将它们添加到工作流中的什么位置时，请考虑您的需求。对于这个例子，在运行单元测试之前，将<code>snyk/scan</code>命令添加到<code>run_tests</code>作业中，以检查漏洞和许可问题:</p>
+
+<pre><code>jobs:
+  run_tests:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - run:
+          name: Install npm dependencies
+          command: |
+            npm install --save
+      - snyk/scan
+      - run:
+          name: Run Unit Tests
+</code></pre>
+
+<p>保存并提交您的更改。当工作流运行时，<code>run_tests</code>作业失败，因为<code>package.json</code>文件声明了易受攻击的依赖关系。</p>
+
+<p><img src="../Images/8cf884ee46569e67715511fd0b0ef420.png" alt="Open Source issues" target="_blank" rel="noreferrer noopener" srcset="https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-07-29-opensource-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-07-29-opensource-issues.png"/></p>
+
+<p>还好你查了！但是，您可能不希望过早地将太多的中断引入您的管道。</p>
+
+<p>可以通过向orb传递参数来定制这种行为。有关可用参数的列表，请查看orb注册表中的<a href="https://circleci.com/developer/orbs/orb/snyk/snyk"> Snyk orb。要让工作流不间断地继续，请将<code>fail-on-issues</code>参数添加到<code>snyk/scan</code>命令中，并提交您的更改:</a></p>
+
+<pre><code>- run:
+          name: Install npm dependencies
+          command: |
+            npm install --save
+      - snyk/scan:
+          fail-on-issues: false
+      - run:
+          name: Run Unit Tests
+          command: |
+</code></pre>
+
+<p>下次管道运行时，它仍会发现问题，但会继续下一个作业。</p>
+
+<p><img src="../Images/ea74854a674333857bacb301e9b18623.png" alt="Passed Open Source Scan" srcset="https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-07-29-passed-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-07-29-passed-scan.png"/></p>
+
+<p>要了解如何解释CLI结果以<a href="https://docs.snyk.io/features/fixing-and-prioritizing-issues/issue-management/remediate-your-vulnerabilities/" target="_blank" rel="noreferrer noopener">修复开源漏洞</a>，请访问Snyk文档。</p>
+
+<h3>使用Snyk容器扫描和保护容器图像</h3>
+
+<p>除了您的应用程序依赖性之外，您选择的容器基础映像也可能通过操作系统包和语言运行时引入易受攻击的开源组件。</p>
+
+<p>Snyk容器使用带有几个参数的相同的<code>snyk/scan</code>命令。因为需要构建映像来扫描它，所以通过分解现有命令，将命令添加到<code>docker build</code>和<code>docker push</code>步骤之间的<code>build_docker_image</code>任务中。请注意，使用了<code>severity-threshold</code>参数来报告仅高或严重的问题。</p>
+
+<p>如果您没有完成CircleCI学院模块，您将需要<a href="https://circleci.com/docs/env-vars/#setting-an-environment-variable-in-a-project">设置一个名为<code>DOCKER_LOGIN</code>的环境变量</a>,使用您的Docker ID或任何您想要的名称来命名图像，以使其工作:</p>
+
+<pre><code>build_docker_image:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Build Docker image
+          command: |
+            export TAG=0.2.&lt;&lt; pipeline.number &gt;&gt;
+            export IMAGE_NAME=$CIRCLE_PROJECT_REPONAME
+            docker build -t $DOCKER_LOGIN/$IMAGE_NAME -t $DOCKER_LOGIN/$IMAGE_NAME:$TAG .
+      - snyk/scan:
+          severity-threshold: high
+          docker-image-name: $DOCKER_LOGIN/$CIRCLE_PROJECT_REPONAME
+          target-file: "Dockerfile"
+          fail-on-issues: true
+      - run:
+          name: Push Docker image
+          command: |
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $DOCKER_LOGIN/$IMAGE_NAME
+</code></pre>
+
+<p>扫描完成后，Snyk将由于高严重性漏洞而无法通过该阶段。与Snyk开源一样，可以通过向orb传递额外的参数来自定义这种行为。</p>
+
+<p><img src="../Images/24e7d8c75e848d3e90cee78b2a130f98.png" alt="Failed Container Scan" srcset="https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-07-29-failed-container-scan.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-07-29-failed-container-scan.png"/></p>
+
+<p>在容器扫描后使用Snyk来中断构建，如本例所示，这是防止有漏洞的映像被推送到容器注册表的一种方法。</p>
+
+<p>访问Snyk文档，了解如何<a href="https://support.snyk.io/hc/en-us/articles/360003946937-Understanding-Snyk-Container-CLI-results" target="_blank" rel="noreferrer noopener">理解Snyk容器CLI结果</a>，并确保浏览关于基础映像修复的部分。</p>
+
+<h3>使用Snyk基础设施作为代码来修复地形错误配置</h3>
+
+<p>正如我们上面讨论的，现代应用不仅仅是代码和开源组件；在云时代，基础设施是应用程序的一部分。虽然云提供商提供了管理云配置的工具，但云资源的错误配置仍然是最普遍的云漏洞，可以被利用来访问云数据和服务。这就是Snyk基础设施作为代码的用武之地，它提供了精选的安全信息，为开发人员提供了快速查找和修复配置问题所需的信息。</p>
+
+<p>从orb版本<code>1.0.0</code>开始，Snyk基础设施作为代码以<code>job</code>的形式提供，可以直接添加到<code>workflow</code>中。对于本例，在<code>gke-create-cluster</code>作业之前添加<code>snyk/scan-iac</code>作业，以在创建云基础设施之前检查Terraform文件是否配置正确。<code>args</code>参数指向要检查错误配置的文件，也可用于传递其他<a href="https://docs.snyk.io/products/snyk-infrastructure-as-code/snyk-cli-for-infrastructure-as-code/test-your-configuration-files/" target="_blank" rel="noreferrer noopener"> Snyk CLI参数</a>:</p>
+
+<pre><code>workflows:
+  build_test:
+    jobs:
+      - run_tests
+      - build_docker_image
+      - snyk/scan-iac:
+          args: part03/iac_gke_cluster/
+      - gke_create_cluster:
+          requires:
+            - run_tests
+            - build_docker_image
+            - snyk/scan-iac
+</code></pre>
+
+<p>与所有其他Snyk扫描一样，默认行为是在出现任何错误配置的情况下中断构建。</p>
+
+<p><img src="../Images/a08e01fe752ae257afe48f8607b1de28.png" alt="IAC Issues" srcset="https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-07-29-iac-issues.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-07-29-iac-issues.png"/></p>
+
+<p>访问Snyk学院，了解如何在此工作流程中<a href="https://solutions.snyk.io/partner-workshops/circleci/scan-terraform-with-the-snyk-orb/adjusting-snyk-iac-scan-parameters" target="_blank" rel="noreferrer noopener">定制IaC扫描参数</a>。</p>
+
+<h3>增强开发者体验</h3>
+
+<p>如果你能走到这一步，恭喜你！现在，您的交付管道已经针对应用程序的开源依赖项、容器基础映像以及将应用程序部署到生产GKE环境中的Terraform文件所带来的问题进行了安全测试。我们可以通过集成Snyk、IDE和他们的源代码控制库，让开发人员更容易访问和操作这些信息。</p>
+
+<p>要在IDE中使用Snyk，下载任何可用的<a href="https://snyk.io/ide-plugins/" target="_blank" rel="noreferrer noopener"> IDE插件</a>或使用<a href="https://support.snyk.io/hc/en-us/articles/360003812578-CLI-reference" target="_blank" rel="noreferrer noopener"> Snyk CLI </a>。</p>
+
+<p>要将Snyk集成到源代码控制管理(SCM)中，请使用SCM集成将Learn基础结构的分支作为代码报告导入Snyk。访问GitHub集成的Snyk文档了解如何集成。一旦fork被导入，您将在Snyk UI中看到我们在本教程中测试的文件，以及它们的风险。这通过像修复拉取请求这样的特性提高了开发人员的生产力。请访问<a href="https://docs.snyk.io/features/integrations/git-repository-scm-integrations/snyk-scm-integration-good-practices" target="_blank" rel="noreferrer noopener"> SCM集成最佳实践</a>页面了解更多信息。</p>
+
+<p><img src="../Images/5c46c16e1224e9d80a8cbe7e30044f3c.png" alt="Repo Imported to Snyk" srcset="https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2021-07-29-imported-project.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2021-07-29-imported-project.png"/></p>
+
+<h2>结论</h2>
+
+<p>通过完成本教程，您会更加意识到开发人员选择开放源代码、容器和基础设施配置所带来的安全风险。这种意识是在负责预防生产问题的安全团队、负责保持管道运行的运营团队和负责解决问题的开发人员之间建立协作文化的重要第一步。</p>
+
+<p>想了解更多？访问Snyk文档，阅读将Snyk集成到CI/CD管道中的一些最佳实践<a href="https://docs.snyk.io/features/integrations/ci-cd-integrations/snyk-cicd-integration-good-practices/" target="_blank" rel="noreferrer noopener">。</a></p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

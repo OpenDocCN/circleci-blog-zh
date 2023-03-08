@@ -1,0 +1,384 @@
+<html>
+<head>
+<title>Automate the deployment of FeathersJS apps to Heroku | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>将FeathersJS应用程序自动部署到Heroku | CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/deploy-feathersjs-heroku/#2022-04-04T05:00:00-07:00">https://circleci.com/blog/deploy-feathersjs-heroku/#2022-04-04T05:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <blockquote>
+  <p>本教程涵盖:</p>
+  <ol>
+    <li>创建FeathersJS API</li>
+    <li>在Heroku上创建和设置项目</li>
+    <li>自动部署到Heroku</li>
+  </ol>
+</blockquote>
+
+<p>这是由两部分组成的系列之一。你还可以学习如何自动测试FeathersJS应用程序。</p>
+
+<p>自动化不仅仅是构建解决方案来取代复杂或耗时的手动流程。正如流行的说法，“任何能够自动化的事情都应该自动化。”例如，将更新部署到应用程序可以而且应该是自动化的。在本教程中，我将向您展示如何设置一个<a href="https://feathersjs.com/" target="_blank" rel="noreferrer noopener"> FeathersJS </a>应用程序到<a href="https://www.heroku.com/" target="_blank" rel="noreferrer noopener"> Heroku </a>的免提部署。我将指导您实现一个持续部署(CD)管道，以便在推出更改时立即发布应用程序的更新。我们将使用的示例应用程序是一个管理测验问题的API。它提供了创建、阅读、更新和删除测验问题的端点。</p>
+
+<h2>先决条件</h2>
+
+<p>开始之前，请确保您的系统上安装了以下项目:</p>
+
+<ul>
+  <li>10.0.0的最低<a href="https://nodejs.org/en/" target="_blank" rel="noreferrer noopener"> NodeJS </a>版本</li>
+  <li>像<a href="https://www.npmjs.com/" target="_blank" rel="noreferrer noopener"> NPM </a>或<a href="https://classic.yarnpkg.com/en/" target="_blank" rel="noreferrer noopener">纱</a>这样的最新的JavaScript包管理器</li>
+  <li>FeathersJS CLI</li>
+</ul>
+
+<p>通过运行以下命令安装FeathersJS CLI:</p>
+
+<pre><code>npm install -g @feathersjs/cli
+</code></pre>
+
+<p>对于存储库管理和持续集成/持续部署，您需要:</p>
+
+
+
+<blockquote><p>我们的教程是平台无关的，但是使用CircleCI作为例子。如果你没有CircleCI账号，请在 注册一个免费的<a href="https://circleci.com/signup/"> <strong>。</strong></a></p></blockquote>
+
+<h2>为什么是费瑟斯和赫罗库？</h2>
+
+<p>FeathersJS是一个轻量级web框架，用于使用JavaScript或TypeScript创建实时应用程序和REST APIs。FeathersJS工具集包括一个架构模式，它使得创建可伸缩的REST APIs和实时应用程序变得容易。您可以在几分钟内构建原型，在几天内构建生产就绪的应用。</p>
+
+<p>Heroku是一个平台即服务(PaaS ),使开发人员能够完全在云中构建、运行和操作应用程序。通过关注维护基于云的应用程序的更高要求方面，Heroku允许开发人员专注于构建应用程序，而不是维护服务器。</p>
+
+<h2>入门指南</h2>
+
+<p>为项目创建新文件夹:</p>
+
+<pre><code>mkdir feathers_heroku
+
+cd feathers_heroku
+</code></pre>
+
+<p>接下来，使用Feathers CLI <code>generate</code>命令生成一个新应用程序。</p>
+
+<pre><code>feathers generate app
+</code></pre>
+
+<p>对于这个项目，我们将使用JavaScript。还有，我们只想做一个REST API。回答CLI中的问题，如下所示:</p>
+
+<pre><code>? Do you want to use JavaScript or TypeScript? JavaScript
+? Project name feathers-heroku
+? Description
+? What folder should the source files live in? src
+? Which package manager are you using (has to be installed globally)? npm
+? What type of API are you making? REST
+? Which testing framework do you prefer? Jest
+? This app uses authentication No
+? Which coding style do you want to use? ESLint
+</code></pre>
+
+<p>在您做任何事情之前，更新索引页面，让访问者知道API正在构建中。在<code>public/index.html</code>中，向<code>main</code>元素添加一条“在建”消息:</p>
+
+<pre><code>&lt;main class="container"&gt;
+  &lt;!--  Image declaration--&gt;
+  &lt;h1 class="center-text"&gt;This API is under construction&lt;/h1&gt;
+  &lt;!--  Footer declaration--&gt;
+&lt;/main&gt;
+</code></pre>
+
+<p>接下来，使用以下命令运行您的应用程序:</p>
+
+<pre><code>npm run dev
+</code></pre>
+
+<p>默认情况下，应用程序运行在端口3030。在您的浏览器中输入<code>http://localhost:3030/</code>即可访问。</p>
+
+<p><img src="../Images/0712662c7c4dbe5fad9cb440564a4d05.png" alt="FeathersJS app homepage" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-feathers-app-homepage.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-feathers-app-homepage.png"/></p>
+
+<h2>配置Heroku</h2>
+
+<p>下一步是在Heroku上创建一个新的应用程序。你可以从Heroku <a href="https://dashboard.heroku.com/new-app" target="_blank" rel="noreferrer noopener">仪表盘</a>上完成这项工作。点击<strong>新建</strong>，然后点击<strong>新建App。</strong>如图所示填写表格。如果需要，您可以为应用程序使用不同的名称和地区。</p>
+
+<p><img src="../Images/1750543d49f5584ed23abd0bf2c775a5.png" alt="Create a Heroku app" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-create-heroku-app.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-create-heroku-app.png"/></p>
+
+<p>点击<strong>创建应用</strong>按钮。然后，您将被重定向到新创建的应用程序的<strong>部署</strong>视图。</p>
+
+<p>接下来，您需要添加一个构建包。点击<strong>设置</strong>选项卡。在<strong>构建包</strong>部分，点击<strong>添加构建包</strong>。</p>
+
+<p><img src="../Images/31fe12448316b466e4040306a7d104e4.png" alt="Add a buildpack" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-add-buildpack.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-add-buildpack.png"/></p>
+
+<p>在打开的表单上，您可以选择一个官方支持的构建包，或者为您的构建包提供一个URL。选择<strong> nodejs </strong>使用官方支持的Heroku nodejs构建包。点击<strong>保存修改</strong>。Node.js将用于构建您的下一个部署。</p>
+
+<p>您最不需要的就是API密钥。你要用这个把你的CircleCI管道连接到Heroku。要获取API密钥，请打开<a href="https://dashboard.heroku.com/account" target="_blank" rel="noreferrer noopener">账户设置</a>页面，向下滚动到<strong> API密钥</strong>部分。</p>
+
+<p><img src="../Images/aa403262b89fdf503cdef0de6ef93753.png" alt="Heroku API key" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-copy-api-key.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-copy-api-key.png"/></p>
+
+<p>点击<strong>显示</strong>按钮，复制显示的API密钥。</p>
+
+<h2>配置CircleCI</h2>
+
+<p>接下来，我们需要为CircleCI添加管道配置。对于这个项目，管道将由两个步骤组成:</p>
+
+<ol>
+  <li><strong>打造</strong>。在这里，我们构建项目并安装项目依赖项。理想情况下，我们应该在这个阶段运行项目测试。然而，为了保持本教程的合理长度，我们将跳过测试。</li>
+  <li>部署到Heroku 。如果构建阶段成功完成，您可以将最新的更改部署到Heroku。</li>
+</ol>
+
+<p>在项目的根目录下，创建一个名为<code>.circleci</code>的文件夹。在其中，创建一个名为<code>config.yml</code>的文件。在新创建的文件中，添加以下配置:</p>
+
+<pre><code># Use the latest 2.1 version of CircleCI pipeline process engine.
+version: 2.1
+
+orbs:
+  heroku: circleci/heroku@1.2.6
+  node: circleci/node@4.7.0
+
+jobs:
+  build:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages:
+          cache-path: ~/project/node_modules
+          override-ci-command: npm install
+
+workflows:
+  sample:
+    jobs:
+      - build
+      - heroku/deploy-via-git:
+          force: true # this parameter instructs the push to use a force flag when pushing to the heroku remote, see: https://devcenter.heroku.com/articles/git
+          requires:
+            - build
+</code></pre>
+
+<p>这种配置吸引了Heroku orb <code>circleci/heroku</code>。这个球体给你提供了一套强大的Heroku任务和命令。其中一个任务是<code>heroku/deploy-via-git</code>，直接从GitHub repo将您的应用程序部署到您的Heroku帐户。该配置使用Node.js orb <code>circleci/node</code>，它允许您在默认启用缓存的情况下安装包。</p>
+
+<p>在配置中还指定了一个名为<code>build</code>的任务，它检查最新的代码并安装在<code>package.json</code>文件中指定的包。</p>
+
+<p>最后，有一个工作流运行<code>build</code>作业，然后是<code>heroku/deploy-via-git</code>作业。注意，有一个<code>requires</code>选项告诉CircleCI只有在构建工作完成后才运行<code>deploy-via-git</code>。</p>
+
+<p>接下来，在GitHub上建立一个存储库，并将项目链接到CircleCI。看到这个帖子寻求帮助:<a href="https://circleci.com/blog/pushing-a-project-to-github/">把你的项目推到GitHub </a>。</p>
+
+<p>登录您的CircleCI帐户。如果你注册了你的GitHub账户，你所有的库都会显示在你项目的仪表盘上。</p>
+
+<p>在您的<code>feathers_heroku</code>项目旁边，点击<strong>设置项目</strong>。</p>
+
+<p>CircleCI检测项目中的<code>config.yml</code>文件。点击<strong>使用现有配置</strong>，然后<strong>开始建造</strong>。您的第一个工作流将开始运行，但是，它将失败！这是可以预料的。</p>
+
+<p><img src="../Images/055abe5657347723458442c769778b1d.png" alt="Pipeline build fails" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-build-fails.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-build-fails.png"/></p>
+
+<p>部署过程失败，因为您没有提供Heroku API密钥。现在就去解决它。点击<strong>项目设置</strong>按钮，然后点击<strong>环境变量</strong>。添加两个新变量如下:</p>
+
+<ul>
+  <li><code>HEROKU_APP_NAME</code>变量是Heroku ( <code>deno-heroku-circleci</code>)中的app名称。</li>
+  <li><code>HEROKU_API_KEY</code>变量是您从帐户设置页面检索的Heroku API密钥。</li>
+</ul>
+
+<p>选择<strong>从失败的</strong>选项重新运行工作流，以重新运行Heroku部署。要确认工作流是否成功，您可以在浏览器中打开新部署的应用程序。应用程序的URL应该是这样的格式:<code>https://&lt;HEROKU_APP_NAME&gt;.herokuapp.com/</code>。</p>
+
+<p>你将会看到你正在建设的索引页面。</p>
+
+<h2>实现<code>questions</code>服务</h2>
+
+<p>是时候添加功能来处理我们的API上的问题了。对于本教程，问题将包含这些属性的字段:</p>
+
+<ul>
+  <li>困难</li>
+  <li>问题</li>
+  <li>回答正确</li>
+</ul>
+
+<p>创建问题时，默认情况下会分配一个唯一的主键。</p>
+
+<p>使用以下命令创建数据库支持的服务:</p>
+
+<pre><code>feathers generate service
+</code></pre>
+
+<p>对于这项服务，使用<code>NeDB</code>，只需按<strong>回车</strong>即可确认。使用<code>Questions</code>作为服务名，并用默认值确认所有其他提示。只需按下<strong>回车</strong>:</p>
+
+<pre><code>  ? What kind of service is it? NeDB
+  ? What is the name of the service? Questions
+  ? Which path should the service be registered on? /questions
+  ? What is the database connection string? nedb://../data
+</code></pre>
+
+<p>有了这个命令，FeathersJS就为您的问题提供了CRUD操作所需的一切。此时，您已经有了一个包含这些端点的API:</p>
+
+<ul>
+  <li><code>GET /questions</code>逐页列出所有问题。</li>
+  <li><code>POST /questions</code>创建一个新问题。</li>
+  <li><code>GET questions/123</code>返回id为123的问题的详细信息。您还可以在这个请求中包含查询:<code>questions/123?difficulty=medium</code>。</li>
+  <li><code>PATCH /questions/123</code>和<code>PUT /questions/123</code>用id 123更新问题的细节。</li>
+  <li><code>DELETE /questions/123</code>删除id为123的问题。</li>
+</ul>
+
+<p>您可以为您的应用程序提供服务，并向任何端点发出请求。对于本教程，在使用新的API之前，先植入数据库并覆盖一些默认功能。</p>
+
+<p>当您收到添加问题的请求时，您希望在将请求保存到数据库之前，只从请求中检索前面指定的三个值。通过覆盖<code>create</code>服务方法来实现。打开<code>src/services/questions/questions.class.js</code>并对其进行编辑以匹配以下代码:</p>
+
+<pre><code>// src/services/questions/questions.class.js
+const { Service } = require("feathers-nedb");
+
+exports.Questions = class Questions extends Service {
+  create(data, params) {
+    const { question, correctAnswer, difficulty } = data;
+    const quizData = { question, correctAnswer, difficulty };
+    return super.create(quizData, params);
+  }
+};
+</code></pre>
+
+<p>接下来，创建一个播种器，为您提供一些示例问题。在<code>src/services/questions</code>目录中，创建一个名为<code>questions.seed.js</code>的新文件。将此代码添加到新创建的文件中:</p>
+
+<pre><code>// src/services/questions/questions.seed.js
+exports.seedQuestions = [
+  {
+    difficulty: "medium",
+    question: "The HTML5 standard was published in 2014.",
+    correctAnswer: "True",
+  },
+  {
+    difficulty: "medium",
+    question:
+      "Which computer hardware device provides an interface for all other connected devices to communicate?",
+    correctAnswer: "Motherboard",
+  },
+  {
+    difficulty: "medium",
+    question: "On which day did the World Wide Web go online?",
+    correctAnswer: "December 20, 1990",
+  },
+  {
+    difficulty: "medium",
+    question: "What is the main CPU is the Sega Mega Drive / Sega Genesis?",
+    correctAnswer: "Motorola 68000",
+  },
+  {
+    difficulty: "medium",
+    question: "Android versions are named in alphabetical order.",
+    correctAnswer: "True",
+  },
+  {
+    difficulty: "medium",
+    question:
+      "What was the first Android version specifically optimized for tablets?",
+    correctAnswer: "Honeycomb",
+  },
+  {
+    difficulty: "medium",
+    question:
+      "Which programming language shares its name with an island in Indonesia?",
+    correctAnswer: "Java",
+  },
+  {
+    difficulty: "medium",
+    question: "What does RAID stand for?",
+    correctAnswer: "Redundant Array of Independent Disks",
+  },
+  {
+    difficulty: "medium",
+    question:
+      "Which of the following computer components can be built using only NAND gates?",
+    correctAnswer: "ALU",
+  },
+  {
+    difficulty: "medium",
+    question:
+      "What was the name of the security vulnerability found in Bash in 2014?",
+    correctAnswer: "Shellshock",
+  },
+];
+</code></pre>
+
+<p>接下来，打开<code>src/services/questions/questions.service.js</code>并编辑它以匹配以下代码:</p>
+
+<pre><code>// src/services/questions/questions.service.js
+// Initializes the `Questions` service on path `/questions`
+const { Questions } = require("./questions.class");
+const createModel = require("../../models/questions.model");
+const hooks = require("./questions.hooks");
+const { seedQuestions } = require("./questions.seed");
+
+module.exports = async function (app) {
+  const options = {
+    Model: createModel(app),
+    paginate: app.get("paginate"),
+  };
+
+  // Initialize our service with any options it requires
+  app.use("/questions", new Questions(options, app));
+
+  // Get our initialized service so that we can register hooks
+  const service = app.service("questions");
+
+  //get the total number of questions in the database
+  const { total: totalQuestions } = await service.find({
+    query: {
+      $limit: 0,
+    },
+  });
+
+  //seed the database if there are no questions saved
+  if (totalQuestions === 0) {
+    await seedQuestions.forEach((question) =&gt; {
+      service.create(question);
+    });
+  }
+
+  service.hooks(hooks);
+};
+</code></pre>
+
+<p>请注意，该代码片段中的代码首先检查数据库中的问题数量，只有当没有问题时才播种。这可以防止种子程序在每次启动本地服务器时运行。</p>
+
+<h2>使用Postman测试FeathersJS API</h2>
+
+<p>现在你可以用Postman来测试你的API了。</p>
+
+<p>向<code>http://localhost:3030/questions</code>发送一个<code>POST</code>请求。</p>
+
+<p><img src="../Images/5db0ce5884758c93999d83bf76e0aad6.png" alt="Create Questions" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-create-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-create-questions.png"/></p>
+
+<p>向<code>http://localhost:3030/questions</code>发送<code>GET</code>请求以检索问题列表。</p>
+
+<p><img src="../Images/f54776266a7ad61234e718d65e869fe6.png" alt="Get all Questions" class="zoomable" srcset="https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=449 449w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=898 898w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1347 1347w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=720 720w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1440 1440w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2160 2160w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=779 779w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1558 1558w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2337 2337w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=750 750w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=1500 1500w,&#10;https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;w=2250 2250w" sizes="(min-width: 1200px) 750px,&#10;(min-width: 992px) 779px,&#10;(min-width: 768px) 720px,&#10;(min-width: 480px) 720px,&#10;(min-width: 0px) 449px" data-full-size-src="https://production-cci-com.imgix.net/blog/media/2022-04-04-get-all-questions.png?ixlib=rb-3.2.1&amp;auto=format&amp;fit=max&amp;q=60&amp;ch=DPR%2CWidth%2CViewport-Width%2CSave-Data&amp;fm=jpg" data-original-src="https://circleci.com/blog/media/2022-04-04-get-all-questions.png"/></p>
+
+<p>整洁！最后，用最新的代码更新git存储库。不要忘记从索引页中删除“正在建设中”的消息。</p>
+
+<pre><code>git add .
+
+git commit -m "Implement CRUD functionality for questions"
+
+git push origin main
+</code></pre>
+
+<p>您的CircleCI构建再次运行，完成后，您的Heroku应用程序将更新为最新代码。干得好！</p>
+
+<h2>结论</h2>
+
+<p>在本教程中，我向您展示了如何使用GitHub、CircleCI和Heroku为FeathersJS API设置CI/CD管道。</p>
+
+<p>通过自动化发布新特性的过程，生产环境中的人为错误风险大大降低。产品还增加了一定程度的质量保证，因为只有当新特性的行为符合预期时，才会部署新特性。也就是说，只有当他们通过了指定的测试用例。</p>
+
+<p>这也有助于更有效的软件管理过程和更快乐的开发人员。重复的，平凡的方面是自动化的，所以你的团队可以专注于解决问题和创造。要了解持续集成和部署的更多好处，请访问<a href="https://circleci.com/blog/what-is-a-ci-cd-pipeline/">什么是CI/CD管道</a>。</p>
+
+<p>本教程的全部代码可以在GitHub上找到。</p>
+
+<hr/>
+
+<p><a href="https://twitter.com/yemiwebby" target="_blank" rel="noreferrer noopener"> Oluyemi </a>是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他解决问题的技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。由于精通技术，他的爱好包括尝试新的编程语言和框架。</p>
+
+
+        
+          
+          
+            <hr/>
+            <p>Oluyemi是一名拥有电信工程背景的技术爱好者。出于对解决用户日常遇到的问题的浓厚兴趣，他冒险进入编程领域，并从那时起将他的问题解决技能用于构建web和移动软件。Oluyemi是一名热衷于分享知识的全栈软件工程师，他在世界各地的几个博客上发表了大量技术文章和博客文章。作为技术专家，他的爱好包括尝试新的编程语言和框架。</p>
+
+            <p><a href="/blog/author/olususi-oluyemi/" class="arrow-link">阅读更多Olususi Oluyemi的帖子</a></p>
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

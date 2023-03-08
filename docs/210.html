@@ -1,0 +1,214 @@
+<html>
+<head>
+<title>Continuously Deploying Python Packages to PyPI with CircleCI - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用CircleCI - CircleCI将Python包持续部署到PyPI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/continuously-deploying-python-packages-to-pypi-with-circleci/#2017-11-06T01:55:00-08:00">https://circleci.com/blog/continuously-deploying-python-packages-to-pypi-with-circleci/#2017-11-06T01:55:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+          <p class="italic"><strong>来自出版商的说明:</strong>您已经找到了我们的一些旧内容，这些内容可能已经过时和/或不正确。尝试在<a href="https://circleci.com/docs/" target="_blank">我们的文档</a>或<a href="https://circleci.com/blog/">博客</a>中搜索最新信息。</p>
+          <hr/>
+        
+
+        <p>Python包索引通常被称为PyPI，是Python编程语言的软件仓库。每次运行<code>pip install $PACKAGE</code>时，你都在使用PyPI。在这篇文章中，您将学习如何使用git标签和CircleCI将您自己的Python包持续部署到PyPI。</p>
+
+<p>在过去的几周里，我一直在为CircleCI API 开发一个<a href="https://github.com/levlaz/circleci.py"> Python包装器。这个项目使用了我们将要在这里讨论的同样的方法。</a></p>
+<h2>属国</h2>
+
+<p>这种方法在标准Python库之外唯一需要的依赖项是<a href="https://pypi.python.org/pypi/twine"> twine </a>包。</p>
+
+<h2>假设</h2>
+
+<p>本教程假设以下情况属实:</p>
+
+<ol>
+  <li>你在PyPI上有账户。如果没有，很容易上手。可以<a href="https://pypi.python.org/pypi?%3Aaction=register_form">在这里</a>注册。</li>
+  <li>您的项目设置中有一个名为<code>PYPI_PASSWORD</code>的环境变量，它引用您的PyPI密码。</li>
+  <li>您有一个遵循标准打包指南的Python包。如果没有，Python提供了一些关于如何<a href="https://packaging.python.org/en/latest/tutorials/packaging-projects/">打包和分发项目</a>的优秀文档。</li>
+  <li>您正在使用<a href="https://git-scm.com/book/en/v2/Git-Basics-Tagging"> git标签</a>来创建一个发布。</li>
+  <li>您正在使用带有<a href="https://circleci.com/docs/workflows/">工作流</a>的CircleCI 2.0。</li>
+</ol>
+
+<h2>发布工作流</h2>
+
+<p>下面描述了高级发布工作流。</p>
+
+<ol>
+  <li>一旦您准备好剪切项目的新版本，您就可以在<code>setup.py</code>中更新版本，并使用<code>git tag $VERSION</code>创建一个新的git标签。</li>
+  <li>一旦用<code>git push --tags</code>将标签推送到GitHub，就会触发一个新的CircleCI构建。</li>
+  <li>您运行一个验证步骤来确保git标记与您在上面的步骤1中添加的my project的版本相匹配。</li>
+  <li>CircleCI执行你所有的测试(你有测试对不对？).</li>
+  <li>一旦所有测试都通过，您就可以创建一个新的Python包，并使用<a href="https://pypi.python.org/pypi/twine"> twine </a>将其上传到PyPI。</li>
+</ol>
+
+<h2>完整演练</h2>
+
+<p>有了所有这些假设，并在头脑中有了一个高层次的概述，我们就可以开始研究真实世界的例子了。</p>
+
+<h3>setup.py</h3>
+
+<p><a href="https://packaging.python.org/tutorials/distributing-packages/#setup-py"> setup.py </a>文件是任何Python包中最重要的部分。它为PyPI提供元数据，处理所有打包任务，甚至允许您添加定制的打包相关命令。我们的示例项目中的文件如下所示:</p>
+
+<pre><code>#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+:copyright: (c) 2017 by Lev Lazinskiy
+:license: MIT, see LICENSE for more details.
+"""
+import os
+import sys
+
+from setuptools import setup
+from setuptools.command.install import install
+
+# circleci.py version
+VERSION = "1.1.1"
+
+def readme():
+    """print long description"""
+    with open('README.rst') as f:
+        return f.read()
+
+
+class VerifyVersionCommand(install):
+    """Custom command to verify that the git tag matches our version"""
+    description = 'verify that the git tag matches our version'
+
+    def run(self):
+        tag = os.getenv('CIRCLE_TAG')
+
+        if tag != VERSION:
+            info = "Git tag: {0} does not match the version of this app: {1}".format(
+                tag, VERSION
+            )
+            sys.exit(info)
+
+setup(
+    name="circleci",
+    version=VERSION,
+    description="Python wrapper for the CircleCI API",
+    long_description=readme(),
+    url="https://github.com/levlaz/circleci.py",
+    author="Lev Lazinskiy",
+    author_email="lev@levlaz.org",
+    license="MIT",
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "Intended Audience :: System Administrators",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Topic :: Software Development :: Build Tools",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Internet",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3 :: Only",
+    ],
+    keywords='circleci ci cd api sdk',
+    packages=['circleci'],
+    install_requires=[
+        'requests==2.18.4',
+    ],
+    python_requires='&gt;=3',
+    cmdclass={
+        'verify': VerifyVersionCommand,
+    }
+)
+
+</code></pre>
+
+<p>有几点需要注意:</p>
+
+<ol>
+  <li><code>VERSION</code>被设置为文件顶部的常数。这应该总是与您最新的git标签相匹配。</li>
+  <li><code>setup()</code>函数相当标准，提供了PyPI需要的所有必要的元数据。</li>
+  <li>我们有一个名为<code>verify</code>的定制命令，它将确保我们的git标签与我们的<code>VERSION</code>相匹配。我们将此命令作为工作流程的一部分来运行，以确保我们发布的是正确的版本。</li>
+</ol>
+
+
+
+<p>这个项目的CircleCI配置文件中有趣的部分如下所示。你可以在这里看到完整的文件。</p>
+
+<h4>部署作业</h4>
+
+<p>一旦我们安装了所有的项目依赖项，为打包做好准备，我们就运行定制的<code>verify</code>命令(在上一节中讨论过)来确保git标签与我们即将发布的版本相匹配。</p>
+
+<pre><code>      - run:
+          name: verify git tag vs. version
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            python setup.py verify
+</code></pre>
+
+<p>接下来，我们使用在项目设置中设置的<code>PYPI_PASSWORD</code>环境变量创建一个<code>.pypirc</code>文件。</p>
+<pre><code>      - run:
+          name: init .pypirc
+          command: |
+            echo -e "[pypi]" &gt;&gt; ~/.pypirc
+            echo -e "username = levlaz" &gt;&gt; ~/.pypirc
+            echo -e "password = $PYPI_PASSWORD" &gt;&gt; ~/.pypirc
+</code></pre>
+
+<p>然后我们创建所有的包。</p>
+<pre><code>      - run:
+          name: create packages
+          command: |
+            make package
+</code></pre>
+<p>为了方便起见，这个项目使用了一个Makefile文件。如果您不想使用Makefile，您可以在本节中手动运行命令。</p>
+
+<p>创建包的命令有:</p>
+
+<pre><code># create a source distribution
+python setup.py sdist
+
+# create a wheel
+python setup.py bdist_wheel
+</code></pre>
+
+<p>最后，我们使用twine将刚刚创建的包上传到PyPI。</p>
+<pre><code>      - run:
+          name: upload to pypi
+          command: |
+            . venv/bin/activate
+            twine upload dist/*
+</code></pre>
+
+
+
+<p>我们配置的部署作业只有在构建是git标记时才被触发，并且依赖于我们测试作业的通过。此类设置的配置如下所示:</p>
+
+<pre><code>workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /.*/
+      - deploy:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /[0-9]+(\.[0-9]+)*/
+            branches:
+              ignore: /.*/
+</code></pre>
+
+<h2>摘要</h2>
+
+<p>就是这样！现在，每当你为你的项目推一个新的git标签时，你将自动创建一个新的包，并把它上传到PyPI。这允许您拥有一个完全独立的、可重复的连续部署管道。最重要的是，通过使用测试、持续集成和持续部署，您能够确保您的包的用户在运行<code>pip install $YOUR_PACKAGE</code>时只获得最高质量的包。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

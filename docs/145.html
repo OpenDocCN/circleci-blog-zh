@@ -1,0 +1,53 @@
+<html>
+<head>
+<title>CircleCI orbs provide a simple way to integrate with AWS services</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>CircleCI orbs提供了一种与AWS服务集成的简单方法</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/circleci-for-aws-deep-integration-security-and-flexibility/#2019-12-02T09:00:00-08:00">https://circleci.com/blog/circleci-for-aws-deep-integration-security-and-flexibility/#2019-12-02T09:00:00-08:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>希望将AWS服务与其CI/CD管道相集成的团队不应该为了建立一致的工作流而费尽周折。这正是我们创建各种AWS orbs的原因，这些orb为构建和测试代码、创建和推送工件以及将您的应用程序部署和更新到您的AWS帐户提供简单的开箱即用的解决方案。</p>
+
+<p>为了向AWS用户提供一套全面的orb，我们还专门为AWS的新无服务器应用程序模型(SAM)添加了一个新的orb，这是CI管道和AWS Lambda之间的首次简化集成。现在，您可以使用我们的orb在CI/CD管道上自动测试更新的Lambda函数，然后再向用户发布，而不是手动操作您的系统来测试您的Lambda代码。</p>
+
+<p>我们的AWS orbs套件提供了一个高效的解决方案，可以节省您自己设置集成的时间。例如，您需要编写大量的脚本来在大多数CI平台上构建和推送Docker映像。使用我们的ECR orb(目前已有超过1，100家组织使用),您只需六行预打包的配置就可以实现同样的功能。看到如此多的团队从我们当前的AWS集成中受益，令人振奋。此外，我们还在不断扩展和增强我们的AWS orbs，以支持最受欢迎的使用案例，并根据客户的要求集成其他AWS服务。</p>
+
+<p>查看我们最新的AWS orbs，帮助将AWS服务与您的CI/CD渠道集成:</p>
+
+<h3>使用这些orb部署到AWS:</h3>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-serverless" target="_blank" rel="noreferrer noopener">AWS-SAM-无服务器</a> -利用AWS无服务器应用程序模型，在CircleCI上构建、测试和部署您的AWS SAM无服务器应用程序。</p>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-ecr" target="_blank" rel="noreferrer noopener">ECR</a>——构建图像，并将它们推送到亚马逊弹性容器注册中心(Amazon ECR)。</p>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-ecs" target="_blank" rel="noreferrer noopener"> ECS </a> -部署并更新亚马逊弹性容器服务(Amazon ECS)</p>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-eks" target="_blank" rel="noreferrer noopener"> EKS </a> -为Kubernetes(亚马逊EKS)部署和更新亚马逊弹性容器服务。</p>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-code-deploy" target="_blank" rel="noreferrer noopener"> CodeDeploy </a> -将应用程序部署到AWS CodeDeploy。</p>
+
+<h3>通过这些orb与AWS服务集成:</h3>
+
+<p>CLI  -安装并配置AWS命令行界面(awscli)。</p>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-s3" target="_blank" rel="noreferrer noopener"> S3 </a> -使用这套工具与亚马逊S3合作。要求:bash。</p>
+
+<p><a href="https://circleci.com/developer/orbs/orb/circleci/aws-parameter-store" target="_blank" rel="noreferrer noopener"> AWS系统管理器参数存储库</a> -加载AWS系统管理器参数存储库密钥作为环境变量。</p>
+
+<h3>你能做什么</h3>
+
+<p>你还想用AWS做一些orb中没有的事情吗？orb是开源的，所以在一个现有的orb上增加功能只是获得你的PR批准和合并的问题。查看<a href="https://circleci.com/developer/orbs" target="_blank" rel="noreferrer noopener"> orbs注册表</a>中所有可用的orbs。你是否有一个用例，你觉得它与当前的AWS orbs集不同？你可以<a href="https://circleci.com/blog/how-to-make-an-easy-and-valuable-open-source-contribution-with-circleci-orbs/" target="_blank" rel="noreferrer noopener">自己创作一个</a>并贡献给社区。我们甚至发布了为orb创建自动化构建、测试和部署管道的最佳实践(<a href="https://circleci.com/blog/creating-automated-build-test-and-deploy-workflows-for-orbs/" target="_blank" rel="noreferrer noopener">第1部分</a>和<a href="https://circleci.com/blog/creating-automated-build-test-and-deploy-workflows-for-orbs-part-2/" target="_blank" rel="noreferrer noopener">第2部分</a>)来帮助您。</p>
+
+<p>要将CI/CD集成到您的AWS基础设施中，请让您的团队利用第三方服务并消除内部开发的需要。有了orb，您的团队只需要知道如何使用这些服务，而不需要知道如何集成或管理它们。开始用AWS球体在CircleCI上建造。</p>
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

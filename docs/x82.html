@@ -1,0 +1,115 @@
+<html>
+<head>
+<title>Wide World of Workflows: How we build our Docker convenience images - CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>工作流程的广阔世界:我们如何构建Docker便利图像- CircleCI</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/wide-world-of-workflows-how-we-build-our-docker-convenience-images/#2018-07-27T07:16:00-07:00">https://circleci.com/blog/wide-world-of-workflows-how-we-build-our-docker-convenience-images/#2018-07-27T07:16:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>我们的工作流博客系列一直在探索工作流的一些主要功能集，包括<a href="https://circleci.com/blog/wide-world-of-workflows-job-orchestration/">作业编排</a>、<a href="https://circleci.com/blog/wide-world-of-workflows-multi-executor-support/">多执行器支持</a>和<a href="https://circleci.com/blog/wide-world-of-workflows-control/">控制流</a>，重点介绍了CircleCI客户的开源示例，如<a href="https://github.com/artsy/force"> Artsy </a>、<a href="https://github.com/DataDog/dd-trace-java"> DataDog </a>、脸书(<a href="https://github.com/facebook/react-native"> React Native </a>、谷歌(<a href="https://github.com/GoogleCloudPlatform/cloud-profiler-nodejs">谷歌云</a>和<a href="https://github.com/mapbox/mapbox-gl-js"> Mapbox </a>。</p>
+
+<p>最后，我们想把焦点放在我们自己身上，谈谈我们如何在内部使用工作流。我们的大部分代码库都不是开源的，但是我们的<a href="https://github.com/circleci/circleci-images"> circleci-images库</a>是开源的——这是一个很好的例子，展示了您可以使用整个工作流工具集来完成什么。</p>
+<h3>什么是circleci-images？</h3>
+<p>我们使用circleci-images来构建和部署我们的<a href="https://circleci.com/docs/circleci-images/"> Docker便利图像</a>，这些图像每天被使用数千次。</p>
+
+<p>由于如此多的客户依赖于这些映像，我们使用扇入/扇出、具有不同执行环境的作业、<code>cron</code>调度、基于分支的过滤器和多个工作流等功能，构建了一个高效可靠的映像构建管道。</p>
+
+<p>我们的<a href="https://github.com/circleci/circleci-images/blob/master/.circleci/config.yml"> config.yml文件</a>也大量使用了<a href="https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/"> YAML锚</a>，并且，作为我们部署过程的一部分，除了circleci-images repo本身之外，我们还整合了多个GitHub存储库，并最终将映像推送到Docker Hub上的<a href="https://hub.docker.com/r/ccistaging/"> staging </a>和<a href="https://hub.docker.com/r/circleci"> production </a>组织。</p>
+
+<p>让我们深入探讨一下所有这些不同的部分是如何组合在一起的:circleci-images repo中的源代码是如何作为Docker映像部署到17个不同的Docker Hub存储库中的，每个存储库中都有自己特定的映像变体集？更重要的是，我们为什么要这样建造它？</p>
+
+<h3>circleci影像之旅</h3>
+<p>在持续集成和交付管道中跟踪代码通常从一次提交开始。然而，对于计划的工作流，事情并不总是那么简单。在这种情况下，我们的circleci-images config.yml从解决两个不同的用例开始:<br/> <strong> 1)我们希望构建和部署夜间映像。</strong></p>
+
+<p>为什么？因为构建Docker映像通常需要引入许多上游依赖项，我们的映像当然也不例外。我们根据映像和变体在Docker映像中安装各种语言、框架、实用程序和应用程序，从常见的CLI工具如<code>curl</code>、<code>git</code>和<code>jq</code>；浏览器测试包，如Chromedriver或PhantomJSDocker、Firefox和Chrome等应用程序。如果该软件有新的补丁或稳定版本，我们希望尽快更新我们的便利映像，以便为我们的用户提供最安全、最稳定的平台。<a href="https://circleci.com/docs/workflows/#scheduling-a-workflow">预定工作流程</a>让这一切成为可能。2)我们希望在每次提交时构建、测试和部署映像。</p>
+
+<p>这是更典型的场景:每夜构建很重要，但获得代码变更的即时反馈也很重要。</p>
+
+<p>为了适应这两种用例，我们在我们的<a href="https://github.com/circleci/circleci-images/blob/master/.circleci/config.yml"> config.yml </a>中使用了两种不同的工作流:一种夜间<code>build_test_deploy</code>工作流，它在世界协调时每天午夜运行，但只在circleci-images的<code>master</code>分支上运行</p>
+
+<pre><code class="language-yaml">workflows:
+  version: 2
+  build_test_deploy:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - master
+</code></pre>
+
+<p>—以及一个常规的<code>commit</code>工作流，为每个新的提交处理我们的控制流。然而，除了几个例外，这些工作流运行相同的一组作业，这是多工作流配置的一个重要特性:定义一个作业一次，您可以在任意多个工作流中重用它，这有助于保持您的config.yml简洁明了。</p>
+
+<p>既然我们已经解决了夜间工作流场景，让我们继续关注从提交到部署的代码变更。对于给定的提交，我们运行几个初始作业，以编程方式为我们将要构建的所有映像变体生成docker文件，因此如果shell脚本出现问题，并让作业负责这项工作，工作流就在那里停止。</p>
+
+<p>如果一切顺利，我们就展开下一组工作，做实际的形象塑造工作。这些作业利用了我们基于<a href="https://circleci.com/docs/workflows/#branch-level-job-execution">分支的过滤</a>特性，因为我们只想在提交到<code>staging</code>或<code>master</code>分支时构建并推送Docker映像。同样，我们在这里使用YAML锚点，以避免在一个又一个作业中手动重复相同的工作流过滤器:</p>
+
+<pre><code class="language-yaml">workflow_filters: &amp;workflow_filters
+  requires:
+    - refresh_tools_cache
+  filters:
+    branches:
+      only:
+        - master
+        - production
+        - parallel
+</code></pre>
+
+<p>每个形象塑造工作看起来或多或少都像这样:</p>
+
+<pre><code class="language-yaml">  publish_image: &amp;publish_image
+    machine: true
+    working_directory: ~/circleci-bundles
+    steps:
+      - checkout
+      - run:
+          name: Docker Login
+          command: docker login -u $DOCKER_USER -p $DOCKER_PASS
+      - run:
+          name: Build and Publish Images
+          command: |
+            export COMPUTED_ORG=ccistaging
+            if [[ "$CIRCLE_BRANCH" == "production" ]]
+            then
+              export COMPUTED_ORG=circleci
+            fi
+            export NEW_ORG=${NEW_ORG:-$COMPUTED_ORG}
+
+            make -j $PLATFORM/publish_images
+      - store_artifacts:
+          path: "."
+          destination: circleci-bundles
+</code></pre>
+
+<p>这个YAML锚点允许我们重用我们的映像构建逻辑，只需传入一个不同的环境变量来指定我们在特定作业中构建哪个映像:</p>
+
+<pre><code class="language-yaml"> publish_node:
+    &lt;&lt;: *publish_image
+    environment:
+      - PLATFORM: node
+</code></pre>
+
+<p>与传统的扇出/扇入工作流不同，在传统的扇出/扇入工作流中，可以扇出来运行测试，然后扇入来运行一个离散的部署作业或一组作业，这里我们的部署逻辑是在每个单独的映像构建作业中执行的<a href="https://github.com/circleci/circleci-images/blob/master/shared/images/build.sh">(通过Make targets </a>处理的<a href="https://github.com/circleci/circleci-images/blob/17e60c886fac4d2625419deea7e33e153a640679/Makefile#L22">)。虽然我们<i>在Docker Hub上托管</i>我们的便利图像，但我们在CircleCI上构建它们——我们发现这比使用Docker Hub构建每个图像的每个变体要快得多。</a></p>
+
+<p>正如你所看到的，我们最近更新了一些Docker Hub存储库——以<code>[circleci/golang]</code>(https://hub.docker.com/r/circleci/golang)为例——我们使用Docker Hub为每个存储库只构建了一个<a href="https://hub.docker.com/r/circleci/golang/builds">示例映像</a>，这为我们提供了Docker Hub的<a href="https://docs.docker.com/docker-hub/builds">自动构建</a>功能所提供的集成<a href="https://hub.docker.com/r/circleci/golang/~/dockerfile/"> Dockerfile </a>和README支持。</p>
+
+<p>要构建所有这些图像，可以使用<a href="https://circleci.com/docs/building-docker-images/">远程Docker环境</a>或<a href="https://circleci.com/docs/executor-types/#using-machine">执行程序</a>。如果我们的映像构建作业有一些专门的逻辑，需要安装特定的依赖项或框架或语言，或者在构建之前运行一组特定的命令，那么Remote Docker可能是最佳选择，因为它允许我们使用Docker映像作为主要的构建容器，并将与Docker相关的命令发布到远程Docker环境。</p>
+
+<p>然而，由于这些作业完全由Docker相关的命令组成，所以使用<code>machine</code> executor更容易。这很好地说明了<a href="https://circleci.com/docs/executor-types/">多平台工作流</a>的威力——为每项工作选择不同的执行环境为您提供了高水平的定制，从而实现了更加简化、优化的构建/测试/部署流程。</p>
+
+<p>想深入挖掘吗？因为作为我们方便的图像构建过程的一部分使用的所有存储库都是开源的，所以您可以确切地看到它是如何工作的:</p>
+
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

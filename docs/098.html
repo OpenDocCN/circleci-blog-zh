@@ -1,0 +1,313 @@
+<html>
+<head>
+<title>Building CI/CD pipelines using dynamic config | CircleCI</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>使用动态配置| CircleCI构建CI/CD管道</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/building-cicd-pipelines-using-dynamic-config/#2021-04-28T05:00:00-07:00">https://circleci.com/blog/building-cicd-pipelines-using-dynamic-config/#2021-04-28T05:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>作为一名CI/CD工程师，创建健壮、可管理和可重用的功能是我工作的一大部分。最近，我写了关于<a href="https://circleci.com/blog/parameters-in-pipeline-config/">通过在<a href="https://circleci.com/docs/config-intro/#getting-started-with-circleci-config">管道配置文件</a>中采用和实现<a href="https://circleci.com/docs/pipeline-variables/">管道变量</a>来管理可重用管道配置</a>的文章。正如我在那篇教程中展示的，管道变量和<a href="https://circleci.com/docs/orb-intro/"> orbs </a>为这个过程增加了一些灵活性，但它们仍然有点有限。管道配置文件的性质有时会限制开发人员使用适合其特定构建过程的解决方案。这些限制可能会导致开发人员创建“变通办法”,比如在提交之前执行预提交钩子中的脚本来生成配置。另一个解决方法是使用作业通过设置管道参数的API来触发管道运行。其中一些解决方案达到了预期的效果，但它们可能效率低下且过于复杂，需要不熟悉的变通方法，或者存在不容易解决的边缘情况。</p>
+
+<p>为了满足这一需求，CircleCI发布了<a href="https://circleci.com/docs/dynamic-config/">动态配置</a>。动态配置使您能够在管道配置中注入动态性。您可以使用动态配置通过脚本来执行单独的配置文件。这是灵活性方面的一大进步，这意味着您可以定制想要测试和验证的配置部分。动态配置还允许您在一个代码库中维护多个config.yml文件，以便有选择地识别和执行您的主config.yml文件。该特性提供了广泛的强大功能，可以轻松指定和执行各种动态管道工作负载。</p>
+
+<p>在这篇文章中，我将带您了解如何通过创建一个不在根配置文件夹中的配置文件来实现动态配置。</p>
+
+<h2>使用设置工作流开始动态配置</h2>
+
+<p>在这篇文章中，我将使用<a href="https://github.com/CircleCI-Public/blog-dynamic-config-examples">这个代码回购和代码</a>作为例子。你可以<a href="https://docs.github.com/en/github/getting-started-with-github/fork-a-repo">派生项目</a>或者<a href="https://docs.github.com/en/github/importing-your-projects-to-github/importing-a-repository-with-github-importer">使用导入项目</a>来分支你自己的版本并跟随。分叉或导入示例后，<a href="https://circleci.com/docs/getting-started/#setting-up-circleci">将项目</a>添加到CircleCI，并使用设置工作流启用动态配置。这可以通过完成以下步骤轻松实现:</p>
+<ol>
+  <li>转到CircleCI应用程序中的<strong>项目</strong>仪表板。</li>
+  <li>选择您想要使用的项目。</li>
+  <li>选择右上角的<strong>项目设置</strong>。</li>
+  <li>在左侧面板上，选择<strong>高级</strong>。</li>
+  <li>向底部，<strong>将</strong>运行设置工作流程开关切换至“开”位置。</li>
+</ol>
+
+<p>您的项目现在能够使用设置工作流运行动态配置。</p>
+
+<p>首先，您需要创建一个新的config.yml文件，它位于<code>.circleci/</code>目录中。这个文件中的语法有一个值为<code>true</code>的<code>setup:</code>键。这是执行或触发可以在其中定义的各种命令的入口点。命令可以包括传递参数值和触发默认<code>.circleci/</code>目录之外的一个单独的config.yml管道。</p>
+
+<h2>从shell脚本生成config.yml文件</h2>
+
+<p>接下来，我将向您展示如何使用动态配置来使用脚本执行单独的配置文件。</p>
+
+<p>这种模式实际上会触发<code>./circleci/config.yml</code>文件并执行<code>scripts/generate-pipeline-config</code>脚本，该脚本会在<code>configs/</code>目录下生成一个新的配置文件，该文件将在后续步骤中进行处理。</p>
+
+<pre><code># This file demonstrates how to leverage dynamic configuration to execute a separate config file using scripts.
+
+version: 2.1
+setup: true
+orbs:
+  continuation: circleci/continuation@0.1.0
+jobs:
+  generate-config:
+    executor: continuation/default
+    steps:
+      - checkout
+      - run: 
+          name: Generate Pipeline generated_config.yml file
+          command: |
+            #The generate script has 2 arguments: 1) Terraform Version 2) DigitalOcean CLI Version
+
+            ./scripts/generate-pipeline-config "0.14.5" "1.59.0"
+      - continuation/continue:
+          parameters: '{}'
+          configuration_path: configs/generated_config.yml
+workflows:
+  setup-workflow:
+    jobs:
+      - generate-config
+</code></pre>
+
+<p>在上面的代码示例中，<code>setup:</code>键被设置为true，这使得该配置成为使用设置工作流的动态配置文件。<a href="https://circleci.com/developer/orbs/orb/circleci/continuation">continuation:circle ci/continuation @ 0 . 1 . 0 orb</a>能够协调您的主要配置的执行。<code>generate-config:</code>工作步骤列表执行命令:</p>
+
+<pre><code>./scripts/generate-pipeline-config "0.14.5" "1.59.0"
+</code></pre>
+
+<p>该命令执行一个<code>generate-pipeline-config</code> bash脚本，该脚本生成一个新的管道配置文件，该文件需要两个参数:</p>
+<ul>
+  <li>参数1是要安装的Terraform的版本</li>
+  <li>参数2是要安装的数字海洋CLI的版本</li>
+</ul>
+
+<p>这些参数之所以存在，是因为正在生成的配置包含使用Terraform和DigitalOcean CLI工具在DigitalOcean Kubernetes集群上创建和部署映像的作业。一旦<code>generate-pipeline-config</code>脚本执行并在其中创建了<code>configs/</code>目录和新的配置文件<code>generated_config.yml</code>，脚本就使用参数将版本值动态注入到适当的位置。我们稍后将深入研究<code>generate-pipeline-config</code>文件，但现在我想转到设置工作流配置的<code>continuation/continue:</code>元素。</p>
+
+<p><code>parameters:</code>键值指定了<a href="https://circleci.com/docs/pipeline-variables/#pipeline-parameters-in-configuration">管道配置参数</a>，这些参数可以传递给在<code>configuration_path:</code>元素中定义的目标配置文件。在这种情况下，生成的配置文件没有定义任何管道变量，因此使用<code>{}</code>为<code>parameters:</code>元素分配一个空值。最后，<code>configuration_path:</code>元素指定了设置工作流管道接下来将执行的配置文件，在本例中是<code>configs/generated_config.yml</code>。该文件先前在<strong>生成管道generated_config.yml文件</strong>运行步骤中生成。</p>
+
+<p>接下来，我们应该探索一下<code>generate-pipeline-config</code>里面有什么，以便更好地理解它是如何工作的。</p>
+
+<h2>拆除生成管道配置文件</h2>
+
+<p>使用设置工作流程在动态配置中执行了<code>generate-pipeline-config</code>脚本。它生成了<code>configs/generated_config.yml</code>文件，然后作为后续管道执行。</p>
+
+<pre><code>#!/bin/bash 
+set -o pipefail
+
+TF_VERSION=$1 #Terraform CLI Version to install
+DOCTL_VERSION=$2 #Digital Ocean CLI Version to install
+
+mkdir configs/
+cat &lt;&lt; EOF &gt; configs/generated_config.yml
+version: 2.1
+orbs:
+  docker: circleci/docker@1.5.0
+  node: circleci/node@4.2.0
+  snyk: snyk/snyk@0.0.12
+  terraform: circleci/terraform@2.0.0  
+jobs:
+  scan_app:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - node/install-packages:
+          override-ci-command: npm install
+          cache-path: ~/project/node_modules 
+      - snyk/scan:
+          fail-on-issues: false
+          monitor-on-build: false
+  scan_push_docker_image:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - setup_remote_docker
+      - docker/check
+      - docker/build:
+          image: \$DOCKER_LOGIN/\$CIRCLE_PROJECT_REPONAME
+          tag: 0.1.&lt;&lt; pipeline.number &gt;&gt;             
+      - snyk/scan:
+          fail-on-issues: false
+          monitor-on-build: false
+          target-file: "Dockerfile"
+          docker-image-name: \$DOCKER_LOGIN/\$IMAGE_NAME:0.1.&lt;&lt; pipeline.number &gt;&gt;
+          project: \${CIRCLE_PROJECT_REPONAME}/\${CIRCLE_BRANCH}-app
+      - docker/push:
+          image: \$DOCKER_LOGIN/\$CIRCLE_PROJECT_REPONAME
+          tag: 0.1.&lt;&lt; pipeline.number &gt;&gt;
+  run_tests:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - node/install-packages:
+          override-ci-command: npm install
+          cache-path: ~/project/node_modules
+      - run:
+          name: Run Unit Tests
+          command: |
+            ./node_modules/mocha/bin/mocha test/ --reporter mochawesome --reporter-options reportDir=test-results,reportFilename=test-results
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+  create_do_k8s_cluster:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - run:
+          name: Create .terraformrc file locally
+          command: echo "credentials \"app.terraform.io\" {token = \"\$TERRAFORM_TOKEN\"}" &gt; \$HOME/.terraformrc   
+      - terraform/install:
+          terraform_version: $TF_VERSION
+          arch: "amd64"
+          os: "linux"
+      - terraform/init:
+          path: ./terraform/do_create_k8s
+      - run:
+          name: Create K8s Cluster on DigitalOcean 
+          command: |
+            export CLUSTER_NAME=\${CIRCLE_PROJECT_REPONAME}
+            export TAG=0.1.&lt;&lt; pipeline.number &gt;&gt;
+            curl -sL https://github.com/digitalocean/doctl/releases/download/v$DOCTL_VERSION/doctl-$DOCTL_VERSION-linux-amd64.tar.gz | tar -xzv
+            sudo mv doctl /usr/local/bin
+            export DO_K8S_SLUG_VER="\$(doctl kubernetes options versions -o json -t \$DIGITAL_OCEAN_TOKEN | jq -r '.[0] | .slug')"
+            cd terraform/do_create_k8s
+            terraform init
+            terraform apply -var do_token=\$DIGITAL_OCEAN_TOKEN -var cluster_name=\$CLUSTER_NAME -var do_k8s_slug_ver=\$DO_K8S_SLUG_VER -auto-approve
+  deploy_to_k8s:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - run:
+          name: Create .terraformrc file locally
+          command: echo "credentials \"app.terraform.io\" {token = \"\$TERRAFORM_TOKEN\"}" &gt; \$HOME/.terraformrc
+      - terraform/install:
+          terraform_version: $TF_VERSION
+          arch: "amd64"
+          os: "linux"
+      - run:
+          name: Deploy Application to K8s on DigitalOcean 
+          command: |
+            export CLUSTER_NAME=\${CIRCLE_PROJECT_REPONAME}
+            export TAG=0.1.&lt;&lt; pipeline.number &gt;&gt;
+            export DOCKER_IMAGE="\${DOCKER_LOGIN}/\${CIRCLE_PROJECT_REPONAME}:\$TAG"
+            curl -sL https://github.com/digitalocean/doctl/releases/download/v$DOCTL_VERSION/doctl-$DOCTL_VERSION-linux-amd64.tar.gz | tar -xzv
+            sudo mv doctl /usr/local/bin          
+            cd terraform/do_k8s_deploy_app
+            doctl auth init -t \$DIGITAL_OCEAN_TOKEN
+            doctl kubernetes cluster kubeconfig save \$CLUSTER_NAME
+            terraform init
+            terraform apply -var do_token=\$DIGITAL_OCEAN_TOKEN -var cluster_name=\$CLUSTER_NAME -var docker_image=\$DOCKER_IMAGE -auto-approve
+            # Save the Load Balancer Public IP Address
+            export ENDPOINT="\$(terraform output lb_public_ip)"
+            mkdir -p /tmp/do_k8s/
+            echo 'export ENDPOINT='\${ENDPOINT} &gt; /tmp/do_k8s/dok8s-endpoint
+      - persist_to_workspace:
+          root: /tmp/do_k8s
+          paths:
+            - "*"
+  smoketest_k8s_deployment:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/do_k8s/
+      - run:
+          name: Smoke Test K8s App Deployment
+          command: |
+            source /tmp/do_k8s/dok8s-endpoint
+            ./test/smoke_test \$ENDPOINT              
+  destroy_k8s_cluster:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - checkout
+      - run:
+          name: Create .terraformrc file locally
+          command: echo "credentials \"app.terraform.io\" {token = \"\$TERRAFORM_TOKEN\"}" &gt; \$HOME/.terraformrc &amp;&amp; cat \$HOME/.terraformrc
+      - terraform/install:
+          terraform_version: $TF_VERSION
+          arch: "amd64"
+          os: "linux"
+      - terraform/init:
+          path: ./terraform/do_k8s_deploy_app
+      - run:
+          name: Destroy App Deployment 
+          command: |
+            export CLUSTER_NAME=\${CIRCLE_PROJECT_REPONAME}
+            export TAG=0.1.&lt;&lt; pipeline.number &gt;&gt;
+            export DOCKER_IMAGE="\${DOCKER_LOGIN}/\${CIRCLE_PROJECT_REPONAME}:\$TAG"
+            curl -sL https://github.com/digitalocean/doctl/releases/download/v$DOCTL_VERSION/doctl-$DOCTL_VERSION-linux-amd64.tar.gz | tar -xzv
+            sudo mv doctl /usr/local/bin
+            cd terraform/do_k8s_deploy_app/
+            doctl auth init -t \$DIGITAL_OCEAN_TOKEN
+            doctl kubernetes cluster kubeconfig save \$CLUSTER_NAME
+            terraform init
+            terraform destroy -var do_token=\$DIGITAL_OCEAN_TOKEN -var cluster_name=\$CLUSTER_NAME -var docker_image=\$DOCKER_IMAGE -auto-approve
+      - terraform/init:
+          path: ./terraform/do_create_k8s/ 
+      - run:
+          name: Destroy K8s Cluster
+          command: |
+            export CLUSTER_NAME=\${CIRCLE_PROJECT_REPONAME}
+            export TAG=0.1.&lt;&lt; pipeline.number &gt;&gt;
+            cd terraform/do_create_k8s/
+            terraform init
+            terraform destroy -var do_token=\$DIGITAL_OCEAN_TOKEN -var cluster_name=\$CLUSTER_NAME -auto-approve
+workflows:
+  scan_deploy:
+    jobs:
+      - scan_app
+      - scan_push_docker_image
+      - run_tests
+      - create_do_k8s_cluster
+      - deploy_to_k8s:
+          requires:
+            - create_do_k8s_cluster
+            - scan_push_docker_image
+      - smoketest_k8s_deployment:
+          requires:
+            - deploy_to_k8s
+      - approve_destroy:
+          type: approval
+          requires:
+            - smoketest_k8s_deployment
+      - destroy_k8s_cluster:
+          requires:
+            - approve_destroy
+EOF
+</code></pre>
+
+<p>这个例子是一个Bash脚本，它指定了一个<a href="https://en.wikipedia.org/wiki/Here_document"> heredoc </a>，这是一个在文件中定义文件的方法。该脚本中定义了管道配置语法，并使用参数变量<code>TF_VERSION</code>和<code>DOCTL_VERSION</code>来指定要安装的CLI工具的相应版本号。这些变量在heredoc配置语法中被赋值，并在脚本执行和最终的<code>configs/generated_config.yml</code>文件创建时被应用。这个例子展示了如何使用脚本语言轻松、一致地生成可以与设置工作流完美匹配的动态配置。</p>
+
+<p>该脚本中定义的动态配置:</p>
+
+<ul>
+  <li>定义和执行orb</li>
+  <li>运行单元测试</li>
+  <li>执行安全扫描</li>
+  <li>构建Docker图像</li>
+  <li>使用Terraform在数字海洋上创建一个新的Kubernetes集群</li>
+  <li>使用Terraform将应用部署到新的Kubernetes集群</li>
+  <li>对部署执行验证测试</li>
+  <li>触发销毁Kubernetes集群的批准步骤</li>
+</ul>
+
+<p>这种模式几乎可以用任何语言、框架或栈来实现。对于这个例子，我选择了Bash，但是您可以使用Python、JavaScript或任何其他语言。</p>
+
+<h2>结论</h2>
+
+<p>动态配置使开发人员能够更加灵活地创建定制的CI/CD管道，以执行他们独特的软件开发流程。在这篇文章中，我们介绍了动态配置的概念，并演示了一个用例。当然，动态配置有更多的用例及模式，有助于扩展软件开发选项和定制工作负载编排。</p>
+
+<p>请留意另一篇关于如何基于对特定文件集的更改有条件地运行工作流的文章。这对于在微服务中工作的开发人员或者使用存储在monorepo或单个存储库中的代码的开发人员来说是特别有意义的。这些用户现在可以使用<a href="https://circleci.com/developer/orbs/orb/circleci/path-filtering">路径过滤器orb </a>来验证和测试代码的定制部分。</p>
+
+<p>我期待了解动态配置可以帮助您解决的一些用例及模式。我很想知道你的想法和观点，所以请发推特给我<a href="https://twitter.com/punkdata"> @punkdata </a>或<a href="https://twitter.com/CircleCI"> @circleci </a>加入讨论。</p>
+
+<p>感谢阅读！</p>
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>

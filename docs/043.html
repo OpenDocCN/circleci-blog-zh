@@ -1,0 +1,84 @@
+<html>
+<head>
+<title>Announcing new insights endpoints in CircleCI’s API v2</title>
+<link href="../Styles/Style.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+<h1>在CircleCI的API v2中宣布新的见解端点</h1>
+<blockquote>原文：<a href="https://circleci.com/blog/announcing-new-insights-endpoints-in-circleci-s-api-v2/#2020-04-01T09:00:00-07:00">https://circleci.com/blog/announcing-new-insights-endpoints-in-circleci-s-api-v2/#2020-04-01T09:00:00-07:00</a></blockquote><div><div class="post-content col-xs-12 col-md-10 col-lg-8">
+        
+
+        <p>今天，我们很高兴地宣布CircleCI的API v2 中的insights端点的稳定性。我们的API的最新版本提供了所有的灵活性和智能工程团队想要的，所以你可以得到更多的CircleCI。管道优先的方法提高了测试套件的效率，而我们的insights端点则释放了工作流和消费的关键数据。</p>
+
+<p>在本帖中，我们将概述目前稳定用于生产的端点。</p>
+
+<h2>更多数据意味着更明智的决策</h2>
+<p>insights端点已经预览了几个月，允许用户:</p>
+<ul>
+  <li><strong>跟踪状态— </strong>查看哪些工作失败，哪些工作流有不稳定的测试，并确定流水线改进工作的优先级。</li>
+  <li><strong>监控持续时间— </strong>找出哪些工作流或作业花费的时间最长，并找出缓存、并行化和我们新的便利映像可以帮助加快速度的机会。</li>
+  <li><strong>优化消费— </strong>通过洞察每项工作和/或工作流程的信用支出，优化CircleCI上的使用。可预测的逐月消耗计划。</li>
+</ul>
+
+<p><img src="../Images/5b0bc2e08aa6837d046617d2ff230f9e.png" alt="" data-original-src="https://circleci.com/blog/media/2020-03-31-insights-api-demo.gif"/></p>
+
+<h2>四个新端点</h2>
+<p>借助insights端点，用户可以在工作流和/或工作级别检索信用消费和持续时间的汇总历史数据，以构建自己的仪表盘。端点当前返回项目和分支内特定工作流的数据。</p>
+
+<h3>在作业和工作流级别查看聚合数据</h3>
+<pre><code>GET https://circleci.com/api/v2/insights/{project-slug}/workflows  
+GET https://circleci.com/api/v2/insights/{project-slug}/workflows/{workflow-name}/jobs
+</code></pre>
+<p>检索有关指定分支的项目作业和工作流的聚合数据。有效负载包含以下字段:</p>
+<ul>
+  <li>名字</li>
+  <li>聚集时段开始时间(UTC)</li>
+  <li>聚集时段结束时间(UTC)</li>
+  <li>成功运行</li>
+  <li>失败的运行</li>
+  <li>总运行次数</li>
+  <li>接通率</li>
+  <li>吞吐量(平均运行次数/天)</li>
+  <li>平均恢复时间</li>
+  <li>使用的信用总额</li>
+  <li>持续时间统计:最大值、最小值、平均值、中值、p95、标准差(全部以秒为单位)</li>
+</ul>
+
+<h3>查看作业和工作流执行数据</h3>
+<pre><code>GET https://circleci.com/api/v2/insights/{project-slug}/workflows/{workflow-name}
+GET https://circleci.com/api/v2/insights/{project-slug}/workflows/{workflow-name}/jobs/{job-name}
+</code></pre>
+<p>检索指定分支的命名项目工作流的最近250次运行(或最近90天内的运行，以先到者为准)。有效负载包含以下字段:</p>
+<ul>
+  <li>身份证明</li>
+  <li>状态</li>
+  <li>使用的信用</li>
+  <li>持续时间(秒)</li>
+  <li>创建时间(UTC)</li>
+  <li>停止于(UTC)</li>
+</ul>
+
+<p>查看我们的<a href="https://circleci.com/docs/api/v2/#circleci-api">文档</a>了解更多信息。</p>
+
+<h2>用有意义的度量改进软件交付</h2>
+<p>工程性能是许多组织的首要考虑因素，成功的团队已经发现持续集成是交付成果的关键。在CircleCI，我们非常荣幸能够亲眼目睹这一演变，并在我们的报告<a href="/blog/the-data-driven-case-for-ci-what-30-million-workflows-reveal-about-devops-in-practice/">数据驱动的CI案例</a>中分享了这些发现。</p>
+
+<p>我们的结果证明，竞争情报将高绩效者与其他人区分开来。考虑到这一点，我们很高兴能够继续提供工具和智能，推动团队踏上DevOps之旅。</p>
+
+<p>通过利用这些洞察端点，工程团队可以访问关键的工作流聚合信息，这些信息显示工作流在更长时间内的执行情况，使组织能够跟踪成功/失败率、吞吐量、平均恢复时间以及持续时间指标。类似地，工作流运行数据允许用户跟踪用于特定工作流的执行时间和信用。最后，对作业聚合信息的访问提供了特定工作流中的作业在更长时间内如何执行的概览，从而增强了衡量成功率/失败率和吞吐量的能力。</p>
+
+<p>我们迫不及待地想看到用户如何使用这些数据，并期待继续为我们的客户增强智能。如果您有任何问题或想了解更多信息，请查看以下相关资源或观看<a href="https://www.youtube.com/watch?v=pAupuaIyX7w&amp;feature=youtu.be">circle ci新见解端点</a>网络研讨会，了解您的管道。</p>
+
+<h2>相关:</h2>
+
+
+
+
+        
+          
+          
+        
+      </div>
+    </div>    
+</body>
+</html>
